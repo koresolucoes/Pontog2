@@ -52,6 +52,7 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
         set({ isLoading: true });
     }
 
+    const user = useAuthStore.getState().user;
     let response: any = null;
 
     // Try using paginated RPC first if supported
@@ -79,6 +80,10 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
     let data = response?.data;
     let error = response?.error;
     
+    let fallbackLikes: Record<number, number> = {};
+    let fallbackComments: Record<number, number> = {};
+    let fallbackUserLikes: Set<number> = new Set();
+
     // Fallback to direct query if neither RPC works/exists
     if (error || !response) {
         const offset = (currentPage - 1) * 10;
@@ -93,6 +98,37 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
             .range(offset, offset + 9);
         data = res.data;
         error = res.error;
+
+        if (data && data.length > 0) {
+            const postIds = data.map((p: any) => p.id);
+            
+            // Fetch likes
+            const { data: likesData } = await supabase
+                .from('agora_post_likes')
+                .select('post_id, user_id')
+                .in('post_id', postIds);
+            
+            if (likesData) {
+                likesData.forEach((l: any) => {
+                    fallbackLikes[l.post_id] = (fallbackLikes[l.post_id] || 0) + 1;
+                    if (user && l.user_id === user.id) {
+                        fallbackUserLikes.add(l.post_id);
+                    }
+                });
+            }
+
+            // Fetch comments count (Note: table is actually named 'agora_post_comments' or 'agora_comments' - let's be careful. From line 259 we see it inserts into 'agora_post_comments')
+            const { data: commentsData } = await supabase
+                .from('agora_post_comments')
+                .select('post_id')
+                .in('post_id', postIds);
+            
+            if (commentsData) {
+                commentsData.forEach((c: any) => {
+                    fallbackComments[c.post_id] = (fallbackComments[c.post_id] || 0) + 1;
+                });
+            }
+        }
     }
 
     if (error) {
@@ -101,16 +137,28 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
       return;
     }
     
-    const formattedPosts = (data || []).map((p: any) => ({
-        ...p,
-        username: p.username || p.profiles?.username,
-        photo_url: getPublicImageUrl(p.photo_url),
-        avatar_url: getPublicImageUrl(p.avatar_url || p.profiles?.avatar_url),
-        age: calculateAge(p.date_of_birth || p.profiles?.date_of_birth),
-        likes_count: Number(p.likes_count) || 0,
-        comments_count: Number(p.comments_count) || 0,
-        user_has_liked: !!p.user_has_liked,
-    }));
+    const formattedPosts = (data || []).map((p: any) => {
+        const likesCount = p.likes_count !== undefined && p.likes_count !== null 
+            ? Number(p.likes_count) 
+            : (fallbackLikes[p.id] || 0);
+        const commentsCount = p.comments_count !== undefined && p.comments_count !== null 
+            ? Number(p.comments_count) 
+            : (fallbackComments[p.id] || 0);
+        const userHasLiked = p.user_has_liked !== undefined && p.user_has_liked !== null 
+            ? !!p.user_has_liked 
+            : fallbackUserLikes.has(p.id);
+
+        return {
+            ...p,
+            username: p.username || p.profiles?.username,
+            photo_url: getPublicImageUrl(p.photo_url),
+            avatar_url: getPublicImageUrl(p.avatar_url || p.profiles?.avatar_url),
+            age: calculateAge(p.date_of_birth || p.profiles?.date_of_birth),
+            likes_count: likesCount,
+            comments_count: commentsCount,
+            user_has_liked: userHasLiked,
+        };
+    });
 
     set(state => {
         const newPosts = reset ? formattedPosts : [...state.posts, ...formattedPosts];
@@ -244,9 +292,36 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
     }));
 
     if (hasLiked) {
-      await supabase.from('agora_post_likes').delete().match({ post_id: postId, user_id: user.id });
+      const { error } = await supabase.from('agora_post_likes').delete().match({ post_id: postId, user_id: user.id });
+      if (error) {
+        console.error('Error deleting like:', error);
+        // Revert optimistic update
+        set(state => ({
+          posts: state.posts.map(p => 
+            p.id === postId 
+            ? { ...p, user_has_liked: true, likes_count: (Number(p.likes_count) || 0) + 1 } 
+            : p
+          )
+        }));
+      }
     } else {
-      await supabase.from('agora_post_likes').insert({ post_id: postId, user_id: user.id });
+      const { error } = await supabase.from('agora_post_likes').insert({ post_id: postId, user_id: user.id });
+      if (error) {
+        if (error.code === '23505') {
+          // Unique violation: it was already liked in database, keeping liked state in UI
+          console.log('Post already liked in DB, keeping liked state.');
+        } else {
+          console.error('Error inserting like:', error);
+          // Revert optimistic update
+          set(state => ({
+            posts: state.posts.map(p => 
+              p.id === postId 
+              ? { ...p, user_has_liked: false, likes_count: Math.max(0, (Number(p.likes_count) || 0) - 1) } 
+              : p
+            )
+          }));
+        }
+      }
     }
   },
 
