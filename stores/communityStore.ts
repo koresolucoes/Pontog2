@@ -121,7 +121,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 
             if (error) throw error;
             
-            let posts = (data as any[]).filter(p => !p.tags || !p.tags.includes('join_request'));
+            let posts = (data as any[]).filter(p => !p.tags || (!p.tags.includes('join_request') && !p.tags.includes('comment_like')));
             
             if (userData.user && posts.length > 0) {
                 const postIds = posts.map(p => p.id);

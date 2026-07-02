@@ -33,6 +33,9 @@ interface AgoraState {
   toggleLikeComment: (commentId: number, hasLiked: boolean) => Promise<void>;
 }
 
+let isPaginatedRpcSupported = true;
+let isWithDetailsRpcSupported = true;
+
 export const useAgoraStore = create<AgoraState>((set, get) => ({
   posts: [],
   agoraUserIds: [],
@@ -49,18 +52,35 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
         set({ isLoading: true });
     }
 
-    // Try using paginated RPC first
-    let response = await supabase.rpc('get_active_agora_posts_paginated', { p_page: currentPage, p_limit: 10 });
-    
-    // Fallback to older RPC if paginated doesn't exist yet or fails due to missing tables
-    if (response.error) {
-        response = await supabase.rpc('get_active_agora_posts_with_details');
+    let response: any = null;
+
+    // Try using paginated RPC first if supported
+    if (isPaginatedRpcSupported) {
+        response = await supabase.rpc('get_active_agora_posts_paginated', { p_page: currentPage, p_limit: 10 });
+        if (response?.error) {
+            if (response.error.code === 'PGRST202') {
+                isPaginatedRpcSupported = false;
+            }
+        }
     }
 
-    let { data, error } = response;
+    // Fallback to older RPC if paginated doesn't exist yet or fails, and if the older RPC is supported
+    if (!response || response.error) {
+        if (isWithDetailsRpcSupported) {
+            response = await supabase.rpc('get_active_agora_posts_with_details');
+            if (response?.error) {
+                if (response.error.code === 'PGRST202') {
+                    isWithDetailsRpcSupported = false;
+                }
+            }
+        }
+    }
+
+    let data = response?.data;
+    let error = response?.error;
     
-    // Fallback to direct query if neither RPC works
-    if (error) {
+    // Fallback to direct query if neither RPC works/exists
+    if (error || !response) {
         const offset = (currentPage - 1) * 10;
         const res = await supabase
             .from('agora_posts')
