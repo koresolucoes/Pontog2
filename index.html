@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Ponto G. Direto ao ponto.</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="https://wwmiqdovqgysncmqnmvp.supabase.co/storage/v1/object/public/venues/Logo/Logo.png" />
+  
+  <!-- Theme Color for PWA -->
+  <meta name="theme-color" content="#050505" />
+  
+  <!-- Basic SEO and App Info -->
+  <meta name="description" content="Encontros gays, sem enrolação. O Ponto G te conecta com caras por perto que buscam o mesmo que você. Rápido, direto e discreto." />
+  
+  <!-- Google AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-9015745232467355">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9015745232467355"
+     crossorigin="anonymous"></script>
+
+  <!-- Tailwind CSS Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              950: '#020203', // Almost black
+              900: '#050505', // OLED Black
+              800: '#0A0A0C',
+              700: '#121214',
+            },
+            primary: {
+              500: '#F50C69', // Nocturnal Pulse Pink
+              600: '#D40A5B',
+            },
+            secondary: {
+              500: '#810DF7', // Nocturnal Pulse Purple
+              600: '#6A0BC7',
+            },
+            tertiary: {
+              500: '#27AE60', // Nocturnal Pulse Green
+              600: '#219653',
+            }
+          },
+          fontFamily: {
+            outfit: ['Outfit', 'sans-serif'],
+            inter: ['Outfit', 'sans-serif'], // Use Outfit for everything as per design
+            sans: ['Outfit', 'sans-serif'],
+          },
+          animation: {
+            'float': 'float 6s ease-in-out infinite',
+            'pulse-fire': 'pulse-fire 2s infinite',
+            'fade-in': 'fadeIn 0.3s ease-out forwards',
+            'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+            'slide-in-up': 'slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'radar-spin': 'radarSpin 3s linear infinite',
+            'spin-slow': 'spin 3s linear infinite',
+            'spin-reverse': 'spinReverse 4s linear infinite',
+            'spin-reverse-slow': 'spinReverse 8s linear infinite',
+            'ping-slow': 'pingSlow 3s cubic-bezier(0, 0, 0.2, 1) infinite',
+            'ripple': 'ripple 3s cubic-bezier(0, 0.2, 0.8, 1) infinite',
+            'blob': 'blob 10s infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-10px)' },
+            },
+            'pulse-fire': {
+              '0%': { boxShadow: '0 0 0 0 rgba(245, 12, 105, 0.7)' },
+              '70%': { boxShadow: '0 0 0 10px rgba(245, 12, 105, 0)' },
+              '100%': { boxShadow: '0 0 0 0 rgba(245, 12, 105, 0)' },
+            },
+            fadeIn: {
+                'from': { opacity: '0' },
+                'to': { opacity: '1' }
+            },
+            fadeInUp: {
+                'from': { opacity: '0', transform: 'translateY(20px)' },
+                'to': { opacity: '1', transform: 'translateY(0)' }
+            },
+            slideInUp: {
+                'from': { transform: 'translateY(100%)', opacity: '0' },
+                'to': { transform: 'translateY(0)', opacity: '1' }
+            },
+            radarSpin: {
+                'from': { transform: 'rotate(0deg)' },
+                'to': { transform: 'rotate(360deg)' }
+            },
+            spinReverse: {
+                'from': { transform: 'rotate(360deg)' },
+                'to': { transform: 'rotate(0deg)' }
+            },
+            pingSlow: {
+                '75%, 100%': { transform: 'scale(2)', opacity: '0' }
+            },
+            ripple: {
+                '0%': { top: '50%', left: '50%', width: '0', height: '0', opacity: '1' },
+                '100%': { top: '0', left: '0', width: '100%', height: '100%', opacity: '0' }
+            },
+            blob: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+              '100%': { transform: 'translate(0px, 0px) scale(1)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Google Material Symbols -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+  <!-- Import Map for dependencies -->
+  <script type="importmap">
+{
+  "imports": {
+    "@vercel/node": "https://aistudiocdn.com/@vercel/node@^5.3.26",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.24.0",
+    "leaflet": "https://aistudiocdn.com/leaflet@^1.9.4",
+    "zustand": "https://aistudiocdn.com/zustand@^5.0.8",
+    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.75.0",
+    "date-fns/": "https://aistudiocdn.com/date-fns@^4.1.0/",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
+    "react-hot-toast": "https://aistudiocdn.com/react-hot-toast@^2.6.0",
+    "web-push": "https://aistudiocdn.com/web-push@^3.6.7",
+    "crypto": "https://aistudiocdn.com/crypto@^1.0.1",
+    "zustand/": "https://aistudiocdn.com/zustand@^5.0.8/",
+    "jsonwebtoken": "https://aistudiocdn.com/jsonwebtoken@^9.0.2",
+    "buffer": "https://aistudiocdn.com/buffer@^6.0.3"
+  }
+}
+</script>
+
+  <!-- Leaflet CSS for map styling -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+   integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+   crossorigin=""/>
+
+  <!-- Custom Styles -->
+  <style>
+    /* Basic reset and body styling */
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif; /* Body font */
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-color: #050505;
+      color: #f8fafc;
+      overflow-x: hidden;
+      /* Safe area for mobile navigation bar */
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Outfit', sans-serif; /* Headings font */
+    }
+    
+    /* Glassmorphism Utilities - Premium */
+    .glass-panel {
+        background: rgba(20, 20, 25, 0.75);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Google Material Symbols default style */
+    .material-symbols-rounded {
+      font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24;
+      user-select: none; /* Prevents text selection of icons */
+    }
+    .material-symbols-rounded.filled {
+      font-variation-settings: 'FILL' 1;
+    }
+
+    /* Leaflet popup customization */
+    .leaflet-popup-content-wrapper {
+        background: rgba(10, 10, 12, 0.9);
+        backdrop-filter: blur(12px);
+        color: #f8fafc;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+        padding: 0;
+    }
+    .leaflet-popup-content {
+        margin: 12px 16px;
+        line-height: 1.5;
+        font-family: 'Outfit', sans-serif;
+    }
+    .leaflet-popup-tip {
+        background: rgba(10, 10, 12, 0.9);
+    }
+    
+    /* Modern Scrollbar - Slim & Dark */
+    ::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+    
+    /* Utility for hiding scrollbar but allowing scroll */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    /* Mask Image utilities for fade out lists */
+    .mask-image-b {
+        mask-image: linear-gradient(to bottom, black 90%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to bottom, black 90%, transparent 100%);
+    }
+  </style>
+
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <noscript>Você precisa habilitar o JavaScript para rodar este aplicativo.</noscript>
+  <div id="root"></div>
+  
+  <!-- Main application script -->
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "short_name": "Ponto G",
+  "name": "Ponto G: Encontros Gays",
+  "description": "Encontros gays, sem enrolação. O Ponto G te conecta com caras por perto que buscam o mesmo que você. Rápido, direto e discreto.",
+  "icons": [
+    {
+      "src": "https://wwmiqdovqgysncmqnmvp.supabase.co/storage/v1/object/public/venues/Logo/Logo.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://wwmiqdovqgysncmqnmvp.supabase.co/storage/v1/object/public/venues/Logo/Logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#db2777",
+  "background_color": "#0f172a"
+}

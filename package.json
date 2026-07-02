@@ -1,0 +1,38 @@
+{
+  "name": "ponto-g",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.24.0",
+    "@supabase/supabase-js": "^2.75.0",
+    "@tanstack/react-virtual": "^3.14.4",
+    "@vercel/node": "^5.3.26",
+    "buffer": "^6.0.3",
+    "crypto": "^1.0.1",
+    "date-fns": "^4.1.0",
+    "face-api.js": "^0.22.2",
+    "i18next": "^26.3.4",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "leaflet": "^1.9.4",
+    "motion": "^12.42.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-hot-toast": "^2.6.0",
+    "react-i18next": "^17.0.8",
+    "web-push": "^3.6.7",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
