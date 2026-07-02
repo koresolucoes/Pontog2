@@ -190,6 +190,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                 {t('landing.local_highlights', { defaultValue: 'Destaques Locais' })}
             </button>
         </div>
+
+        {/* Live Interactive Stats Counter */}
+        <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto w-full animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+            <div className="bg-slate-800/40 backdrop-blur-md border border-white/5 rounded-2xl p-5 hover:border-primary-500/30 transition-all duration-300 shadow-lg group">
+                <div className="flex justify-center mb-1 text-primary-500 group-hover:scale-110 transition-transform">
+                    <span className="material-symbols-rounded text-3xl animate-pulse">sensors</span>
+                </div>
+                <div className="text-2xl font-black font-outfit text-white">
+                    1.420+
+                </div>
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">
+                    {t('landing.stats_online', { defaultValue: 'Ativos Hoje' })}
+                </div>
+            </div>
+            
+            <div className="bg-slate-800/40 backdrop-blur-md border border-white/5 rounded-2xl p-5 hover:border-secondary-500/30 transition-all duration-300 shadow-lg group">
+                <div className="flex justify-center mb-1 text-secondary-500 group-hover:scale-110 transition-transform">
+                    <span className="material-symbols-rounded text-3xl">map</span>
+                </div>
+                <div className="text-2xl font-black font-outfit text-white">
+                    480+
+                </div>
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">
+                    {t('landing.stats_venues', { defaultValue: 'Pontos Mapeados' })}
+                </div>
+            </div>
+
+            <div className="bg-slate-800/40 backdrop-blur-md border border-white/5 rounded-2xl p-5 hover:border-indigo-500/30 transition-all duration-300 shadow-lg group">
+                <div className="flex justify-center mb-1 text-indigo-400 group-hover:scale-110 transition-transform">
+                    <span className="material-symbols-rounded text-3xl">forum</span>
+                </div>
+                <div className="text-2xl font-black font-outfit text-white">
+                    25+
+                </div>
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">
+                    {t('landing.stats_communities', { defaultValue: 'Comunidades' })}
+                </div>
+            </div>
+
+            <div className="bg-slate-800/40 backdrop-blur-md border border-white/5 rounded-2xl p-5 hover:border-green-400/30 transition-all duration-300 shadow-lg group">
+                <div className="flex justify-center mb-1 text-green-400 group-hover:scale-110 transition-transform">
+                    <span className="material-symbols-rounded text-3xl">verified_user</span>
+                </div>
+                <div className="text-2xl font-black font-outfit text-white">
+                    100%
+                </div>
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">
+                    {t('landing.stats_discrete', { defaultValue: 'Seguro & Privado' })}
+                </div>
+            </div>
+        </div>
       </header>
 
       {/* News Section */}
@@ -371,17 +422,52 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                       
                       <div className="space-y-6">
                           <div className="flex gap-4">
-                              <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0 text-green-400">
+                              <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0 text-green-400 border border-white/5 shadow-md">
                                   <span className="material-symbols-rounded filled text-2xl">verified_user</span>
                               </div>
                               <div>
                                   <h4 className="text-white font-bold text-lg">{t('landing.safety_first', { defaultValue: 'Segurança em Primeiro Lugar' })}</h4>
                                   <p className="text-slate-400 text-sm leading-relaxed">
-                                      {t('landing.safety_first_desc', { defaultValue: 'Ferramentas de denúncia, bloqueio e verificação de perfil.' })}
+                                      {t('landing.safety_first_desc', { defaultValue: 'Ferramentas de denúncia robustas, bloqueio rápido e verificação de perfil opcional para conexões 100% autênticas.' })}
                                   </p>
                               </div>
                           </div>
-                          {/* ... more items ... */}
+                          
+                          <div className="flex gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0 text-red-400 border border-white/5 shadow-md">
+                                  <span className="material-symbols-rounded filled text-2xl">lock</span>
+                              </div>
+                              <div>
+                                  <h4 className="text-white font-bold text-lg">{t('landing.private_albums', { defaultValue: 'Álbuns Privados & Discrição' })}</h4>
+                                  <p className="text-slate-400 text-sm leading-relaxed">
+                                      {t('landing.private_albums_desc', { defaultValue: 'Controle de privacidade absoluto. Suas fotos mais reservadas em álbuns seguros que você decide quem pode e quando pode visualizar.' })}
+                                  </p>
+                              </div>
+                          </div>
+
+                          <div className="flex gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0 text-amber-500 border border-white/5 shadow-md">
+                                  <span className="material-symbols-rounded filled text-2xl">local_fire_department</span>
+                              </div>
+                              <div>
+                                  <h4 className="text-white font-bold text-lg">{t('landing.instant_now', { defaultValue: 'Modo Agora 🔥 (Instantâneo)' })}</h4>
+                                  <p className="text-slate-400 text-sm leading-relaxed">
+                                      {t('landing.instant_now_desc', { defaultValue: 'Seja a atração da sua região! Publique uma foto no Modo Agora para aparecer no topo da lista por 1 hora, de forma direta e envolvente.' })}
+                                  </p>
+                              </div>
+                          </div>
+
+                          <div className="flex gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0 text-blue-400 border border-white/5 shadow-md">
+                                  <span className="material-symbols-rounded filled text-2xl">explore</span>
+                              </div>
+                              <div>
+                                  <h4 className="text-white font-bold text-lg">{t('landing.live_radar', { defaultValue: 'Radar & Check-in ao Vivo' })}</h4>
+                                  <p className="text-slate-400 text-sm leading-relaxed">
+                                      {t('landing.live_radar_desc', { defaultValue: 'Explore saunas, bares, cinemas e cruising na sua região com cálculo de distância real e veja quem fez check-in nos locais parceiros.' })}
+                                  </p>
+                              </div>
+                          </div>
                       </div>
                   </div>
 

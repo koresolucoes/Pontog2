@@ -107,6 +107,9 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
         photo_url: getPublicImageUrl(p.photo_url),
         avatar_url: getPublicImageUrl(p.avatar_url || p.profiles?.avatar_url),
         age: calculateAge(p.date_of_birth || p.profiles?.date_of_birth),
+        likes_count: Number(p.likes_count) || 0,
+        comments_count: Number(p.comments_count) || 0,
+        user_has_liked: !!p.user_has_liked,
     }));
 
     set(state => {
@@ -235,7 +238,7 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
     set(state => ({
       posts: state.posts.map(p => 
         p.id === postId 
-        ? { ...p, user_has_liked: !hasLiked, likes_count: hasLiked ? p.likes_count - 1 : p.likes_count + 1 } 
+        ? { ...p, user_has_liked: !hasLiked, likes_count: hasLiked ? Math.max(0, (Number(p.likes_count) || 0) - 1) : (Number(p.likes_count) || 0) + 1 } 
         : p
       )
     }));
@@ -260,7 +263,7 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
     } else {
         set(state => ({
             posts: state.posts.map(p =>
-                p.id === postId ? { ...p, comments_count: p.comments_count + 1 } : p
+                p.id === postId ? { ...p, comments_count: (Number(p.comments_count) || 0) + 1 } : p
             )
         }));
     }

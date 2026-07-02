@@ -65,7 +65,7 @@ export const AgoraPostDetailModal: React.FC<AgoraPostDetailModalProps> = ({ post
     const hasLiked = comment.user_has_liked;
     setComments(prevComments =>
       prevComments.map(c =>
-        c.id === commentId ? { ...c, user_has_liked: !hasLiked, likes_count: hasLiked ? c.likes_count - 1 : c.likes_count + 1 } : c
+        c.id === commentId ? { ...c, user_has_liked: !hasLiked, likes_count: hasLiked ? Math.max(0, (Number(c.likes_count) || 0) - 1) : (Number(c.likes_count) || 0) + 1 } : c
       )
     );
     await toggleLikeComment(commentId, hasLiked);

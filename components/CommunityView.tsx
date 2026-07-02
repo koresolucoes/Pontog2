@@ -28,6 +28,7 @@ export const CommunityView: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         fetchCommunities();
@@ -54,7 +55,15 @@ export const CommunityView: React.FC = () => {
         }
     };
 
-    const displayCommunities = activeTab === 'all' ? communities : myCommunities;
+    const displayCommunities = (activeTab === 'all' ? communities : myCommunities).filter(community => {
+        const query = searchQuery.toLowerCase().trim();
+        if (!query) return true;
+        return (
+            (community.name && community.name.toLowerCase().includes(query)) ||
+            (community.description && community.description.toLowerCase().includes(query)) ||
+            (community.tags && community.tags.some(tag => tag.toLowerCase().includes(query)))
+        );
+    });
 
     return (
         <div className="h-full flex flex-col bg-dark-900 text-slate-50 relative">
@@ -87,6 +96,29 @@ export const CommunityView: React.FC = () => {
                     >
                         Minhas Comunidades
                     </button>
+                </div>
+
+                <div className="px-6 mt-4 pb-2">
+                    <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 material-symbols-rounded">
+                            search
+                        </span>
+                        <input
+                            type="text"
+                            placeholder="Buscar comunidades..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-primary-500 transition-colors"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-white"
+                            >
+                                <span className="material-symbols-rounded text-base">close</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </header>
 
