@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useCommunityStore } from '../stores/communityStore';
 import { useAuthStore } from '../stores/authStore';
+import { useUiStore } from '../stores/uiStore';
 import { Community, CommunityPost } from '../types';
 import { toast } from 'react-hot-toast';
 import { CommunityPostDetailModal } from './CommunityPostDetailModal';
@@ -42,8 +44,13 @@ export const CommunityView: React.FC = () => {
             await leaveCommunity(communityId);
             toast.success('Você saiu da comunidade.');
         } else {
-            await joinCommunity(communityId);
-            toast.success('Você entrou na comunidade!');
+            const comm = communities.find(c => c.id === communityId);
+            if (comm?.is_private) {
+                setSelectedCommunity(comm);
+            } else {
+                await joinCommunity(communityId);
+                toast.success('Você entrou na comunidade!');
+            }
         }
     };
 
@@ -177,24 +184,128 @@ export const CommunityView: React.FC = () => {
     );
 };
 
+// Modal: Join Private Community
+const JoinPrivateCommunityModal: React.FC<{ community: Community, onClose: () => void }> = ({ community, onClose }) => {
+    const { submitJoinRequest } = useCommunityStore();
+    
+    let parsedRules = community.rules || '';
+    let parsedQuestions: string[] = [];
+    try {
+        if (parsedRules.startsWith('{')) {
+            const data = JSON.parse(parsedRules);
+            parsedQuestions = data.questions || [];
+        }
+    } catch(e) {}
+
+    const [answers, setAnswers] = useState<string[]>(Array(parsedQuestions.length).fill(''));
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        const payload = parsedQuestions.map((q, i) => ({ q, a: answers[i] }));
+        await submitJoinRequest(community.id, payload);
+        setIsSubmitting(false);
+        import('react-hot-toast').then(({ default: toast }) => toast.success('Solicitação enviada!'));
+        onClose();
+    };
+
+    return typeof document !== 'undefined' ? createPortal(
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-dark-800 rounded-3xl p-6 w-full max-w-md border border-white/10">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold font-outfit text-white">Entrar em {community.name}</h2>
+                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white"><span className="material-symbols-rounded text-[20px]">close</span></button>
+                </div>
+                {parsedQuestions.length > 0 ? (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <p className="text-sm text-slate-400 mb-4">Responda às perguntas abaixo para solicitar entrada:</p>
+                        {parsedQuestions.map((q, i) => (
+                            <div key={i}>
+                                <label className="block text-sm font-medium text-white mb-1">{q}</label>
+                                <textarea required value={answers[i]} onChange={e => { const n = [...answers]; n[i] = e.target.value; setAnswers(n); }} className="w-full bg-dark-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary-500 outline-none min-h-[80px]" />
+                            </div>
+                        ))}
+                        <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-primary-500 text-white rounded-xl font-bold hover:bg-primary-600 transition-colors mt-4 disabled:opacity-50">Enviar Solicitação</button>
+                    </form>
+                ) : (
+                    <div className="text-center">
+                        <p className="text-slate-400 mb-6">Esta comunidade é privada. Deseja solicitar entrada?</p>
+                        <button onClick={handleSubmit} disabled={isSubmitting} className="w-full py-4 bg-primary-500 text-white rounded-xl font-bold hover:bg-primary-600 transition-colors">Solicitar Entrada</button>
+                    </div>
+                )}
+            </motion.div>
+        </motion.div>,
+        document.body
+    ) : null;
+};
+
 // Modal: Community Details & Posts
 const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void, isMember: boolean, onJoinLeave: () => void }> = ({ community, onClose, isMember, onJoinLeave }) => {
-    const { currentCommunityPosts, fetchCommunityPosts, createPost, loading } = useCommunityStore();
+    const { communities, myCommunities, currentCommunityPosts, fetchCommunityPosts, createPost, loading } = useCommunityStore();
+    const activeCommunity = communities.find(c => c.id === community.id) || myCommunities.find(c => c.id === community.id) || community;
+
     const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
     const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
     const [myRole, setMyRole] = useState<string | null>(null);
     const [isManageMembersOpen, setIsManageMembersOpen] = useState(false);
     const [isEditCommunityOpen, setIsEditCommunityOpen] = useState(false);
     const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
+    const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
+    const { user: currentUser } = useAuthStore();
 
     const [initialPostMedia, setInitialPostMedia] = useState<File | null>(null);
+    const [initialPostAction, setInitialPostAction] = useState<'gif' | 'feeling' | 'location' | null>(null);
+
+    const setCommunityPostCreateOpen = useUiStore(state => state.setCommunityPostCreateOpen);
+
+    const canEditOrDelete = (post: CommunityPost) => {
+        if (!currentUser) return false;
+        if (post.author_id === currentUser.id) return true;
+        if (myRole === 'admin' || myRole === 'moderator') return true;
+        return false;
+    };
+
+    const handleEditPost = async (post: CommunityPost) => {
+        const newContent = prompt('Editar publicação:', post.content);
+        if (newContent !== null) {
+            if (!newContent.trim()) {
+                toast.error('O conteúdo não pode estar vazio');
+                return;
+            }
+            try {
+                await useCommunityStore.getState().editPost(post.id, activeCommunity.id);
+                toast.success('Publicação editada com sucesso!');
+            } catch (e) {
+                toast.error('Erro ao editar publicação');
+            }
+        }
+    };
+
+    const handleDeletePost = async (postId: string) => {
+        if (confirm('Tem certeza que deseja apagar esta publicação?')) {
+            try {
+                await useCommunityStore.getState().deletePost(postId, activeCommunity.id);
+                toast.success('Publicação excluída com sucesso!');
+            } catch (e) {
+                toast.error('Erro ao excluir publicação');
+            }
+        }
+    };
 
     useEffect(() => {
-        fetchCommunityPosts(community.id);
-        useCommunityStore.getState().fetchMyRole(community.id).then(r => setMyRole(r));
-    }, [community.id, fetchCommunityPosts]);
+        setCommunityPostCreateOpen(isCreatePostOpen);
+        return () => setCommunityPostCreateOpen(false);
+    }, [isCreatePostOpen, setCommunityPostCreateOpen]);
 
-    return (
+    useEffect(() => {
+        fetchCommunityPosts(activeCommunity.id);
+        useCommunityStore.getState().fetchMyRole(activeCommunity.id).then(r => setMyRole(r));
+    }, [activeCommunity.id, fetchCommunityPosts]);
+
+    return typeof document !== 'undefined' ? createPortal(
         <motion.div
             initial={{ opacity: 0, x: '100%' }}
             animate={{ opacity: 1, x: 0 }}
@@ -202,9 +313,9 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed inset-0 z-50 bg-dark-900 flex flex-col"
         >
-                        <div className="relative h-48 bg-slate-800 flex-shrink-0">
-                {community.cover_image_url ? (
-                    <img src={community.cover_image_url} alt={community.name} className="w-full h-full object-cover opacity-60" />
+            <div className="relative h-48 bg-slate-800 flex-shrink-0">
+                {activeCommunity.cover_image_url ? (
+                    <img src={activeCommunity.cover_image_url} alt={activeCommunity.name} className="w-full h-full object-cover opacity-60" />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-900/50 to-dark-900"> 
                         <span className="material-symbols-rounded text-6xl text-primary-500/50">groups</span>
@@ -214,29 +325,111 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                 <button onClick={onClose} className="absolute top-4 left-4 w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white backdrop-blur-md z-10">
                     <span className="material-symbols-rounded">arrow_back</span>
                 </button>
-                <div className="absolute bottom-0 left-0 right-0 p-6 flex items-end gap-4 transform translate-y-4">
-                    <div className="w-24 h-24 rounded-2xl bg-slate-700 overflow-hidden border-4 border-dark-900 shadow-xl flex-shrink-0 relative z-10">
-                        {community.avatar_url ? (
-                            <img src={community.avatar_url} alt={community.name} className="w-full h-full object-cover bg-slate-800" />
-                        ) : (
-                            <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-4xl text-slate-500 bg-slate-800">groups</span>
+                <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4 transform translate-y-4">
+                    <div className="flex items-end gap-4">
+                        <div className="w-24 h-24 rounded-2xl bg-slate-700 overflow-hidden border-4 border-dark-900 shadow-xl flex-shrink-0 relative z-10">
+                            {activeCommunity.avatar_url ? (
+                                <img src={activeCommunity.avatar_url} alt={activeCommunity.name} className="w-full h-full object-cover bg-slate-800" />
+                            ) : (
+                                <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-4xl text-slate-500 bg-slate-800">groups</span>
+                            )}
+                        </div>
+                        <div className="flex-1 pb-4">
+                            <h2 className="text-2xl font-bold text-white font-outfit">{activeCommunity.name}</h2>
+                            <p className="text-slate-300 text-sm mt-1 line-clamp-2">{activeCommunity.description}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 mb-4 z-10">
+                        {(myRole === 'admin' || myRole === 'moderator') && (
+                            <button 
+                                onClick={() => setIsManageMembersOpen(true)}
+                                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-full text-sm font-bold shadow-lg flex items-center gap-1.5"
+                                title="Gerenciar Membros e Solicitações"
+                            >
+                                <span className="material-symbols-rounded text-base">manage_accounts</span>
+                                <span className="text-xs">Gerenciar</span>
+                            </button>
                         )}
+                        {myRole === 'admin' && (
+                            <button 
+                                onClick={() => setIsEditCommunityOpen(true)}
+                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-full text-sm font-bold shadow-lg flex items-center gap-1.5 border border-white/10"
+                                title="Editar Comunidade"
+                            >
+                                <span className="material-symbols-rounded text-base">settings</span>
+                            </button>
+                        )}
+                        <button 
+                            onClick={() => {
+                                if (!isMember && activeCommunity.is_private) {
+                                    setIsJoinModalOpen(true);
+                                } else {
+                                    onJoinLeave();
+                                }
+                            }}
+                            className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg ${
+                                isMember ? 'bg-white/10 text-white hover:bg-white/20 border border-white/20' : 'bg-white text-black hover:bg-slate-200'
+                            }`}
+                        >
+                            {isMember ? 'Sair' : 'Participar'}
+                        </button>
                     </div>
-                    <div className="flex-1 pb-4">
-                        <h2 className="text-2xl font-bold text-white font-outfit">{community.name}</h2>
-                        <p className="text-slate-300 text-sm mt-1 line-clamp-2">{community.description}</p>
-                    </div>
-                    <button 
-                        onClick={onJoinLeave}
-                        className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg mb-4 ${
-                            isMember ? 'bg-white/10 text-white hover:bg-white/20 border border-white/20' : 'bg-white text-black hover:bg-slate-200'
-                        }`}
-                    >
-                        {isMember ? 'Sair' : 'Participar'}
-                    </button>
                 </div>
             </div>
             <div className="flex-1 overflow-y-auto bg-dark-900 pb-24 pt-6">
+                {/* Expandable About & Rules Card */}
+                <div className="mx-4 mb-4 bg-slate-800/40 border border-white/5 rounded-2xl overflow-hidden transition-all duration-300 shadow-md">
+                    <button 
+                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-rounded text-primary-500 text-[20px]">info</span>
+                            <span className="font-bold text-sm text-white font-outfit">Sobre & Regras da Comunidade</span>
+                        </div>
+                        <span className="material-symbols-rounded text-slate-400 transform transition-transform duration-300" style={{ transform: isDescriptionExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                            expand_more
+                        </span>
+                    </button>
+                    {isDescriptionExpanded && (
+                        <div className="p-4 border-t border-white/5 space-y-3 bg-dark-950/40 text-sm">
+                            <div>
+                                <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider mb-1">Descrição</h4>
+                                <p className="text-slate-200 whitespace-pre-wrap leading-relaxed">{activeCommunity.description || 'Nenhuma descrição fornecida.'}</p>
+                            </div>
+                            
+                            <div className="pt-3 border-t border-white/5">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider">Regras Exclusivas</h4>
+                                    {myRole === 'admin' && (
+                                        <button 
+                                            onClick={() => setIsEditCommunityOpen(true)}
+                                            className="text-xs text-primary-400 hover:text-primary-300 font-semibold flex items-center gap-1"
+                                        >
+                                            <span className="material-symbols-rounded text-xs">edit</span> Editar Regras
+                                        </button>
+                                    )}
+                                </div>
+                                {(() => {
+                                    let parsedRules = activeCommunity.rules || '';
+                                    try {
+                                        if (parsedRules.startsWith('{')) {
+                                            const data = JSON.parse(parsedRules);
+                                            parsedRules = data.text || '';
+                                        }
+                                    } catch(e) {}
+                                    
+                                    if (parsedRules.trim()) {
+                                        return <p className="text-slate-200 whitespace-pre-wrap leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">{parsedRules}</p>;
+                                    } else {
+                                        return <p className="text-slate-400 italic">Nenhuma regra exclusiva definida para esta comunidade ainda.</p>;
+                                    }
+                                })()}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 {/* Compose Post Trigger */}
                 {isMember ? (
                     <div className="flex gap-3 p-4 border-b border-white/10 hover:bg-slate-800/30 transition-colors">
@@ -264,9 +457,9 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                                     }} />
                                     <span className="material-symbols-rounded text-primary-500 text-xl">image</span>
                                 </label>
-                                <button onClick={() => { setInitialPostMedia(null); setIsCreatePostOpen(true); }} className="flex items-center hover:bg-white/10 p-1 rounded-full"><span className="material-symbols-rounded text-primary-500 text-xl">gif_box</span></button>
-                                <button onClick={() => { setInitialPostMedia(null); setIsCreatePostOpen(true); }} className="flex items-center hover:bg-white/10 p-1 rounded-full"><span className="material-symbols-rounded text-primary-500 text-xl">sentiment_satisfied</span></button>
-                                <button onClick={() => { setInitialPostMedia(null); setIsCreatePostOpen(true); }} className="flex items-center hover:bg-white/10 p-1 rounded-full"><span className="material-symbols-rounded text-primary-500 text-xl">location_on</span></button>
+                                <button onClick={() => { setInitialPostMedia(null); setInitialPostAction('gif'); setIsCreatePostOpen(true); }} className="flex items-center hover:bg-white/10 p-1 rounded-full"><span className="material-symbols-rounded text-primary-500 text-xl">gif_box</span></button>
+                                <button onClick={() => { setInitialPostMedia(null); setInitialPostAction('feeling'); setIsCreatePostOpen(true); }} className="flex items-center hover:bg-white/10 p-1 rounded-full"><span className="material-symbols-rounded text-primary-500 text-xl">sentiment_satisfied</span></button>
+                                <button onClick={() => { setInitialPostMedia(null); setInitialPostAction('location'); setIsCreatePostOpen(true); }} className="flex items-center hover:bg-white/10 p-1 rounded-full"><span className="material-symbols-rounded text-primary-500 text-xl">location_on</span></button>
                             </div>
                         </div>
                     </div>
@@ -311,22 +504,92 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                                             <span className="text-slate-500 text-sm">·</span>
                                             <span className="text-slate-500 text-sm hover:underline cursor-pointer">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric'})}</span>
                                         </div>
-                                        <button 
-                                            onClick={() => toast('Denúncia enviada.')} 
-                                            className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0"
-                                            title="Denunciar"
-                                        >
-                                            <span className="material-symbols-rounded text-lg">more_horiz</span>
-                                        </button>
+                                        <div className="relative">
+                                            <button 
+                                                onClick={() => setActivePostMenu(activePostMenu === post.id ? null : post.id)} 
+                                                className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0 p-1 rounded-full hover:bg-white/5"
+                                                title="Opções"
+                                            >
+                                                <span className="material-symbols-rounded text-lg">more_horiz</span>
+                                            </button>
+                                            {activePostMenu === post.id && (
+                                                <>
+                                                    {/* Backdrop overlay for closing menu */}
+                                                    <div className="fixed inset-0 z-[60]" onClick={() => setActivePostMenu(null)} />
+                                                    <div className="absolute right-0 mt-1 w-36 bg-slate-900 border border-white/10 rounded-xl shadow-xl z-[70] py-1 overflow-hidden">
+                                                        <button 
+                                                            onClick={() => {
+                                                                setActivePostMenu(null);
+                                                                toast.success('Denúncia enviada à moderação.');
+                                                            }}
+                                                            className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-white/5 flex items-center gap-2 font-medium"
+                                                        >
+                                                            <span className="material-symbols-rounded text-sm text-red-400">report</span>
+                                                            Denunciar
+                                                        </button>
+                                                        {canEditOrDelete(post) && (
+                                                            <>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setActivePostMenu(null);
+                                                                        handleEditPost(post);
+                                                                    }}
+                                                                    className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-white/5 flex items-center gap-2 font-medium"
+                                                                >
+                                                                    <span className="material-symbols-rounded text-sm text-blue-400">edit</span>
+                                                                    Editar
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setActivePostMenu(null);
+                                                                        handleDeletePost(post.id);
+                                                                    }}
+                                                                    className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-white/5 flex items-center gap-2 font-medium border-t border-white/5"
+                                                                >
+                                                                    <span className="material-symbols-rounded text-sm text-red-500">delete</span>
+                                                                    Eliminar
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
-                                                                        <p className="text-slate-100 text-[15px] leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
+                                    <p className="text-slate-100 text-[15px] leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
                                     {post.tags && post.tags.length > 0 && (
                                         <div className="flex flex-wrap gap-2 mt-2 mb-2">
                                             {post.tags.map((tag: string, idx: number) => {
                                                 if (tag.startsWith('privacy:')) return null;
-                                                if (tag.startsWith('feeling:')) return <span key={idx} className="bg-slate-800 text-yellow-400 text-xs px-2 py-1 rounded-md font-medium border border-yellow-400/20">Sentimento: {tag.split(':')[1]}</span>;
-                                                if (tag.startsWith('location:')) return <span key={idx} className="bg-slate-800 text-green-400 text-xs px-2 py-1 rounded-md font-medium border border-green-400/20"><span className="material-symbols-rounded text-[12px] align-middle mr-1">location_on</span>{tag.split(':')[1]}</span>;
-                                                return <span key={idx} className="bg-slate-800 text-primary-400 text-xs px-2 py-1 rounded-md font-medium border border-primary-500/20">#{tag}</span>;
+                                                if (tag.startsWith('feeling:')) {
+                                                    const feel = tag.split(':')[1];
+                                                    let colorClasses = 'bg-slate-800 text-yellow-400 border-yellow-400/20';
+                                                    const text = feel.toLowerCase();
+                                                    if (text.includes('feliz')) {
+                                                        colorClasses = 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20';
+                                                    } else if (text.includes('quente')) {
+                                                        colorClasses = 'bg-red-500/10 text-red-300 border-red-500/20';
+                                                    } else if (text.includes('ousado') || text.includes('😈')) {
+                                                        colorClasses = 'bg-purple-500/10 text-purple-300 border-purple-500/20';
+                                                    } else if (text.includes('focado') || text.includes('💪')) {
+                                                        colorClasses = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
+                                                    } else if (text.includes('confiante')) {
+                                                        colorClasses = 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20';
+                                                    } else if (text.includes('festeiro') || text.includes('festa') || text.includes('🎉')) {
+                                                        colorClasses = 'bg-pink-500/10 text-pink-300 border-pink-500/20';
+                                                    } else if (text.includes('cansado') || text.includes('😴')) {
+                                                        colorClasses = 'bg-slate-500/10 text-slate-300 border-slate-500/20';
+                                                    } else if (text.includes('orgulhoso') || text.includes('🏳️‍🌈')) {
+                                                        colorClasses = 'bg-gradient-to-r from-red-500/10 via-yellow-500/10 to-blue-500/10 text-pink-300 border-pink-500/30';
+                                                    }
+                                                    return (
+                                                        <span key={idx} className={`text-xs px-2.5 py-0.5 rounded-full font-medium border flex items-center gap-1 ${colorClasses}`}>
+                                                            {feel}
+                                                        </span>
+                                                    );
+                                                }
+                                                if (tag.startsWith('location:')) return <span key={idx} className="bg-slate-800 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium border border-green-400/20 flex items-center"><span className="material-symbols-rounded text-[14px] mr-1">location_on</span>{tag.split(':')[1]}</span>;
+                                                return <span key={idx} className="bg-slate-800 text-primary-400 text-xs px-2 py-0.5 rounded-full font-medium border border-primary-500/20">#{tag}</span>;
                                             })}
                                         </div>
                                     )}
@@ -385,7 +648,23 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                                             </div>
                                             <span className="text-xs font-medium">{post.likes_count || 0}</span>
                                         </button>
-                                        <button className="flex items-center gap-1.5 hover:text-primary-400 transition-colors group">
+                                        <button 
+                                            onClick={() => {
+                                                const shareText = `Confira esta publicação na comunidade ${activeCommunity.name}: "${post.content.slice(0, 100)}${post.content.length > 100 ? '...' : ''}"`;
+                                                if (navigator.share) {
+                                                    navigator.share({
+                                                        title: activeCommunity.name,
+                                                        text: shareText,
+                                                        url: window.location.href
+                                                     }).catch(() => {});
+                                                } else {
+                                                    navigator.clipboard.writeText(`${shareText}\n${window.location.href}`);
+                                                    toast.success('Link e conteúdo copiados para a área de transferência!');
+                                                }
+                                            }}
+                                            className="flex items-center gap-1.5 hover:text-primary-400 transition-colors group"
+                                            title="Compartilhar"
+                                        >
                                             <div className="w-8 h-8 rounded-full flex items-center justify-center group-hover:bg-primary-500/10 transition-colors">
                                                 <span className="material-symbols-rounded text-[18px]">ios_share</span>
                                             </div>
@@ -417,11 +696,13 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
             <AnimatePresence>
                 {isCreatePostOpen && (
                     <CreatePostModal 
-                        communityId={community.id}
+                        communityId={activeCommunity.id}
                         initialMedia={initialPostMedia}
+                        initialAction={initialPostAction}
                         onClose={() => {
                             setIsCreatePostOpen(false);
                             setInitialPostMedia(null);
+                            setInitialPostAction(null);
                         }}
                         onSubmit={async (content, image, tags) => {
                             let imageUrl = undefined;
@@ -443,7 +724,7 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                                     toast.error('Erro ao fazer upload de mídia');
                                 }
                             }
-                            await createPost(community.id, content, imageUrl, tags);
+                            await createPost(activeCommunity.id, content, imageUrl, tags);
                             setIsCreatePostOpen(false);
                             toast.success('Post enviado!');
                         }}
@@ -455,21 +736,102 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                 {selectedPost && (
                     <CommunityPostDetailModal 
                         post={selectedPost}
-                        communityId={community.id}
+                        communityId={activeCommunity.id}
                         onClose={() => setSelectedPost(null)}
                     />
                 )}
             </AnimatePresence>
-        </motion.div>
+
+            <AnimatePresence>
+                {isJoinModalOpen && (
+                    <JoinPrivateCommunityModal 
+                        community={activeCommunity}
+                        onClose={() => setIsJoinModalOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {isManageMembersOpen && (
+                    <ManageMembersModal 
+                        community={activeCommunity}
+                        onClose={() => setIsManageMembersOpen(false)}
+                        myRole={myRole}
+                    />
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {isEditCommunityOpen && (
+                    <EditCommunityModal 
+                        community={activeCommunity}
+                        onClose={() => setIsEditCommunityOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
+        </motion.div>,
+        document.body
+    ) : null;
+};
+
+// Predefined feelings selection modal
+const FeelingSelectorModal: React.FC<{ onClose: () => void, onSelect: (feeling: string) => void }> = ({ onClose, onSelect }) => {
+    const options = [
+        { text: '😊 Feliz', desc: 'Sorrindo para a vida', color: 'hover:bg-yellow-500/10 border-yellow-500/20 text-yellow-300 bg-yellow-500/5' },
+        { text: '🔥 Quente', desc: 'Com aquela energia lá no alto', color: 'hover:bg-red-500/10 border-red-500/20 text-red-300 bg-red-500/5' },
+        { text: '😈 Ousado', desc: 'Pronto para novas aventuras', color: 'hover:bg-purple-500/10 border-purple-500/20 text-purple-300 bg-purple-500/5' },
+        { text: '💪 Focado', desc: 'Trabalhando nos meus objetivos', color: 'hover:bg-blue-500/10 border-blue-500/20 text-blue-300 bg-blue-500/5' },
+        { text: '😎 Confiante', desc: 'Sentindo-me empoderado(a)', color: 'hover:bg-cyan-500/10 border-cyan-500/20 text-cyan-300 bg-cyan-500/5' },
+        { text: '🎉 Festeiro', desc: 'Querendo celebrar e dançar', color: 'hover:bg-pink-500/10 border-pink-500/20 text-pink-300 bg-pink-500/5' },
+        { text: '😴 Cansado', desc: 'Precisando de um descanso ou carinho', color: 'hover:bg-slate-500/10 border-slate-500/20 text-slate-300 bg-slate-500/5' },
+        { text: '🏳️‍🌈 Orgulhoso', desc: 'Celebrando minha verdade com orgulho', color: 'hover:bg-gradient-to-r hover:from-red-500/10 hover:to-blue-500/10 border-pink-500/20 text-pink-300 font-bold bg-pink-500/5' },
+    ];
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-md border border-white/10 animate-scale-up">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-white font-outfit flex items-center gap-2">
+                        <span className="material-symbols-rounded text-yellow-400">sentiment_satisfied</span>
+                        Como você está se sentindo?
+                    </h3>
+                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                        <span className="material-symbols-rounded text-[20px]">close</span>
+                    </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-1">
+                    {options.map((opt) => (
+                        <button
+                            key={opt.text}
+                            onClick={() => {
+                                onSelect(opt.text);
+                                onClose();
+                            }}
+                            className={`flex flex-col items-start p-3 rounded-2xl border text-left transition-all ${opt.color}`}
+                        >
+                            <span className="text-sm font-bold text-white">{opt.text}</span>
+                            <span className="text-[10px] text-slate-400 mt-1 line-clamp-1">{opt.desc}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
     );
 };
 
 // Modal: Create Post (Rich)
-const CreatePostModal: React.FC<{ communityId: string, onClose: () => void, onSubmit: (content: string, image?: File, tags?: string[]) => Promise<void>, initialMedia?: File | null }> = ({ communityId, onClose, onSubmit, initialMedia }) => {
+const CreatePostModal: React.FC<{ 
+    communityId: string, 
+    onClose: () => void, 
+    onSubmit: (content: string, image?: File, tags?: string[]) => Promise<void>, 
+    initialMedia?: File | null,
+    initialAction?: 'gif' | 'feeling' | 'location' | null
+    }> = ({ communityId, onClose, onSubmit, initialMedia, initialAction }) => {
     const [content, setContent] = useState('');
     const [media, setMedia] = useState<File | null>(initialMedia || null);
     const [mediaPreview, setMediaPreview] = useState<string | null>(null);
     const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+    const [isFeelingSelectorOpen, setIsFeelingSelectorOpen] = useState(false);
     
     useEffect(() => {
         if (initialMedia) {
@@ -479,6 +841,28 @@ const CreatePostModal: React.FC<{ communityId: string, onClose: () => void, onSu
             reader.readAsDataURL(initialMedia);
         }
     }, [initialMedia]);
+
+    useEffect(() => {
+        if (!initialAction) return;
+        const timer = setTimeout(() => {
+            if (initialAction === 'gif') {
+                const url = prompt('Insira o link (URL) do GIF:');
+                if (url) {
+                    setMediaPreview(url);
+                    setMediaType('image');
+                    fetch(url).then(r => r.blob()).then(blob => {
+                        setMedia(new File([blob], 'gif.gif', { type: 'image/gif' }));
+                    }).catch(() => alert('Não foi possível carregar o GIF'));
+                }
+            } else if (initialAction === 'feeling') {
+                setIsFeelingSelectorOpen(true);
+            } else if (initialAction === 'location') {
+                const loc = prompt('Onde você está? (ex: São Paulo, Rio de Janeiro, Festa na Piscina)');
+                if (loc) setLocation(loc);
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [initialAction]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     const [privacy, setPrivacy] = useState<'public' | 'members'>('public');
@@ -508,7 +892,7 @@ const CreatePostModal: React.FC<{ communityId: string, onClose: () => void, onSu
         setIsSubmitting(false);
     };
 
-    return (
+    return typeof document !== 'undefined' ? createPortal(
         <motion.div
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
@@ -633,11 +1017,7 @@ const CreatePostModal: React.FC<{ communityId: string, onClose: () => void, onSu
                     <span className="text-[10px] font-bold text-white/50">GIF</span>
                 </button>
                 <button 
-                    onClick={() => {
-                        const feels = ['😊 Feliz', '😎 Confiante', '🔥 Quente', '😢 Triste', '💪 Focado', '🎉 Festeiro'];
-                        const f = prompt('Como você está se sentindo? (ex: ' + feels.join(', ') + ')');
-                        if (f) setFeeling(f);
-                    }}
+                    onClick={() => setIsFeelingSelectorOpen(true)}
                     className="hover:bg-white/10 p-3 rounded-full transition-colors flex flex-col items-center gap-1 group"
                 >
                     <span className="material-symbols-rounded text-2xl group-hover:scale-110 transition-transform text-yellow-400">sentiment_satisfied</span>
@@ -654,8 +1034,16 @@ const CreatePostModal: React.FC<{ communityId: string, onClose: () => void, onSu
                     <span className="text-[10px] font-bold text-white/50">Local</span>
                 </button>
             </div>
-        </motion.div>
-    );
+
+            {isFeelingSelectorOpen && (
+                <FeelingSelectorModal 
+                    onClose={() => setIsFeelingSelectorOpen(false)}
+                    onSelect={(f) => setFeeling(f)}
+                />
+            )}
+        </motion.div>,
+        document.body
+    ) : null;
 };
 
 // Modal: Create Community
@@ -709,7 +1097,7 @@ const CreateCommunityModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         }
     };
 
-    return (
+    return typeof document !== 'undefined' ? createPortal(
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -795,8 +1183,9 @@ const CreateCommunityModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     </button>
                 </form>
             </motion.div>
-        </motion.div>
-    );
+        </motion.div>,
+        document.body
+    ) : null;
 };
 
 
@@ -818,7 +1207,7 @@ const ManageMembersModal: React.FC<{ community: Community, onClose: () => void, 
         setRequests(r);
     };
 
-    return (
+    return typeof document !== 'undefined' ? createPortal(
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-dark-800 rounded-3xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col border border-white/10">
                 <div className="flex justify-between items-center mb-6">
@@ -880,8 +1269,9 @@ const ManageMembersModal: React.FC<{ community: Community, onClose: () => void, 
                     )})}
                 </div>
             </motion.div>
-        </motion.div>
-    );
+        </motion.div>,
+        document.body
+    ) : null;
 };
 
 // Modal: Edit Community
@@ -906,6 +1296,7 @@ const EditCommunityModal: React.FC<{ community: Community, onClose: () => void }
     const [rulesText, setRulesText] = useState(parsedRules);
     const [questions, setQuestions] = useState<string[]>(parsedQuestions);
     const [coverImage, setCoverImage] = useState<File | null>(null);
+    const [avatarImage, setAvatarImage] = useState<File | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -928,11 +1319,26 @@ const EditCommunityModal: React.FC<{ community: Community, onClose: () => void }
                 }
             } catch (e) { }
         }
+        if (avatarImage) {
+            try {
+                const { supabase } = await import('../lib/supabase');
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const ext = avatarImage.name.split('.').pop();
+                    const path = `${user.id}/community_avatars/${Math.random()}.${ext}`;
+                    const { error } = await supabase.storage.from('user_uploads').upload(path, avatarImage);
+                    if (!error) {
+                        const { data } = supabase.storage.from('user_uploads').getPublicUrl(path);
+                        payload.avatar_url = data.publicUrl;
+                    }
+                }
+            } catch (e) { }
+        }
         await updateCommunity(community.id, payload);
         onClose();
     };
 
-    return (
+    return typeof document !== 'undefined' ? createPortal(
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-dark-800 rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto border border-white/10">
                 <div className="flex justify-between items-center mb-6">
@@ -949,8 +1355,16 @@ const EditCommunityModal: React.FC<{ community: Community, onClose: () => void }
                         <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-dark-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary-500 outline-none" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Tags</label>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Regras da Comunidade</label>
+                        <textarea value={rulesText} onChange={e => setRulesText(e.target.value)} placeholder="Defina as regras exclusivas da comunidade..." rows={3} className="w-full bg-dark-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Tags (separadas por vírgula)</label>
                         <input type="text" value={tags} onChange={e => setTags(e.target.value)} className="w-full bg-dark-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Foto Principal da Comunidade (Opcional)</label>
+                        <input type="file" accept="image/*" onChange={e => setAvatarImage(e.target.files?.[0] || null)} className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-400 mb-1">Capa (Opcional)</label>
@@ -975,61 +1389,9 @@ const EditCommunityModal: React.FC<{ community: Community, onClose: () => void }
                     <button type="submit" className="w-full py-4 bg-primary-500 text-white rounded-xl font-bold hover:bg-primary-600 transition-colors shadow-lg shadow-primary-500/25 mt-4">Salvar Alterações</button>
                 </form>
             </motion.div>
-        </motion.div>
-    );
+        </motion.div>,
+        document.body
+    ) : null;
 };
 
-// Modal: Join Private Community
-const JoinPrivateCommunityModal: React.FC<{ community: Community, onClose: () => void }> = ({ community, onClose }) => {
-    const { submitJoinRequest } = useCommunityStore();
-    
-    let parsedRules = community.rules || '';
-    let parsedQuestions: string[] = [];
-    try {
-        if (parsedRules.startsWith('{')) {
-            const data = JSON.parse(parsedRules);
-            parsedQuestions = data.questions || [];
-        }
-    } catch(e) {}
 
-    const [answers, setAnswers] = useState<string[]>(Array(parsedQuestions.length).fill(''));
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSubmitting(true);
-        const payload = parsedQuestions.map((q, i) => ({ q, a: answers[i] }));
-        await submitJoinRequest(community.id, payload);
-        setIsSubmitting(false);
-        import('react-hot-toast').then(({ default: toast }) => toast.success('Solicitação enviada!'));
-        onClose();
-    };
-
-    return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-dark-800 rounded-3xl p-6 w-full max-w-md border border-white/10">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold font-outfit text-white">Entrar em {community.name}</h2>
-                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white"><span className="material-symbols-rounded text-[20px]">close</span></button>
-                </div>
-                {parsedQuestions.length > 0 ? (
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <p className="text-sm text-slate-400 mb-4">Responda às perguntas abaixo para solicitar entrada:</p>
-                        {parsedQuestions.map((q, i) => (
-                            <div key={i}>
-                                <label className="block text-sm font-medium text-white mb-1">{q}</label>
-                                <textarea required value={answers[i]} onChange={e => { const n = [...answers]; n[i] = e.target.value; setAnswers(n); }} className="w-full bg-dark-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary-500 outline-none min-h-[80px]" />
-                            </div>
-                        ))}
-                        <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-primary-500 text-white rounded-xl font-bold hover:bg-primary-600 transition-colors mt-4 disabled:opacity-50">Enviar Solicitação</button>
-                    </form>
-                ) : (
-                    <div className="text-center">
-                        <p className="text-slate-400 mb-6">Esta comunidade é privada. Deseja solicitar entrada?</p>
-                        <button onClick={handleSubmit} disabled={isSubmitting} className="w-full py-4 bg-primary-500 text-white rounded-xl font-bold hover:bg-primary-600 transition-colors">Solicitar Entrada</button>
-                    </div>
-                )}
-            </motion.div>
-        </motion.div>
-    );
-};

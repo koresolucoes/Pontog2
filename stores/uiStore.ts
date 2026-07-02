@@ -12,12 +12,14 @@ interface UiState {
   isDonationModalOpen: boolean;
   isSidebarOpen: boolean;
   isSuggestVenueModalOpen: boolean; // New state
+  isCommunityPostCreateOpen: boolean;
   setActiveView: (view: View) => void;
   setChatUser: (user: User | null) => void;
   setSubscriptionModalOpen: (isOpen: boolean) => void;
   setDonationModalOpen: (isOpen: boolean) => void;
   setSidebarOpen: (isOpen: boolean) => void;
   setSuggestVenueModalOpen: (isOpen: boolean) => void; // New action
+  setCommunityPostCreateOpen: (isOpen: boolean) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -27,6 +29,7 @@ export const useUiStore = create<UiState>((set) => ({
   isDonationModalOpen: false,
   isSidebarOpen: false,
   isSuggestVenueModalOpen: false,
+  isCommunityPostCreateOpen: false,
   setActiveView: (view) => set({ activeView: view }),
   setChatUser: (user) => {
       if (user) {
@@ -40,4 +43,5 @@ export const useUiStore = create<UiState>((set) => ({
   setDonationModalOpen: (isOpen) => set({ isDonationModalOpen: isOpen }),
   setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
   setSuggestVenueModalOpen: (isOpen) => set({ isSuggestVenueModalOpen: isOpen }),
+  setCommunityPostCreateOpen: (isOpen) => set({ isCommunityPostCreateOpen: isOpen }),
 }));

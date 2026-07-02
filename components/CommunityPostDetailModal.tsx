@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useCommunityStore } from '../stores/communityStore';
+import { useAuthStore } from '../stores/authStore';
 import { toast } from 'react-hot-toast';
 import type { CommunityPost, CommunityComment } from '../types';
 
@@ -9,11 +10,82 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
     const [comments, setComments] = useState<CommunityComment[]>([]);
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [likes, setLikes] = useState<any[]>([]);
     const { fetchCommunityPosts } = useCommunityStore();
+    const { user: currentUser } = useAuthStore();
 
     useEffect(() => {
         loadComments();
+        loadCommentLikes();
     }, [post.id]);
+
+    const loadCommentLikes = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('community_posts')
+                .select('id, content, author_id')
+                .eq('community_id', communityId)
+                .contains('tags', ['comment_like']);
+            if (!error && data) {
+                setLikes(data);
+            }
+        } catch (e) {
+            console.error('Error loading comment likes:', e);
+        }
+    };
+
+    const commentHasLiked = (commentId: string) => {
+        if (!currentUser) return false;
+        return likes.some(l => l.content === commentId && l.author_id === currentUser.id);
+    };
+
+    const getCommentLikesCount = (commentId: string) => {
+        return likes.filter(l => l.content === commentId).length;
+    };
+
+    const toggleLikeComment = async (commentId: string) => {
+        if (!currentUser) {
+            toast.error('Você precisa estar logado para curtir.');
+            return;
+        }
+
+        const alreadyLiked = commentHasLiked(commentId);
+        
+        // Optimistic update
+        if (alreadyLiked) {
+            setLikes(prev => prev.filter(l => !(l.content === commentId && l.author_id === currentUser.id)));
+        } else {
+            setLikes(prev => [...prev, { content: commentId, author_id: currentUser.id }]);
+        }
+
+        try {
+            if (alreadyLiked) {
+                const { error } = await supabase
+                    .from('community_posts')
+                    .delete()
+                    .eq('community_id', communityId)
+                    .eq('content', commentId)
+                    .eq('author_id', currentUser.id)
+                    .contains('tags', ['comment_like']);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase
+                    .from('community_posts')
+                    .insert({
+                        community_id: communityId,
+                        author_id: currentUser.id,
+                        content: commentId,
+                        tags: ['comment_like']
+                    });
+                if (error) throw error;
+            }
+            loadCommentLikes();
+        } catch (e) {
+            console.error('Error toggling comment like:', e);
+            toast.error('Erro ao processar curtida');
+            loadCommentLikes();
+        }
+    };
 
     const loadComments = async () => {
         try {
@@ -101,15 +173,27 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
                             {comments.map(c => (
                                 <div key={c.id} className="flex gap-3">
                                     <img src={c.author?.avatar_url || 'https://placehold.co/100'} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                                    <div className="flex-1 bg-dark-900 rounded-2xl p-3 border border-white/5">
+                                    <div className="flex-1 bg-dark-900 rounded-2xl p-3 border border-white/5 relative">
                                         <div className="flex justify-between items-start mb-1">
                                             <div>
                                                 <span className="font-bold text-white text-sm mr-2">{c.author?.display_name || c.author?.username}</span>
                                                 <span className="text-slate-500 text-xs">{new Date(c.created_at).toLocaleDateString()}</span>
                                             </div>
-                                            <button onClick={() => handleDelete(c.id, c.author_id)} className="text-slate-500 hover:text-red-400"><span className="material-symbols-rounded text-sm">delete</span></button>
+                                            {currentUser?.id === c.author_id && (
+                                                <button onClick={() => handleDelete(c.id, c.author_id)} className="text-slate-500 hover:text-red-400 transition-colors"><span className="material-symbols-rounded text-sm">delete</span></button>
+                                            )}
                                         </div>
-                                        <p className="text-slate-300 text-sm whitespace-pre-wrap">{c.content}</p>
+                                        <p className="text-slate-300 text-sm whitespace-pre-wrap pr-16">{c.content}</p>
+
+                                        <div className="absolute bottom-3 right-4 flex items-center gap-1">
+                                            <button 
+                                                onClick={() => toggleLikeComment(c.id)}
+                                                className={`flex items-center gap-1 transition-all ${commentHasLiked(c.id) ? 'text-pink-500 scale-105' : 'text-slate-500 hover:text-pink-400'}`}
+                                            >
+                                                <span className={`material-symbols-rounded text-sm ${commentHasLiked(c.id) ? 'filled' : ''}`}>favorite</span>
+                                                <span className="text-xs font-semibold">{getCommentLikesCount(c.id)}</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ))}

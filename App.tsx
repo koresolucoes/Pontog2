@@ -40,7 +40,7 @@ const App: React.FC = () => {
 
     const { t } = useTranslation();
     const { session, user, loading, fetchProfile, showOnboarding } = useAuthStore();
-    const { activeView, setActiveView, chatUser, setChatUser, isSubscriptionModalOpen, isDonationModalOpen, setSidebarOpen, isSuggestVenueModalOpen } = useUiStore();
+    const { activeView, setActiveView, chatUser, setChatUser, isSubscriptionModalOpen, isDonationModalOpen, setSidebarOpen, isSuggestVenueModalOpen, isCommunityPostCreateOpen } = useUiStore();
     const { totalUnreadCount, fetchConversations, fetchWinks, fetchAccessRequests } = useInboxStore();
     const { setInstallPromptEvent, subscribeToPushNotifications } = usePwaStore();
     const { 
@@ -249,7 +249,7 @@ const App: React.FC = () => {
 
                     <PwaInstallButton />
 
-                    {!isSuggestVenueModalOpen && (
+                    {!isSuggestVenueModalOpen && !isCommunityPostCreateOpen && (
                         <div className="fixed bottom-4 left-4 right-4 z-20 flex justify-center pointer-events-none">
                             <nav className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 pointer-events-auto max-w-lg w-full overflow-x-auto no-scrollbar">
                                 <div className="flex justify-between items-center p-1.5 min-w-max sm:min-w-0 sm:grid sm:grid-cols-8 gap-1">

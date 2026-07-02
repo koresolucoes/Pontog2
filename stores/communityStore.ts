@@ -29,6 +29,8 @@ interface CommunityState {
     createPost: (communityId: string, content: string, imageUrl?: string, tags?: string[]) => Promise<void>;
     toggleLikePost: (postId: string) => Promise<void>;
     repostPost: (postId: string, communityId: string) => Promise<void>;
+    deletePost: (postId: string, communityId: string) => Promise<void>;
+    editPost: (postId: string, communityId: string, content: string) => Promise<void>;
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
@@ -359,6 +361,34 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             get().fetchCommunityPosts(communityId);
         } catch (error: any) {
             console.error('Error creating post:', error);
+        }
+    },
+
+    deletePost: async (postId: string, communityId: string) => {
+        try {
+            const { error } = await supabase
+                .from('community_posts')
+                .delete()
+                .eq('id', postId);
+            if (error) throw error;
+            get().fetchCommunityPosts(communityId);
+        } catch (error: any) {
+            console.error('Error deleting post:', error);
+            throw error;
+        }
+    },
+
+    editPost: async (postId: string, communityId: string, content: string) => {
+        try {
+            const { error } = await supabase
+                .from('community_posts')
+                .update({ content })
+                .eq('id', postId);
+            if (error) throw error;
+            get().fetchCommunityPosts(communityId);
+        } catch (error: any) {
+            console.error('Error editing post:', error);
+            throw error;
         }
     }
 }));
