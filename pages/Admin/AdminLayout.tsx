@@ -59,7 +59,7 @@ export const AdminLayout: React.FC = () => {
          <div className="flex flex-col h-full bg-dark-950/95 backdrop-blur-xl border-r border-white/10 shadow-2xl">
             <div className="p-6 border-b border-white/5 flex items-center gap-3">
                 <img 
-                    src="/logo.png" 
+                    src="https://wwmiqdovqgysncmqnmvp.supabase.co/storage/v1/object/public/venues/Logo/logo.png" 
                     alt="Logo" 
                     className="h-10 w-auto object-contain drop-shadow-md"
                     onError={(e) => {

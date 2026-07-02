@@ -206,7 +206,7 @@ export const Sidebar: React.FC = () => {
                 {/* Footer */}
                 <div className="p-4 border-t border-white/5 text-center flex flex-col items-center justify-center">
                     <img 
-                        src="/logo.png" 
+                        src="https://wwmiqdovqgysncmqnmvp.supabase.co/storage/v1/object/public/venues/Logo/logo.png" 
                         alt="Logo" 
                         className="h-6 w-auto object-contain mb-2 opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-300"
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
