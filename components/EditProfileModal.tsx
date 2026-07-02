@@ -269,7 +269,18 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                 onChange={onChange} 
                 className="w-full bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3.5 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all shadow-sm text-sm font-medium"
             >
-                {options.map((opt: string) => <option key={opt} value={opt === 'Não informado' ? '' : opt} className="bg-slate-800">{opt}</option>)}
+                {options.map((opt: string) => {
+                    const translatedText = t(`constants.positions.${opt}`, {
+                        defaultValue: t(`constants.hiv_statuses.${opt}`, {
+                            defaultValue: t(`constants.options.${opt}`, { defaultValue: opt })
+                        })
+                    });
+                    return (
+                        <option key={opt} value={opt === 'Não informado' ? '' : opt} className="bg-slate-800">
+                            {translatedText}
+                        </option>
+                    );
+                })}
             </select>
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none material-symbols-rounded text-xl">expand_more</span>
           </div>
@@ -327,32 +338,32 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
               <div className="grid grid-cols-2 gap-4 bg-slate-800/30 p-4 rounded-2xl border border-white/5">
                   <div className="col-span-2">
                     <h3 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2 mb-2">
-                        <span className="material-symbols-rounded text-primary-500 filled">wc</span> Identidade
+                        <span className="material-symbols-rounded text-primary-500 filled">wc</span> {t('profile_modal.identity', { defaultValue: 'Identidade' })}
                     </h3>
                   </div>
                   <SelectField 
-                      label="Identidade de Gênero" 
+                      label={t('edit_profile.gender_identity', { defaultValue: 'Identidade de Gênero' })} 
                       name="gender_identity" 
                       value={formData.gender_identity} 
                       onChange={handleChange} 
                       options={['Não informado', 'Homem Cis', 'Mulher Cis', 'Homem Trans', 'Mulher Trans', 'Não-binário', 'Agênero', 'Outro']}
                   />
                   <SelectField 
-                      label="Pronomes" 
+                      label={t('edit_profile.pronouns', { defaultValue: 'Pronomes' })} 
                       name="pronouns" 
                       value={formData.pronouns} 
                       onChange={handleChange} 
                       options={['Não informado', 'Ele/Dele', 'Ela/Dela', 'Elu/Delu', 'Qualquer pronome']}
                   />
                   <SelectField 
-                      label="Orientação Sexual" 
+                      label={t('edit_profile.sexual_orientation', { defaultValue: 'Orientação Sexual' })} 
                       name="sexual_orientation" 
                       value={formData.sexual_orientation} 
                       onChange={handleChange} 
                       options={['Não informado', 'Gay', 'Lésbica', 'Bissexual', 'Pansexual', 'Assexual', 'Queer', 'Heterossexual', 'Outro']}
                   />
                   <SelectField 
-                      label="Status de Relacionamento" 
+                      label={t('edit_profile.relationship_status', { defaultValue: 'Status de Relacionamento' })} 
                       name="relationship_status" 
                       value={formData.relationship_status} 
                       onChange={handleChange} 
@@ -446,7 +457,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
               {/* Looking For Section */}
               <div>
                 <h3 className="text-xs font-bold text-slate-400 mb-3 uppercase flex items-center gap-2 tracking-wide ml-1">
-                    <span className="material-symbols-rounded text-green-500 filled text-base">search</span> O que estou buscando
+                    <span className="material-symbols-rounded text-green-500 filled text-base">search</span> {t('edit_profile.looking_for', { defaultValue: 'O que estou buscando' })}
                 </h3>
                 <div className="flex flex-wrap gap-2 bg-slate-800/30 p-4 rounded-2xl border border-white/5 max-h-64 overflow-y-auto">
                   {LOOKING_FOR.map(item => (
@@ -460,7 +471,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                       }`}
                     >
-                      {item}
+                      {t(`constants.looking_for.${item}`, { defaultValue: item })}
                     </button>
                   ))}
                 </div>
@@ -477,10 +488,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                         onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-500"
                     >
-                        <option value="todos">Todos (Ver todos e ser visto por todos)</option>
-                        <option value="tribos">Apenas Minhas Tribos</option>
+                        <option value="todos">{t('edit_profile.visibility_all', { defaultValue: 'Todos (Ver todos e ser visto por todos)' })}</option>
+                        <option value="tribos">{t('edit_profile.visibility_tribes', { defaultValue: 'Apenas Minhas Tribos' })}</option>
                     </select>
-                    <p className="text-xs text-slate-500 mt-2">Escolha quem você deseja ver e quem pode ver você. O padrão é "Todos".</p>
+                    <p className="text-xs text-slate-500 mt-2">{t('edit_profile.visibility_desc', { defaultValue: 'Escolha quem você deseja ver e quem pode ver você. O padrão é "Todos".' })}</p>
                 </div>
               </div>
 
@@ -500,7 +511,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                       }`}
                     >
-                      {kink}
+                      {t(`constants.kinks.${kink}`, { defaultValue: kink })}
                     </button>
                   ))}
                 </div>
@@ -522,7 +533,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                       }`}
                     >
-                      {tribe.name}
+                      {t(`constants.tribes.${tribe.name}`, { defaultValue: tribe.name })}
                     </button>
                   ))}
                 </div>

@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as L from 'leaflet';
 import { Venue, Coordinates } from '../types';
+import { useTranslation } from 'react-i18next';
 
 interface PublicMapProps {
     venues: Venue[];
@@ -71,6 +72,7 @@ const createVenueIcon = (type: string, isPartner: boolean) => {
 };
 
 export const PublicMap: React.FC<PublicMapProps> = ({ venues, center, cityName, onVenueClick }) => {
+    const { t } = useTranslation();
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<L.Map | null>(null);
     const markersRef = useRef<L.Marker[]>([]);
@@ -140,7 +142,7 @@ export const PublicMap: React.FC<PublicMapProps> = ({ venues, center, cityName, 
                     <h3 class="text-sm font-bold text-slate-900 mb-1 leading-tight">${venue.name}</h3>
                     <p class="text-[10px] text-slate-500 mb-2 truncate">${venue.address.split(',')[0]}</p>
                     <button class="w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white text-[10px] font-bold py-1.5 rounded hover:shadow-lg transition-all">
-                        Ver quem está aqui
+                        ${t('map.see_whos_here', { defaultValue: 'Ver quem está aqui' })}
                     </button>
                 </div>
             `;
@@ -193,7 +195,7 @@ export const PublicMap: React.FC<PublicMapProps> = ({ venues, center, cityName, 
             <div className="absolute top-4 left-4 z-20 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg flex items-center gap-2 pointer-events-none">
                 <span className="material-symbols-rounded text-primary-500 text-sm animate-pulse">map</span>
                 <span className="text-xs font-bold text-white">
-                    {cityName ? `Guia de ${cityName}` : 'Mapa de Hotspots'}
+                    {cityName ? t('map.guide_of', { defaultValue: 'Guia de {{city}}', city: cityName }) : t('map.hotspots_map', { defaultValue: 'Mapa de Hotspots' })}
                 </span>
             </div>
 
@@ -205,7 +207,7 @@ export const PublicMap: React.FC<PublicMapProps> = ({ venues, center, cityName, 
                     }
                 }}
                 className="absolute top-20 right-2.5 z-[400] w-[34px] h-[34px] bg-white rounded text-slate-800 shadow-md border-2 border-black/20 flex items-center justify-center hover:bg-slate-50 transition-colors"
-                title="Centralizar"
+                title={t('map.my_location', { defaultValue: 'Centralizar' })}
             >
                 <span className="material-symbols-rounded text-lg">my_location</span>
             </button>
@@ -217,7 +219,7 @@ export const PublicMap: React.FC<PublicMapProps> = ({ venues, center, cityName, 
                     className="bg-white text-dark-950 font-bold py-2.5 px-5 rounded-xl shadow-lg hover:bg-slate-100 text-xs flex items-center gap-2"
                 >
                     <span className="material-symbols-rounded text-lg">explore</span>
-                    Explorar Mapa Completo
+                    {t('map.explore_full_map', { defaultValue: 'Explorar Mapa Completo' })}
                 </button>
             </div>
             

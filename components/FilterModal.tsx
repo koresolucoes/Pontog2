@@ -132,7 +132,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({ onClose }) => {
                         <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">{t('profile_modal.position', { defaultValue: 'Posição' })}</h3>
                         <div className="flex flex-wrap gap-2">
                             {POSITIONS.map(p => (
-                                <ChipButton key={p} label={p} isSelected={localFilters.positions.includes(p)} onClick={() => handlePositionToggle(p)} />
+                                <ChipButton key={p} label={t(`constants.positions.${p}`, { defaultValue: p })} isSelected={localFilters.positions.includes(p)} onClick={() => handlePositionToggle(p)} />
                             ))}
                         </div>
                     </div>
@@ -140,8 +140,8 @@ export const FilterModal: React.FC<FilterModalProps> = ({ onClose }) => {
                      <div>
                         <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">{t('profile_modal.tribes', { defaultValue: 'Tribos' })}</h3>
                         <div className="flex flex-wrap gap-2">
-                             {tribes.map(t => (
-                                <ChipButton key={t.id} label={t.name} isSelected={localFilters.tribes.includes(t.name)} onClick={() => handleTribeToggle(t.name)} />
+                             {tribes.map(tribe => (
+                                <ChipButton key={tribe.id} label={t(`constants.tribes.${tribe.name}`, { defaultValue: tribe.name })} isSelected={localFilters.tribes.includes(tribe.name)} onClick={() => handleTribeToggle(tribe.name)} />
                             ))}
                         </div>
                     </div>

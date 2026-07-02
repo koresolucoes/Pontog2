@@ -337,12 +337,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
           {user.looking_for && user.looking_for.length > 0 && (
             <div>
                 <h3 className="text-xs font-bold text-green-400 uppercase mb-3 flex items-center gap-2">
-                    <span className="material-symbols-rounded filled text-base">search</span> O que busco
+                    <span className="material-symbols-rounded filled text-base">search</span> {t('profile_modal.looking_for_title', { defaultValue: 'O que busco' })}
                 </h3>
                 <div className="flex flex-wrap gap-2">
                     {user.looking_for.map(item => (
                         <span key={item} className="bg-green-900/30 text-green-200 border border-green-500/30 px-3 py-1.5 rounded-lg text-xs font-bold">
-                            {item}
+                            {t(`constants.looking_for.${item}`, { defaultValue: item })}
                         </span>
                     ))}
                 </div>
@@ -358,7 +358,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
                 <div className="flex flex-wrap gap-2">
                     {user.kinks.map(kink => (
                         <span key={kink} className="bg-secondary-900/30 text-secondary-200 border border-secondary-500/30 px-3 py-1.5 rounded-lg text-xs font-bold">
-                            {kink}
+                            {t(`constants.kinks.${kink}`, { defaultValue: kink })}
                         </span>
                     ))}
                 </div>
@@ -366,14 +366,50 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
           )}
 
           <div className="grid grid-cols-2 gap-3 text-sm">
-            {user.gender_identity && <InfoItem icon="wc" label="Identidade" value={user.gender_identity} />}
-            {user.pronouns && <InfoItem icon="match_case" label="Pronomes" value={user.pronouns} />}
-            {user.sexual_orientation && <InfoItem icon="favorite" label="Orientação" value={user.sexual_orientation} />}
-            {user.relationship_status && <InfoItem icon="diversity_1" label="Status" value={user.relationship_status} />}
+            {user.gender_identity && (
+              <InfoItem 
+                icon="wc" 
+                label={t('profile_modal.gender_identity', { defaultValue: 'Identidade' })} 
+                value={t(`constants.options.${user.gender_identity}`, { defaultValue: user.gender_identity })} 
+              />
+            )}
+            {user.pronouns && (
+              <InfoItem 
+                icon="match_case" 
+                label={t('profile_modal.pronouns', { defaultValue: 'Pronomes' })} 
+                value={t(`constants.options.${user.pronouns}`, { defaultValue: user.pronouns })} 
+              />
+            )}
+            {user.sexual_orientation && (
+              <InfoItem 
+                icon="favorite" 
+                label={t('profile_modal.sexual_orientation', { defaultValue: 'Orientação' })} 
+                value={t(`constants.options.${user.sexual_orientation}`, { defaultValue: user.sexual_orientation })} 
+              />
+            )}
+            {user.relationship_status && (
+              <InfoItem 
+                icon="diversity_1" 
+                label={t('profile_modal.relationship_status', { defaultValue: 'Status' })} 
+                value={t(`constants.options.${user.relationship_status}`, { defaultValue: user.relationship_status })} 
+              />
+            )}
             {user.height_cm && <InfoItem icon="height" label={t('profile_modal.height', { defaultValue: 'Altura' })} value={`${user.height_cm} cm`} />}
             {user.weight_kg && <InfoItem icon="monitor_weight" label={t('profile_modal.weight', { defaultValue: 'Peso' })} value={`${user.weight_kg} kg`} />}
-            {user.position && <InfoItem icon="transgender" label={t('profile_modal.position', { defaultValue: 'Posição' })} value={user.position} />}
-            {user.hiv_status && <InfoItem icon="health_and_safety" label={t('profile_modal.hiv_status', { defaultValue: 'Status HIV' })} value={user.hiv_status} />}
+            {user.position && (
+              <InfoItem 
+                icon="transgender" 
+                label={t('profile_modal.position', { defaultValue: 'Posição' })} 
+                value={t(`constants.positions.${user.position}`, { defaultValue: user.position })} 
+              />
+            )}
+            {user.hiv_status && (
+              <InfoItem 
+                icon="health_and_safety" 
+                label={t('profile_modal.hiv_status', { defaultValue: 'Status HIV' })} 
+                value={t(`constants.hiv_statuses.${user.hiv_status}`, { defaultValue: user.hiv_status })} 
+              />
+            )}
           </div>
           
           {user.tribes && user.tribes.length > 0 && (
@@ -381,7 +417,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3">{t('profile_modal.tribes', { defaultValue: 'Tribos' })}</h3>
               <div className="flex flex-wrap gap-2">
                 {user.tribes.map(tribe => (
-                  <span key={tribe} className="bg-slate-800 text-slate-200 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-semibold">{tribe}</span>
+                  <span key={tribe} className="bg-slate-800 text-slate-200 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                    {t(`constants.tribes.${tribe}`, { defaultValue: tribe })}
+                  </span>
                 ))}
               </div>
             </div>

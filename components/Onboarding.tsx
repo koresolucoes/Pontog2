@@ -313,7 +313,7 @@ const TribeStep: React.FC<TribeStepProps> = ({ formData, dbTribes, onToggleTribe
                                 : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                         }`}
                     >
-                        {tribe.name}
+                        {t(`constants.tribes.${tribe.name}`, { defaultValue: tribe.name })}
                     </button>
                 );
             })}

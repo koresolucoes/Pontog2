@@ -9,8 +9,16 @@ import { Coordinates } from '../types';
 import { LegalModal, LegalDocType } from './LegalModals';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
+import { enUS } from 'date-fns/locale/en-US';
+import { es } from 'date-fns/locale/es';
 import { AnimatedBackground } from './AnimatedBackground';
 import { useTranslation } from 'react-i18next';
+
+const getDateLocale = (lng: string) => {
+  if (lng.startsWith('en')) return enUS;
+  if (lng.startsWith('es')) return es;
+  return ptBR;
+};
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -135,7 +143,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
         
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-800/50 border border-white/10 text-slate-300 text-[10px] font-bold uppercase tracking-widest mb-8 animate-fade-in-up backdrop-blur-md shadow-xl">
             <span className={`w-2 h-2 rounded-full ${locationAllowed ? 'bg-green-500 shadow-[0_0_10px_rgba(74,222,128,0.5)]' : 'bg-yellow-500'} animate-pulse`}></span>
-            {locationAllowed ? `Localizado: ${cityName || 'Sua Região'}` : 'Ative a localização para ver sua cidade'}
+            {locationAllowed 
+              ? t('landing.located_city', { defaultValue: 'Localizado: {{city}}', city: cityName || t('landing.your_region', { defaultValue: 'Sua Região' }) }) 
+              : t('landing.enable_location_desc', { defaultValue: 'Ative a localização para ver sua cidade' })
+            }
         </div>
 
         <h1 className="text-5xl md:text-7xl lg:text-8xl font-black font-outfit tracking-tight mb-6 leading-[1] max-w-5xl mx-auto animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
@@ -227,7 +238,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                               <div className="p-6">
                                   <p className="text-[10px] text-slate-500 font-bold uppercase mb-2 flex items-center justify-between">
                                       <span>{article.source}</span>
-                                      <span>{format(new Date(article.published_at), 'dd MMM', { locale: ptBR })}</span>
+                                      <span>{format(new Date(article.published_at), 'dd MMM', { locale: getDateLocale(i18n.language) })}</span>
                                   </p>
                                   <h3 className="text-xl font-bold text-white font-outfit mb-2 group-hover:text-primary-500 transition-colors leading-tight">
                                       {article.title}
@@ -278,8 +289,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
             {venues.length === 0 && !locating ? (
                  <div className="text-center py-12 bg-slate-800/30 rounded-3xl border border-white/5">
                     <span className="material-symbols-rounded text-5xl text-slate-600 mb-4">explore_off</span>
-                    <h3 className="text-xl font-bold text-white mb-2">Nenhum local cadastrado aqui ainda</h3>
-                    <p className="text-slate-400">Seja o primeiro a adicionar um local entrando no app.</p>
+                    <h3 className="text-xl font-bold text-white mb-2">{t('landing.no_venues_city_title', { defaultValue: 'Nenhum local cadastrado aqui ainda' })}</h3>
+                    <p className="text-slate-400">{t('landing.no_venues_city_desc', { defaultValue: 'Seja o primeiro a adicionar um local entrando no app.' })}</p>
                  </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

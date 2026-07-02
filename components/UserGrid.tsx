@@ -36,6 +36,7 @@ const UserCard = memo(({
     isOnline: boolean; 
     onClick: (user: User) => void;
 }) => {
+    const { t } = useTranslation();
     const isPlus = user.subscription_tier === 'plus';
 
     return (
@@ -67,7 +68,7 @@ const UserCard = memo(({
                     </div>
                 )}
                 {user.can_host && (
-                    <div className="bg-tertiary-500/90 backdrop-blur-md text-white rounded-full p-1.5 shadow-lg border border-tertiary-400/50" title="Tem Local">
+                    <div className="bg-tertiary-500/90 backdrop-blur-md text-white rounded-full p-1.5 shadow-lg border border-tertiary-400/50" title={t('edit_profile.can_host', { defaultValue: 'Tem Local' })}>
                         <span className="material-symbols-rounded filled block" style={{ fontSize: '14px' }}>home</span>
                     </div>
                 )}
@@ -88,7 +89,7 @@ const UserCard = memo(({
                 <div className="flex items-center gap-1">
                     <h3 className="font-extrabold text-lg truncate leading-none drop-shadow-lg tracking-tight">{user.username}</h3>
                     {user.is_verified && (
-                        <span className="material-symbols-rounded filled text-primary-500 text-sm" title="Verificado">verified</span>
+                        <span className="material-symbols-rounded filled text-primary-500 text-sm" title={t('onboarding.verified', { defaultValue: 'Verificado' })}>verified</span>
                     )}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium mt-1.5 opacity-90">
@@ -234,7 +235,7 @@ export const UserGrid: React.FC = () => {
                     }`}
                 >
                     <div className={`w-2 h-2 rounded-full ${filters.onlineOnly ? 'bg-tertiary-400 animate-pulse shadow-[0_0_8px_#27AE60]' : 'bg-slate-400'}`}></div>
-                    Online
+                    {t('grid.online', { defaultValue: 'Online' })}
                 </button>
                 
                 <FilterButton label={t('common.filters', { defaultValue: 'Filtros' })} isActive={areAnyFiltersActive} />
@@ -242,21 +243,21 @@ export const UserGrid: React.FC = () => {
                 {/* Active Filter Chips - Recognition rather than Recall */}
                 {isAgeFilterActive && (
                     <button onClick={resetAge} className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-primary-900/30 border border-primary-500/30 rounded-full text-xs font-bold text-primary-200 whitespace-nowrap hover:bg-primary-900/50 transition-colors animate-fade-in">
-                        <span>{filters.minAge}-{filters.maxAge} anos</span>
+                        <span>{filters.minAge}-{filters.maxAge} {t('grid.years', { defaultValue: 'anos' })}</span>
                         <span className="material-symbols-rounded text-[14px]">close</span>
                     </button>
                 )}
                 
                 {filters.positions.map(pos => (
                     <button key={pos} onClick={() => removePosition(pos)} className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-secondary-900/30 border border-secondary-500/30 rounded-full text-xs font-bold text-secondary-200 whitespace-nowrap hover:bg-secondary-900/50 transition-colors animate-fade-in">
-                        <span>{pos}</span>
+                        <span>{t(`constants.positions.${pos}`, { defaultValue: pos })}</span>
                         <span className="material-symbols-rounded text-[14px]">close</span>
                     </button>
                 ))}
 
                 {filters.tribes.map(tribe => (
                     <button key={tribe} onClick={() => removeTribe(tribe)} className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-dark-800 border border-white/10 rounded-full text-xs font-bold text-slate-300 whitespace-nowrap hover:bg-dark-700 transition-colors animate-fade-in">
-                        <span>{tribe}</span>
+                        <span>{t(`constants.tribes.${tribe}`, { defaultValue: tribe })}</span>
                         <span className="material-symbols-rounded text-[14px]">close</span>
                     </button>
                 ))}

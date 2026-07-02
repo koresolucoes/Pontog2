@@ -71,7 +71,11 @@ export const Sidebar: React.FC = () => {
                         )}
                     </div>
                     <h2 className="text-xl font-bold text-white">{user.username}</h2>
-                    <p className="text-xs text-slate-400 font-medium">{user.subscription_tier === 'plus' ? 'Membro Plus' : 'Membro Grátis'}</p>
+                    <p className="text-xs text-slate-400 font-medium">
+                        {user.subscription_tier === 'plus' 
+                            ? t('sidebar.plus_member', { defaultValue: 'Membro Plus' }) 
+                            : t('sidebar.free_member', { defaultValue: 'Membro Grátis' })}
+                    </p>
                 </div>
 
                 {/* Main Content */}
@@ -82,9 +86,9 @@ export const Sidebar: React.FC = () => {
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 text-slate-200 font-bold text-sm">
                                 <span className={`material-symbols-rounded ${user.can_host ? 'text-tertiary-500 filled' : 'text-slate-500'}`}>home</span>
-                                Tenho Local
+                                {t('edit_profile.can_host', { defaultValue: 'Tenho Local' })}
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
+                            <label className="relative inline-flex inline-flex items-center cursor-pointer">
                                 <input 
                                     type="checkbox" 
                                     checked={user.can_host}
@@ -95,7 +99,7 @@ export const Sidebar: React.FC = () => {
                             </label>
                         </div>
                         <p className="text-[10px] text-slate-500 leading-tight">
-                            Ative para mostrar no mapa e na grade que você pode receber visitas agora.
+                            {t('sidebar.host_desc', { defaultValue: 'Ative para mostrar no mapa e na grade que você pode receber visitas agora.' })}
                         </p>
                     </div>
 
@@ -208,7 +212,9 @@ export const Sidebar: React.FC = () => {
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
                     <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Ponto G v1.2.0</p>
-                    <p className="text-[9px] text-slate-700 font-medium mt-1">Propriedade de Kore Serviços de Tecnologia</p>
+                    <p className="text-[9px] text-slate-700 font-medium mt-1">
+                        {t('sidebar.owner_info', { defaultValue: 'Propriedade de Kore Serviços de Tecnologia' })}
+                    </p>
                 </div>
             </div>
 
