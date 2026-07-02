@@ -244,7 +244,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
             <div className="flex items-end justify-between">
                 <div>
                     <h2 className="text-3xl font-bold flex items-center gap-2 flex-wrap leading-none mb-2 drop-shadow-lg">
-                    <span>{user.username}, {user.age}</span>
+                    <span>{user.display_name || user.username}, {user.age}</span>
                     {user.is_verified && (
                         <div className="bg-primary-600/20 text-primary-500 rounded-full p-1 shadow-lg flex items-center justify-center">
                             <span className="material-symbols-rounded filled !text-[14px]">verified</span>

@@ -70,7 +70,7 @@ export const Sidebar: React.FC = () => {
                             </div>
                         )}
                     </div>
-                    <h2 className="text-xl font-bold text-white">{user.username}</h2>
+                    <h2 className="text-xl font-bold text-white">{user.display_name || user.username}</h2>
                     <p className="text-xs text-slate-400 font-medium">
                         {user.subscription_tier === 'plus' 
                             ? t('sidebar.plus_member', { defaultValue: 'Membro Plus' }) 

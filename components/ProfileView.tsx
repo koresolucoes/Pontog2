@@ -251,7 +251,7 @@ export const ProfileView: React.FC = () => {
                             </button>
                         </div>
                         <div className="flex items-center gap-2">
-                            <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-lg">{user.username}</h1>
+                            <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-lg">{user.display_name || user.username}</h1>
                             {user.is_verified && (
                                 <div className="bg-primary-500/20 text-primary-500 rounded-full p-1 flex items-center justify-center" title={t('profile.verified_profile', { defaultValue: 'Perfil Verificado' })}>
                                     <span className="material-symbols-rounded filled text-lg">verified</span>

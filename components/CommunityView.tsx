@@ -242,7 +242,7 @@ const JoinPrivateCommunityModal: React.FC<{ community: Community, onClose: () =>
 
 // Modal: Community Details & Posts
 const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void, isMember: boolean, onJoinLeave: () => void }> = ({ community, onClose, isMember, onJoinLeave }) => {
-    const { communities, myCommunities, currentCommunityPosts, fetchCommunityPosts, createPost, loading } = useCommunityStore();
+    const { communities, myCommunities, currentCommunityPosts, fetchCommunityPosts, createPost, deleteCommunity, loading } = useCommunityStore();
     const activeCommunity = communities.find(c => c.id === community.id) || myCommunities.find(c => c.id === community.id) || community;
 
     const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
@@ -351,13 +351,32 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                             </button>
                         )}
                         {myRole === 'admin' && (
-                            <button 
-                                onClick={() => setIsEditCommunityOpen(true)}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-full text-sm font-bold shadow-lg flex items-center gap-1.5 border border-white/10"
-                                title="Editar Comunidade"
-                            >
-                                <span className="material-symbols-rounded text-base">settings</span>
-                            </button>
+                            <>
+                                <button 
+                                    onClick={() => setIsEditCommunityOpen(true)}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-full text-sm font-bold shadow-lg flex items-center gap-1.5 border border-white/10"
+                                    title="Editar Comunidade"
+                                >
+                                    <span className="material-symbols-rounded text-base">settings</span>
+                                </button>
+                                <button 
+                                    onClick={async () => {
+                                        if (confirm('Tem certeza que deseja excluir esta comunidade permanentemente? Esta ação não pode ser desfeita.')) {
+                                            try {
+                                                await deleteCommunity(activeCommunity.id);
+                                                toast.success('Comunidade excluída com sucesso!');
+                                                onClose();
+                                            } catch (e: any) {
+                                                toast.error('Erro ao excluir comunidade: ' + (e.message || e));
+                                            }
+                                        }
+                                    }}
+                                    className="px-4 py-2 bg-red-600/80 hover:bg-red-700 text-white rounded-full text-sm font-bold shadow-lg flex items-center gap-1.5 border border-red-500/10"
+                                    title="Excluir Comunidade"
+                                >
+                                    <span className="material-symbols-rounded text-base">delete</span>
+                                </button>
+                            </>
                         )}
                         <button 
                             onClick={() => {

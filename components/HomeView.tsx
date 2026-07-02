@@ -261,7 +261,7 @@ export const HomeView: React.FC = () => {
                                     
                                     <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-1 group-hover:translate-y-0 transition-transform duration-300">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="font-extrabold text-lg truncate leading-none font-outfit drop-shadow-md">{user.username}</h3>
+                                            <h3 className="font-extrabold text-lg truncate leading-none font-outfit drop-shadow-md">{user.display_name || user.username}</h3>
                                         </div>
                                         
                                         <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium opacity-90">

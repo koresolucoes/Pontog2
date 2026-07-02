@@ -324,7 +324,7 @@ const FavoriteList: React.FC<FavoriteListProps> = ({ favorites, loading, onUserC
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onUserClick(profileObj)}>
                             <div className="flex justify-between items-start mb-0.5">
                                 <div className="flex items-center gap-1.5">
-                                    <h3 className="font-bold text-white leading-none font-outfit text-lg">{user.username}, {user.age}</h3>
+                                    <h3 className="font-bold text-white leading-none font-outfit text-lg">{user.display_name || user.username}, {user.age}</h3>
                                     {user.is_verified && (
                                         <span className="material-symbols-rounded filled text-primary-500 text-sm" title="Verificado">verified</span>
                                     )}

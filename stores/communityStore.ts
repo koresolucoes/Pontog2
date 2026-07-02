@@ -31,6 +31,7 @@ interface CommunityState {
     repostPost: (postId: string, communityId: string) => Promise<void>;
     deletePost: (postId: string, communityId: string) => Promise<void>;
     editPost: (postId: string, communityId: string, content: string) => Promise<void>;
+    deleteCommunity: (communityId: string) => Promise<void>;
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
@@ -389,6 +390,64 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         } catch (error: any) {
             console.error('Error editing post:', error);
             throw error;
+        }
+    },
+
+    deleteCommunity: async (communityId: string) => {
+        set({ loading: true, error: null });
+        try {
+            // First let's get all post IDs for this community to clean up related data safely
+            const { data: posts } = await supabase
+                .from('community_posts')
+                .select('id')
+                .eq('community_id', communityId);
+
+            if (posts && posts.length > 0) {
+                const postIds = posts.map(p => p.id);
+                
+                // Delete likes associated with these posts
+                await supabase
+                    .from('community_post_likes')
+                    .delete()
+                    .in('post_id', postIds);
+                    
+                // Delete comments associated with these posts
+                await supabase
+                    .from('community_comments')
+                    .delete()
+                    .in('post_id', postIds);
+
+                // Delete posts
+                await supabase
+                    .from('community_posts')
+                    .delete()
+                    .eq('community_id', communityId);
+            }
+
+            // Delete members
+            await supabase
+                .from('community_members')
+                .delete()
+                .eq('community_id', communityId);
+
+            // Finally delete the community itself
+            const { error } = await supabase
+                .from('communities')
+                .delete()
+                .eq('id', communityId);
+                
+            if (error) throw error;
+
+            set(state => ({
+                communities: state.communities.filter(c => c.id !== communityId),
+                myCommunities: state.myCommunities.filter(c => c.id !== communityId)
+            }));
+        } catch (error: any) {
+            console.error('Error deleting community:', error);
+            set({ error: error.message });
+            throw error;
+        } finally {
+            set({ loading: false });
         }
     }
 }));

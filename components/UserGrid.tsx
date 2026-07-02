@@ -87,7 +87,7 @@ const UserCard = memo(({
             {/* User Info - Bottom */}
             <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-1 group-hover:translate-y-0 transition-transform duration-300">
                 <div className="flex items-center gap-1">
-                    <h3 className="font-extrabold text-lg truncate leading-none drop-shadow-lg tracking-tight">{user.username}</h3>
+                    <h3 className="font-extrabold text-lg truncate leading-none drop-shadow-lg tracking-tight">{user.display_name || user.username}</h3>
                     {user.is_verified && (
                         <span className="material-symbols-rounded filled text-primary-500 text-sm" title={t('onboarding.verified', { defaultValue: 'Verificado' })}>verified</span>
                     )}

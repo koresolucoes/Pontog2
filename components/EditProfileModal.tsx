@@ -320,6 +320,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                 
                 <div className="flex-1 w-full space-y-3">
                    <InputField label={t('edit_profile.username', { defaultValue: 'Nome de usuário' })} name="username" value={formData.username} onChange={handleChange} />
+                   <InputField label={t('edit_profile.display_name', { defaultValue: 'Nome de Exibição (Perfil)' })} name="display_name" value={formData.display_name} onChange={handleChange} />
                    <div className="space-y-1.5">
                         <label htmlFor="status_text" className="block text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wide">Bio</label>
                         <textarea 
