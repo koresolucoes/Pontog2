@@ -34,6 +34,8 @@ export interface VideoComment {
     comment_text: string;
     rating: number;
     created_at: string;
+    likes_count?: number;
+    liked_by_me?: boolean;
     user_profile?: {
         username: string;
         avatar_url: string;
@@ -55,6 +57,7 @@ interface VideoState {
     addRating: (videoId: number, rating: number) => Promise<void>;
     incrementViews: (videoId: number) => Promise<void>;
     toggleLike: (videoId: number) => Promise<void>;
+    toggleCommentLike: (videoId: number, commentId: number) => Promise<void>;
     deleteVideo: (videoId: number) => Promise<void>;
     editVideo: (videoId: number, newTitle: string, newDescription: string) => Promise<void>;
 }
@@ -197,8 +200,9 @@ export const useVideoStore = create<VideoState>((set, get) => ({
             loadingComments: { ...state.loadingComments, [videoId]: true }
         }));
         try {
-            const { data, error } = await supabase
-                .from('video_ratings')
+            // Try fetching from the new video_comments table first
+            let { data, error } = await supabase
+                .from('video_comments')
                 .select(`
                     *,
                     profiles (
@@ -209,9 +213,30 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                     )
                 `)
                 .eq('video_id', videoId)
-                .not('comment', 'is', null)
-                .neq('comment', '')
                 .order('created_at', { ascending: false });
+
+            // If relation doesn't exist, fallback to the old video_ratings table structure
+            if (error && (error.code === 'PGRST116' || error.message?.includes('does not exist'))) {
+                console.warn("video_comments table not found. Falling back to video_ratings...");
+                const fallback = await supabase
+                    .from('video_ratings')
+                    .select(`
+                        *,
+                        profiles (
+                            username,
+                            display_name,
+                            avatar_url,
+                            date_of_birth
+                        )
+                    `)
+                    .eq('video_id', videoId)
+                    .not('comment', 'is', null)
+                    .neq('comment', '')
+                    .order('created_at', { ascending: false });
+                
+                data = fallback.data;
+                error = fallback.error;
+            }
 
             if (error) throw error;
 
@@ -228,19 +253,40 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                     return age;
                 };
 
-                const mappedComments: VideoComment[] = data.map((c: any) => ({
-                    id: c.id,
-                    video_id: c.video_id,
-                    user_id: c.user_id,
-                    comment_text: c.comment,
-                    rating: c.rating,
-                    created_at: c.created_at,
-                    user_profile: {
-                        username: c.profiles?.display_name || c.profiles?.username || 'Usuário',
-                        avatar_url: getPublicImageUrl(c.profiles?.avatar_url),
-                        age: calculateAge(c.profiles?.date_of_birth)
+                const currentUser = useAuthStore.getState().user;
+                let commentLikes: any[] = [];
+                const commentIds = data.map((c: any) => c.id);
+                try {
+                    const { data: likesData, error: likesError } = await supabase
+                        .from('video_comment_likes')
+                        .select('comment_id, user_id')
+                        .in('comment_id', commentIds);
+                    
+                    if (!likesError && likesData) {
+                        commentLikes = likesData;
                     }
-                }));
+                } catch (likeErr) {
+                    console.warn("Could not fetch comment likes. Table 'video_comment_likes' may not exist yet:", likeErr);
+                }
+
+                const mappedComments: VideoComment[] = data.map((c: any) => {
+                    const likesForThisComment = commentLikes.filter((l: any) => l.comment_id === c.id);
+                    return {
+                        id: c.id,
+                        video_id: c.video_id,
+                        user_id: c.user_id,
+                        comment_text: c.comment,
+                        rating: c.rating || 0,
+                        created_at: c.created_at,
+                        likes_count: likesForThisComment.length,
+                        liked_by_me: currentUser ? likesForThisComment.some((l: any) => l.user_id === currentUser.id) : false,
+                        user_profile: {
+                            username: c.profiles?.display_name || c.profiles?.username || 'Usuário',
+                            avatar_url: getPublicImageUrl(c.profiles?.avatar_url),
+                            age: calculateAge(c.profiles?.date_of_birth)
+                        }
+                    };
+                });
 
                 set(state => ({
                     comments: { ...state.comments, [videoId]: mappedComments },
@@ -332,18 +378,49 @@ export const useVideoStore = create<VideoState>((set, get) => ({
         if (!currentUser) return;
 
         try {
-            const { data, error } = await supabase
-                .from('video_ratings')
+            // First, try to insert directly into the new video_comments table
+            const { error: insertError } = await supabase
+                .from('video_comments')
                 .insert({
                     video_id: videoId,
                     user_id: currentUser.id,
-                    comment: commentText,
-                    rating: 0 // pure comment, does not count towards star average
-                })
-                .select()
-                .single();
+                    comment: commentText
+                });
 
-            if (error) throw error;
+            // If table doesn't exist, fallback to the old video_ratings table structure
+            if (insertError && (insertError.code === 'PGRST116' || insertError.message?.includes('does not exist'))) {
+                console.warn("video_comments table not found. Saving comment in video_ratings...");
+                const { data: existing, error: fetchError } = await supabase
+                    .from('video_ratings')
+                    .select('id')
+                    .eq('video_id', videoId)
+                    .eq('user_id', currentUser.id)
+                    .limit(1);
+
+                if (fetchError) throw fetchError;
+
+                if (existing && existing.length > 0) {
+                    const { error: updateError } = await supabase
+                        .from('video_ratings')
+                        .update({ comment: commentText })
+                        .eq('id', existing[0].id);
+
+                    if (updateError) throw updateError;
+                } else {
+                    const { error: fallbackInsertError } = await supabase
+                        .from('video_ratings')
+                        .insert({
+                            video_id: videoId,
+                            user_id: currentUser.id,
+                            comment: commentText,
+                            rating: 0 // pure comment
+                        });
+
+                    if (fallbackInsertError) throw fallbackInsertError;
+                }
+            } else if (insertError) {
+                throw insertError;
+            }
 
             toast.success('Comentário enviado!');
             get().fetchComments(videoId);
@@ -361,13 +438,12 @@ export const useVideoStore = create<VideoState>((set, get) => ({
         }
 
         try {
-            // Check if rating already exists for this video and user (where rating > 0)
+            // Check if rating already exists for this video and user (regardless of rating value)
             const { data: existingRating, error: fetchError } = await supabase
                 .from('video_ratings')
                 .select('id')
                 .eq('video_id', videoId)
                 .eq('user_id', currentUser.id)
-                .gt('rating', 0)
                 .limit(1);
 
             if (fetchError) throw fetchError;
@@ -381,14 +457,13 @@ export const useVideoStore = create<VideoState>((set, get) => ({
 
                 if (updateError) throw updateError;
             } else {
-                // Insert new rating
+                // Insert new rating without specifying comment column to support both schemas
                 const { error: insertError } = await supabase
                     .from('video_ratings')
                     .insert({
                         video_id: videoId,
                         user_id: currentUser.id,
-                        rating: rating,
-                        comment: ''
+                        rating: rating
                     });
 
                 if (insertError) throw insertError;
@@ -477,6 +552,52 @@ export const useVideoStore = create<VideoState>((set, get) => ({
 
         } catch (e) {
             // Local fallback logic already handled optimistically
+        }
+    },
+
+    toggleCommentLike: async (videoId: number, commentId: number) => {
+        const currentUser = useAuthStore.getState().user;
+        if (!currentUser) {
+            toast.error('Você precisa estar logado para curtir.');
+            return;
+        }
+
+        const commentsForVideo = get().comments[videoId] || [];
+        const comment = commentsForVideo.find(c => c.id === commentId);
+        if (!comment) return;
+
+        const isLiked = comment.liked_by_me || false;
+        const newIsLiked = !isLiked;
+        const newLikesCount = Math.max(0, (comment.likes_count || 0) + (newIsLiked ? 1 : -1));
+
+        // Optimistic update
+        set(state => ({
+            comments: {
+                ...state.comments,
+                [videoId]: (state.comments[videoId] || []).map(c => {
+                    if (c.id === commentId) {
+                        return { ...c, liked_by_me: newIsLiked, likes_count: newLikesCount };
+                    }
+                    return c;
+                })
+            }
+        }));
+
+        try {
+            if (newIsLiked) {
+                const { error } = await supabase
+                    .from('video_comment_likes')
+                    .insert({ comment_id: commentId, user_id: currentUser.id });
+                if (error && error.code !== '23505') throw error;
+            } else {
+                const { error } = await supabase
+                    .from('video_comment_likes')
+                    .delete()
+                    .match({ comment_id: commentId, user_id: currentUser.id });
+                if (error) throw error;
+            }
+        } catch (e) {
+            console.error('Error toggling comment like:', e);
         }
     },
 

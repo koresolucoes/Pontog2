@@ -555,6 +555,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
     const video = storeVideo || initialVideo;
     const comments = useVideoStore(state => state.comments[initialVideo.id] || initialComments);
     const isLiked = useVideoStore(state => state.likedVideos[initialVideo.id] ?? initialIsLiked);
+    const toggleCommentLike = useVideoStore(state => state.toggleCommentLike);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -765,18 +766,43 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                         {video.description && (
                             <p className="text-sm text-slate-300 mt-1 line-clamp-2">{video.description}</p>
                         )}
-                        <div className="flex items-center gap-2 mt-2">
-                            {/* Star display */}
-                            <div className="flex gap-0.5 text-yellow-400">
-                                {[1, 2, 3, 4, 5].map(star => (
-                                    <span key={star} className="material-symbols-rounded text-sm filled">
-                                        {star <= Math.round(video.rating) ? 'star' : 'star_border'}
-                                    </span>
-                                ))}
+                        
+                        {/* Interactive Star Rating Selector - Placed right under the video details */}
+                        <div className="mt-3 p-2.5 bg-slate-950/40 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Avalie este vídeo:</span>
+                                <div className="flex gap-1.5">
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                        <button 
+                                            key={star}
+                                            type="button"
+                                            onClick={() => handleStarClick(star)}
+                                            className="transition-transform hover:scale-120 cursor-pointer active:scale-90 focus:outline-none"
+                                            title={`Avaliar com ${star} estrelas`}
+                                        >
+                                            <span className={`material-symbols-rounded text-lg ${star <= starRating ? 'text-yellow-400 filled' : 'text-slate-600'}`}>
+                                                star
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                            <span className="text-xs text-slate-400 font-medium">
-                                {video.likes_count || 0} curtidas • {Math.max(comments.length, video.ratings_count || 0)} avaliações • {video.views_count || 0} vistas
-                            </span>
+                            
+                            {/* Global dynamic average rating */}
+                            <div className="flex items-center gap-1.5 self-start sm:self-auto bg-slate-900/60 px-2.5 py-1 rounded-xl border border-white/5">
+                                <span className="material-symbols-rounded text-xs text-yellow-400 filled">star</span>
+                                <span className="text-xs font-black text-slate-200">{video.rating ? video.rating.toFixed(1) : '5.0'}</span>
+                                <span className="text-[10px] text-slate-400 font-bold">({video.ratings_count || 0} avaliações)</span>
+                            </div>
+                        </div>
+
+                        {/* Video engagement counts */}
+                        <div className="flex items-center gap-2 mt-2.5 text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">
+                            <span>{video.likes_count || 0} curtidas</span>
+                            <span>•</span>
+                            <span>{comments.length} comentários</span>
+                            <span>•</span>
+                            <span>{video.views_count || 0} visualizações</span>
                         </div>
                     </div>
                 )}
@@ -857,7 +883,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
             <div className="px-4 py-3 bg-slate-900/50 flex items-center justify-between cursor-pointer border-b border-white/5" onClick={() => setShowCommentsSection(!showCommentsSection)}>
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-300">
                     <span className="material-symbols-rounded text-lg">forum</span>
-                    <span>{Math.max(comments.length, video.ratings_count || 0)} comentarios</span>
+                    <span>{comments.length} comentários</span>
                 </div>
                 <span className="material-symbols-rounded text-slate-500 transition-transform">
                     {showCommentsSection ? 'expand_less' : 'expand_more'}
@@ -867,37 +893,24 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
             {/* Expandable comments list */}
             {showCommentsSection && (
                 <div className="bg-slate-950 p-4 space-y-4 animate-fade-in">
-                    {/* Interactive review addition */}
+                    {/* Add comment box */}
                     <div className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 space-y-3">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Toca para avaliar:</p>
-                        <div className="flex gap-2">
-                            {[1, 2, 3, 4, 5].map(star => (
-                                <button 
-                                    key={star}
-                                    type="button"
-                                    onClick={() => handleStarClick(star)}
-                                    className="text-2xl transition-transform hover:scale-110"
-                                >
-                                    <span className={`material-symbols-rounded ${star <= starRating ? 'text-yellow-400 filled' : 'text-slate-600'}`}>
-                                        star
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Escreva um comentário:</p>
                         
                         <form onSubmit={handleCommentSubmit} className="flex gap-2 items-center">
                             <input 
                                 type="text"
-                                placeholder="Su comentário (opcional)..."
+                                placeholder="Escreva um comentário..."
                                 value={newCommentText}
                                 onChange={(e) => setNewCommentText(e.target.value)}
                                 className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500/50"
+                                required
                             />
                             <button 
                                 type="submit"
                                 className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-bold shadow-md shadow-red-900/30 active:scale-95 flex-shrink-0"
                             >
-                                <span className="material-symbols-rounded text-lg">check</span>
+                                <span className="material-symbols-rounded text-lg">send</span>
                             </button>
                         </form>
                     </div>
@@ -905,7 +918,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                     {/* Individual comments list */}
                     <div className="space-y-3 max-h-60 overflow-y-auto pr-1 no-scrollbar">
                         {comments.length === 0 ? (
-                            <p className="text-xs text-slate-500 text-center py-2">Escribe la primeira avaliação.</p>
+                            <p className="text-xs text-slate-500 text-center py-2">Seja o primeiro a comentar.</p>
                         ) : (
                             comments.map((comment, index) => (
                                 <div key={comment.id || index} className="flex gap-3 bg-slate-900/30 p-3 rounded-2xl border border-white/5">
@@ -921,25 +934,32 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                                                 className="flex items-center gap-1 text-xs font-bold text-slate-300 cursor-pointer hover:underline"
                                                 onClick={() => handleUserClick({ id: comment.user_id, ...comment.user_profile })}
                                             >
-                                                <span className="text-yellow-500">●</span>
+                                                <span className="text-red-500">●</span>
                                                 <span>{comment.user_profile?.username}</span>
                                                 <span className="text-[10px] text-slate-500 font-medium">, {comment.user_profile?.age || 22}</span>
                                             </div>
-                                            {/* comment stars */}
-                                            {comment.rating > 0 && (
-                                                <div className="flex text-yellow-400 scale-75 transform origin-right">
-                                                    {[1, 2, 3, 4, 5].map(star => (
-                                                        <span key={star} className="material-symbols-rounded !text-[12px] filled">
-                                                            {star <= comment.rating ? 'star' : 'star_border'}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
                                         </div>
-                                        <p className="text-xs text-slate-300 mt-1">{comment.comment_text || 'Delícia!'}</p>
-                                        <span className="text-[9px] text-slate-500 font-medium block mt-1">
-                                            {formatDateLabel(comment.created_at)}
-                                        </span>
+                                        <p className="text-xs text-slate-300 mt-1">{comment.comment_text}</p>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="text-[9px] text-slate-500 font-medium">
+                                                {formatDateLabel(comment.created_at)}
+                                            </span>
+                                            
+                                            {/* Botão de Curtir Comentário */}
+                                            <button 
+                                                type="button"
+                                                onClick={() => comment.id && toggleCommentLike(video.id, comment.id)}
+                                                className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-red-400 transition-colors cursor-pointer group active:scale-95"
+                                                title={comment.liked_by_me ? 'Descurtir comentário' : 'Curtir comentário'}
+                                            >
+                                                <span className={`material-symbols-rounded text-xs ${comment.liked_by_me ? 'text-red-500 filled animate-pulse' : 'text-slate-500 group-hover:text-red-400'}`}>
+                                                    favorite
+                                                </span>
+                                                <span className={comment.liked_by_me ? 'text-red-400' : 'text-slate-400'}>
+                                                    {comment.likes_count || 0}
+                                                </span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ))
