@@ -60,19 +60,57 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
   const fetchConnection = async () => {
     if (!currentUser || !user || currentUser.id === user.id) return;
     try {
-      const { data, error } = await supabase
+      // 1. First, check if there is an existing conversation between the users
+      const { data: convData, error: convError } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', currentUser.id);
+        
+      if (!convError && convData && convData.length > 0) {
+        const convIds = convData.map(c => c.conversation_id);
+        const { data: otherData, error: otherError } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .in('conversation_id', convIds)
+          .eq('user_id', user.id)
+          .limit(1);
+          
+        if (!otherError && otherData && otherData.length > 0) {
+          // A conversation already exists! Treat as accepted connection.
+          setConnection({ status: 'accepted' });
+          return;
+        }
+      }
+
+      // 2. If no conversation exists, check user_connections table cleanly in both directions to bypass nested logical parser failures
+      const { data: conn1, error: err1 } = await supabase
         .from('user_connections')
         .select('*')
-        .or(`and(follower_id.eq.${currentUser.id},following_id.eq.${user.id}),and(follower_id.eq.${user.id},following_id.eq.${currentUser.id})`)
+        .eq('follower_id', currentUser.id)
+        .eq('following_id', user.id)
         .limit(1);
-      
-      if (!error && data && data.length > 0) {
-        setConnection(data[0]);
-      } else {
-        setConnection(null);
+
+      if (!err1 && conn1 && conn1.length > 0) {
+        setConnection(conn1[0]);
+        return;
       }
+
+      const { data: conn2, error: err2 } = await supabase
+        .from('user_connections')
+        .select('*')
+        .eq('follower_id', user.id)
+        .eq('following_id', currentUser.id)
+        .limit(1);
+
+      if (!err2 && conn2 && conn2.length > 0) {
+        setConnection(conn2[0]);
+        return;
+      }
+
+      setConnection(null);
     } catch (e) {
       console.error('Error fetching connection:', e);
+      setConnection(null);
     }
   };
 
@@ -327,10 +365,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
   return (
     <>
     {/* Backdrop with blur */}
-    <div className="fixed inset-0 bg-dark-900/80 backdrop-blur-sm z-50 animate-fade-in" onClick={onClose} />
+    <div className="fixed inset-0 bg-dark-900/80 backdrop-blur-sm z-[150] animate-fade-in" onClick={onClose} />
     
     {/* Modal Content - Bottom Sheet style on Mobile, Centered Card on Desktop */}
-    <div className="fixed inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center z-50 pointer-events-none">
+    <div className="fixed inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center z-[150] pointer-events-none">
       <div className="bg-slate-800/95 backdrop-blur-xl sm:rounded-3xl rounded-t-3xl shadow-2xl w-full max-w-md mx-auto pointer-events-auto overflow-hidden flex flex-col h-[90vh] sm:h-auto sm:max-h-[85vh] animate-slide-in-up border-t border-x border-white/10 sm:border-b">
         
         {/* Drag Handle for Mobile aesthetic */}

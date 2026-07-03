@@ -16,6 +16,7 @@ export const handleUserClick = (author: any) => {
     };
     useMapStore.getState().setSelectedUser({
         ...author,
+        id: author.id || author.user_id,
         age: author.age || calculateAge(author.date_of_birth),
         status: author.status || 'active',
         city: author.city || 'Desconhecida',

@@ -168,6 +168,7 @@
     "photo": "Photo",
     "location": "Location",
     "album": "Album",
+    "audio": "Voice message",
     "no_chats_title": "All quiet here",
     "no_chats_desc": "No chats yet? Explore the Grid and make the first move!",
     "explore_profiles": "Explore Profiles",

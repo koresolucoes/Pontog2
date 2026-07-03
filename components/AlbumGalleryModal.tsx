@@ -17,7 +17,7 @@ export const AlbumGalleryModal: React.FC<AlbumGalleryModalProps> = ({ album, onC
 
   if (!photos || photos.length === 0) {
     return (
-      <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[60] animate-fade-in" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[180] animate-fade-in" onClick={onClose}>
         <div className="bg-slate-800 p-8 rounded-2xl text-center border border-white/10" onClick={(e) => e.stopPropagation()}>
           <h2 className="text-xl font-bold mb-4 text-white">{album.name}</h2>
           <p className="text-slate-400">{t('gallery.empty_album', { defaultValue: 'Este álbum está vazio.' })}</p>
@@ -28,7 +28,7 @@ export const AlbumGalleryModal: React.FC<AlbumGalleryModalProps> = ({ album, onC
   }
 
   return (
-    <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center z-[60] animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center z-[180] animate-fade-in" onClick={onClose}>
       
       <div className="w-full h-full flex items-center justify-center p-4 sm:p-10" onClick={(e) => e.stopPropagation()}>
         <div className="relative w-full max-w-5xl aspect-[4/5] sm:aspect-video flex items-center justify-center">

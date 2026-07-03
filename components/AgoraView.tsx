@@ -8,6 +8,7 @@ import { ActivateAgoraModal } from './ActivateAgoraModal';
 import { AgoraPostDetailModal } from './AgoraPostDetailModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useTranslation } from 'react-i18next';
+import { handleUserClick } from './postUtils';
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -150,7 +151,13 @@ export const AgoraView: React.FC = () => {
                                 
                                 {/* Header do Card */}
                                 <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10 bg-gradient-to-b from-black/80 to-transparent">
-                                    <div className="flex items-center space-x-3">
+                                    <div 
+                                        className="flex items-center space-x-3 cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleUserClick({ id: post.user_id, username: post.username, avatar_url: post.avatar_url });
+                                        }}
+                                    >
                                         <div className="relative">
                                             <img loading="lazy" src={post.avatar_url} alt={post.username} className="w-10 h-10 rounded-full object-cover ring-2 ring-primary-500/50" />
                                             <div className="absolute -bottom-1 -right-1 bg-primary-600 rounded-full p-0.5 border border-black">

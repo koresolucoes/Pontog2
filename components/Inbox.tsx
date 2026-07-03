@@ -27,22 +27,73 @@ const formatLastMessageContent = (content: string | null | undefined, t: any): s
     if (content === null) return `📷 ${t('inbox.photo', { defaultValue: 'Foto' })}`;
     if (!content) return '';
 
+    const str = content.trim();
+    
+    // Clean outer escaped quotes if it was double-stringified (e.g. "\"{\\\"type\\\":\\\"audio\\\"}\"")
+    let cleanStr = str;
+    if (cleanStr.startsWith('"') && cleanStr.endsWith('"')) {
+        try {
+            const temp = JSON.parse(cleanStr);
+            if (typeof temp === 'string') {
+                cleanStr = temp;
+            }
+        } catch (e) {}
+    }
+
+    // Try to normalize escaped quotes
+    const normalizedStr = cleanStr.replace(/\\"/g, '"');
+
+    // Failsafe regex search for any audio/location/album pattern
+    if (/["']type["']\s*:\s*["']audio["']/i.test(normalizedStr) || normalizedStr.includes('"type":"audio"') || normalizedStr.includes('type: "audio"') || normalizedStr.includes('"audio"')) {
+        return `🎙️ ${t('inbox.audio', { defaultValue: 'Mensagem de voz' })}`;
+    }
+    if (/["']type["']\s*:\s*["']location["']/i.test(normalizedStr) || normalizedStr.includes('"type":"location"') || normalizedStr.includes('type: "location"') || normalizedStr.includes('"location"')) {
+        return `📍 ${t('inbox.location', { defaultValue: 'Localização' })}`;
+    }
+    if (/["']type["']\s*:\s*["']album["']/i.test(normalizedStr) || normalizedStr.includes('"type":"album"') || normalizedStr.includes('type: "album"') || normalizedStr.includes('"album"')) {
+        return `📷 ${t('inbox.album', { defaultValue: 'Álbum' })}`;
+    }
+
     try {
-        const parsed = JSON.parse(content);
+        let parsed = JSON.parse(cleanStr);
+        if (typeof parsed === 'string') {
+            parsed = JSON.parse(parsed); // Handle potential double encoding
+        }
         if (parsed && typeof parsed === 'object' && parsed.type) {
             switch (parsed.type) {
                 case 'location':
                     return `📍 ${t('inbox.location', { defaultValue: 'Localização' })}`;
                 case 'album':
                     return `📷 ${t('inbox.album', { defaultValue: 'Álbum' })}`;
+                case 'audio':
+                    return `🎙️ ${t('inbox.audio', { defaultValue: 'Mensagem de voz' })}`;
                 default:
-                    return content;
+                    break;
             }
         }
-        return content;
     } catch (e) {
-        return content;
+        // Double parsing fallback
+        try {
+            let parsed = JSON.parse(normalizedStr);
+            if (parsed && typeof parsed === 'object' && parsed.type) {
+                switch (parsed.type) {
+                    case 'location':
+                        return `📍 ${t('inbox.location', { defaultValue: 'Localização' })}`;
+                    case 'album':
+                        return `📷 ${t('inbox.album', { defaultValue: 'Álbum' })}`;
+                    case 'audio':
+                        return `🎙️ ${t('inbox.audio', { defaultValue: 'Mensagem de voz' })}`;
+                }
+            }
+        } catch (e2) {}
     }
+    
+    // If it still contains "type" and "audio" but couldn't be parsed, fallback to audio label anyway
+    if (normalizedStr.includes('"audio"') || normalizedStr.includes('audio_record')) {
+        return `🎙️ ${t('inbox.audio', { defaultValue: 'Mensagem de voz' })}`;
+    }
+
+    return cleanStr;
 };
 
 // Componente Reutilizável de Empty State
@@ -374,40 +425,62 @@ const ConversationItem = React.memo(({
     t: any,
     getLocale: any
 }) => {
+    const hasUnread = convo.unread_count > 0;
+    
     return (
         <div 
-            className="relative p-4 flex items-center gap-4 rounded-3xl bg-slate-800/40 border border-white/5 hover:bg-slate-800/60 active:scale-[0.98] transition-all cursor-pointer group shadow-sm backdrop-blur-sm" 
+            className={`relative py-3.5 px-3 flex items-center gap-3.5 hover:bg-white/[0.015] active:bg-white/[0.03] transition-all duration-200 cursor-pointer group rounded-xl ${hasUnread ? 'bg-primary-500/[0.01]' : ''}`} 
             onClick={() => onClick(convo)}
         >
+            {/* Minimalist Left Accent Line for Unread Messages */}
+            {hasUnread && (
+                <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-primary-500 rounded-r-full" />
+            )}
+
             <div className="relative flex-shrink-0">
-                <img loading="lazy" src={convo.other_participant_avatar_url} alt={convo.other_participant_username} className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-700/50 group-hover:ring-primary-500/30 transition-all" />
-                {convo.unread_count > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gradient-to-r from-primary-500 to-secondary-500 px-1.5 text-[10px] font-bold text-white ring-2 ring-dark-900 animate-bounce">
-                        {convo.unread_count > 9 ? '9+' : convo.unread_count}
-                    </span>
+                <img 
+                    loading="lazy" 
+                    src={convo.other_participant_avatar_url} 
+                    alt={convo.other_participant_username} 
+                    className="w-11 h-11 rounded-full object-cover transition-transform duration-300" 
+                />
+                {isOnline && (
+                    <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-dark-950 shadow-sm" />
                 )}
             </div>
+            
             <div className="flex-1 overflow-hidden min-w-0">
-                <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-2">
-                        <h3 className="font-bold truncate text-base text-slate-100 font-outfit">{convo.other_participant_username}</h3>
-                        {isOnline && <div className="w-2 h-2 rounded-full bg-tertiary-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]"></div>}
-                    </div>
-                    <span className="text-[10px] font-medium text-slate-500 flex-shrink-0 ml-2 uppercase tracking-wide">{formatDistanceToNow(new Date(convo.last_message_created_at), { addSuffix: false, locale: getLocale() } as any)}</span>
+                <div className="flex justify-between items-baseline mb-0.5">
+                    <h3 className={`truncate text-sm tracking-tight ${hasUnread ? 'font-bold text-slate-100' : 'font-medium text-slate-300'}`}>
+                        {convo.other_participant_username}
+                    </h3>
+                    <span className="text-[10px] text-slate-500 font-sans tracking-normal ml-2 flex-shrink-0">
+                        {formatDistanceToNow(new Date(convo.last_message_created_at), { addSuffix: false, locale: getLocale() } as any)}
+                    </span>
                 </div>
-                <p className={`text-sm truncate leading-relaxed ${convo.unread_count > 0 ? 'text-slate-200 font-medium' : 'text-slate-400'}`}>
-                    {convo.last_message_sender_id === currentUserId && <span className="text-slate-500">{t('inbox.you', { defaultValue: 'Você: ' })}</span>}
+                
+                <p className={`text-xs truncate leading-normal pr-6 font-sans ${hasUnread ? 'text-slate-200 font-medium' : 'text-slate-450'}`}>
+                    {convo.last_message_sender_id === currentUserId && (
+                        <span className="text-slate-600 font-normal">{t('inbox.you', { defaultValue: 'Você: ' })}</span>
+                    )}
                     {formatLastMessageContent(convo.last_message_content, t)}
                 </p>
             </div>
             
-            {/* Delete Swipe/Action (Visible on hover for desktop) */}
-            <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(convo); }} 
-                className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity p-2 text-slate-400 hover:text-red-400 bg-slate-800 rounded-full shadow-lg border border-white/5"
-            >
-                <span className="material-symbols-rounded text-xl">delete</span>
-            </button>
+            {/* Sleek action zone or tiny unread indicator */}
+            <div className="flex items-center justify-end ml-2 flex-shrink-0 min-w-[20px]">
+                {hasUnread ? (
+                    <span className="h-2 w-2 rounded-full bg-primary-500 animate-pulse" />
+                ) : (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onDelete(convo); }} 
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1 text-slate-600 hover:text-red-400 rounded-md hover:bg-white/[0.04]"
+                        title={t('inbox.delete', { defaultValue: 'Apagar' })}
+                    >
+                        <span className="material-symbols-rounded text-base">delete</span>
+                    </button>
+                )}
+            </div>
         </div>
     );
 });
@@ -437,7 +510,7 @@ const ConversationList: React.FC<ConversationListProps> = ({ conversations, load
     const rowVirtualizer = useVirtualizer({
         count: itemsWithAd.length,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => 82, // approximate height of conversation item
+        estimateSize: () => 74, // Height of the sleek minimalist item
         overscan: 5,
     });
 
@@ -453,7 +526,7 @@ const ConversationList: React.FC<ConversationListProps> = ({ conversations, load
     );
     
     return (
-        <div ref={parentRef} className="h-[calc(100vh-200px)] overflow-y-auto">
+        <div ref={parentRef} className="h-[calc(100vh-200px)] overflow-y-auto pr-1">
             <div
                 style={{
                     height: `${rowVirtualizer.getTotalSize()}px`,
@@ -473,16 +546,17 @@ const ConversationList: React.FC<ConversationListProps> = ({ conversations, load
                                 width: '100%',
                                 height: `${virtualRow.size}px`,
                                 transform: `translateY(${virtualRow.start}px)`,
-                                paddingBottom: '12px',
                             }}
                         >
                             {'type' in item && item.type === 'ad' ? (
-                                <div className="rounded-2xl overflow-hidden border border-white/5 shadow-lg h-full">
-                                    <AdSenseUnit
-                                        client="ca-pub-9015745232467355"
-                                        slot="3561488011"
-                                        format="auto"
-                                    />
+                                <div className="py-2 h-full">
+                                    <div className="rounded-xl overflow-hidden border border-white/5 shadow-lg h-full bg-slate-800/10">
+                                        <AdSenseUnit
+                                            client="ca-pub-9015745232467355"
+                                            slot="3561488011"
+                                            format="auto"
+                                        />
+                                    </div>
                                 </div>
                             ) : (
                                 <ConversationItem 

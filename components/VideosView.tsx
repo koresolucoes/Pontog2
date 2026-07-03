@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useUiStore } from '../stores/uiStore';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { handleUserClick } from './postUtils';
 
 export const VideosView: React.FC = () => {
     const { t } = useTranslation();
@@ -16,11 +17,6 @@ export const VideosView: React.FC = () => {
     const [uploadTitle, setUploadTitle] = useState('');
     const [uploadDescription, setUploadDescription] = useState('');
     const [uploadFile, setUploadFile] = useState<File | null>(null);
-    const [activeVideoCommentId, setActiveVideoCommentId] = useState<number | null>(null);
-
-    // Form states for comments
-    const [commentText, setCommentText] = useState('');
-    const [commentRating, setCommentRating] = useState(5);
 
     useEffect(() => {
         fetchVideos();
@@ -89,7 +85,7 @@ export const VideosView: React.FC = () => {
                             comments={comments[video.id] || []}
                             isLiked={likedVideos[video.id] || false}
                             onFetchComments={() => fetchComments(video.id)}
-                            onAddComment={(text, rating) => addComment(video.id, text, rating)}
+                            onAddComment={(text) => addComment(video.id, text)}
                             onIncrementViews={() => incrementViews(video.id)}
                             onLike={() => toggleLike(video.id)}
                             onChatClick={(userToChat) => setChatUser(userToChat)}
@@ -179,7 +175,7 @@ interface VideoCardProps {
     comments: VideoComment[];
     isLiked: boolean;
     onFetchComments: () => void;
-    onAddComment: (text: string, rating: number) => void;
+    onAddComment: (text: string) => void;
     onIncrementViews: () => void;
     onLike: () => void;
     onChatClick: (user: any) => void;
@@ -202,7 +198,8 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
 
     // Interactive comments display
     const [showCommentsSection, setShowCommentsSection] = useState(false);
-    const [starRating, setStarRating] = useState(5);
+    const userRating = useVideoStore(state => state.userRatings[video.id]);
+    const [starRating, setStarRating] = useState(userRating || 5);
     const [newCommentText, setNewCommentText] = useState('');
 
     const [isEditing, setIsEditing] = useState(false);
@@ -215,6 +212,12 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showCommentsSection]);
+
+    useEffect(() => {
+        if (userRating) {
+            setStarRating(userRating);
+        }
+    }, [userRating]);
 
     const handleVideoClick = () => {
         if (!videoRef.current) return;
@@ -233,13 +236,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
 
     const handleStarClick = (rating: number) => {
         setStarRating(rating);
+        useVideoStore.getState().addRating(video.id, rating);
     };
 
     const handleCommentSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onAddComment(newCommentText, starRating);
+        onAddComment(newCommentText);
         setNewCommentText('');
-        setStarRating(5);
     };
 
     const handleSaveEdit = () => {
@@ -298,12 +301,40 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                         HD
                     </div>
                 </div>
+
+                {/* Edit and Delete Buttons for Owner */}
+                {isOwner && (
+                    <div className="absolute top-3 right-3 flex gap-2">
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsEditing(true);
+                            }}
+                            className="w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 backdrop-blur-sm transition-colors"
+                            title="Editar"
+                        >
+                            <span className="material-symbols-rounded text-sm">edit</span>
+                        </button>
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm('Excluir este vídeo? Esta ação não pode ser desfeita.')) {
+                                    if (onDeleteVideo) onDeleteVideo();
+                                }
+                            }}
+                            className="w-8 h-8 rounded-full bg-black/60 text-red-500 flex items-center justify-center hover:bg-black/80 backdrop-blur-sm transition-colors"
+                            title="Deletar"
+                        >
+                            <span className="material-symbols-rounded text-sm">delete</span>
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Video Metadata Panel */}
-            <div className="p-4 space-y-3.5 border-b border-white/5">
+            {/* Title / Description */}
+            <div className="p-4 flex-1 flex flex-col justify-between text-left border-b border-white/5">
                 {isEditing ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2 mt-1">
                         <input 
                             type="text"
                             value={editTitle}
@@ -325,39 +356,32 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                 ) : (
                     <div>
                         <div className="flex justify-between items-start">
-                            <h2 className="text-lg font-bold text-white tracking-wide">{video.title}</h2>
-                            {isOwner && (
-                                <div className="flex gap-2 ml-4">
-                                    <button onClick={() => setIsEditing(true)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-white transition-colors" title="Editar">
-                                        <span className="material-symbols-rounded text-sm">edit</span>
-                                    </button>
-                                    <button onClick={onDeleteVideo} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-red-500 transition-colors" title="Excluir">
-                                        <span className="material-symbols-rounded text-sm">delete</span>
-                                    </button>
-                                </div>
-                            )}
+                            <h3 className="text-lg font-bold text-white line-clamp-1">{video.title}</h3>
                         </div>
-                        {(video as any).description && (
-                            <p className="text-sm text-slate-300 mt-1 line-clamp-2">{(video as any).description}</p>
+                        {video.description && (
+                            <p className="text-sm text-slate-300 mt-1 line-clamp-2">{video.description}</p>
                         )}
                         <div className="flex items-center gap-2 mt-2">
                             {/* Star display */}
-                        <div className="flex gap-0.5 text-yellow-400">
-                            {[1, 2, 3, 4, 5].map(star => (
-                                <span key={star} className="material-symbols-rounded text-sm filled">
-                                    {star <= Math.round(video.rating) ? 'star' : 'star_border'}
-                                </span>
-                            ))}
+                            <div className="flex gap-0.5 text-yellow-400">
+                                {[1, 2, 3, 4, 5].map(star => (
+                                    <span key={star} className="material-symbols-rounded text-sm filled">
+                                        {star <= Math.round(video.rating) ? 'star' : 'star_border'}
+                                    </span>
+                                ))}
+                            </div>
+                            <span className="text-xs text-slate-400 font-medium">
+                                {video.likes_count || 0} curtidas • {Math.max(comments.length, video.ratings_count || 0)} avaliações • {video.views_count || 0} vistas
+                            </span>
                         </div>
-                        <span className="text-xs text-slate-400 font-medium">
-                            {video.likes_count || 0} curtidas • {Math.max(comments.length, video.ratings_count || 0)} avaliações • {video.views_count || 0} vistas
-                        </span>
                     </div>
-                </div>
                 )}
 
                 {/* Profile detail card below like the screenshot */}
-                <div className="bg-slate-800/40 border border-white/5 rounded-2xl p-3 flex items-center justify-between">
+                <div 
+                    onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}
+                    className="bg-slate-800/40 border border-white/5 rounded-2xl p-3 flex items-center justify-between cursor-pointer hover:bg-slate-800/60 transition-all mt-3"
+                >
                     <div className="flex items-center gap-3">
                         <div className="relative w-12 h-12 flex-shrink-0">
                             <img 
@@ -375,7 +399,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                             </div>
                             <div className="flex items-center gap-1 text-sm font-black text-white mt-0.5">
                                 <span className="text-green-400">●</span>
-                                <span>{video.user_profile?.display_name || video.user_profile?.username}</span>
+                                <span className="hover:underline">{video.user_profile?.display_name || video.user_profile?.username}</span>
                                 {video.user_profile?.subscription_tier === 'plus' && (
                                     <span className="material-symbols-rounded text-xs text-yellow-400 filled">auto_awesome</span>
                                 )}
@@ -394,14 +418,20 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
 
                     <div className="flex items-center gap-2">
                         <button 
-                            onClick={onLike}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onLike();
+                            }}
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors shadow-md active:scale-95 ${isLiked ? 'bg-pink-600 text-white shadow-pink-900/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
                             title="Curtir"
                         >
                             <span className={`material-symbols-rounded text-xl ${isLiked ? 'filled' : ''}`}>favorite</span>
                         </button>
                         <button 
-                            onClick={() => onChatClick({ id: video.user_id, username: video.user_profile?.username, avatar_url: video.user_profile?.avatar_url })}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onChatClick({ id: video.user_id, username: video.user_profile?.username, avatar_url: video.user_profile?.avatar_url });
+                            }}
                             className="w-10 h-10 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 transition-colors text-white shadow-md shadow-red-900/20 active:scale-95"
                             title="Chat"
                         >
@@ -427,7 +457,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                 <div className="bg-slate-950 p-4 space-y-4 animate-fade-in">
                     {/* Interactive review addition */}
                     <div className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 space-y-3">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Toca para evaluar:</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Toca para avaliar:</p>
                         <div className="flex gap-2">
                             {[1, 2, 3, 4, 5].map(star => (
                                 <button 
@@ -446,7 +476,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                         <form onSubmit={handleCommentSubmit} className="flex gap-2 items-center">
                             <input 
                                 type="text"
-                                placeholder="Su comentario (opcional)..."
+                                placeholder="Su comentário (opcional)..."
                                 value={newCommentText}
                                 onChange={(e) => setNewCommentText(e.target.value)}
                                 className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500/50"
@@ -463,30 +493,36 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                     {/* Individual comments list */}
                     <div className="space-y-3 max-h-60 overflow-y-auto pr-1 no-scrollbar">
                         {comments.length === 0 ? (
-                            <p className="text-xs text-slate-500 text-center py-2">Escribe la primera evaluación.</p>
+                            <p className="text-xs text-slate-500 text-center py-2">Escribe la primeira avaliação.</p>
                         ) : (
                             comments.map((comment, index) => (
                                 <div key={comment.id || index} className="flex gap-3 bg-slate-900/30 p-3 rounded-2xl border border-white/5">
                                     <img 
                                         src={comment.user_profile?.avatar_url} 
                                         alt={comment.user_profile?.username} 
-                                        className="w-9 h-9 rounded-xl object-cover border border-white/5 flex-shrink-0"
+                                        className="w-9 h-9 rounded-xl object-cover border border-white/5 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                        onClick={() => handleUserClick({ id: comment.user_id, ...comment.user_profile })}
                                     />
                                     <div className="flex-1 text-left">
                                         <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-1 text-xs font-bold text-slate-300">
+                                            <div 
+                                                className="flex items-center gap-1 text-xs font-bold text-slate-300 cursor-pointer hover:underline"
+                                                onClick={() => handleUserClick({ id: comment.user_id, ...comment.user_profile })}
+                                            >
                                                 <span className="text-yellow-500">●</span>
                                                 <span>{comment.user_profile?.username}</span>
                                                 <span className="text-[10px] text-slate-500 font-medium">, {comment.user_profile?.age || 22}</span>
                                             </div>
                                             {/* comment stars */}
-                                            <div className="flex text-yellow-400 scale-75 transform origin-right">
-                                                {[1, 2, 3, 4, 5].map(star => (
-                                                    <span key={star} className="material-symbols-rounded !text-[12px] filled">
-                                                        {star <= comment.rating ? 'star' : 'star_border'}
-                                                    </span>
-                                                ))}
-                                            </div>
+                                            {comment.rating > 0 && (
+                                                <div className="flex text-yellow-400 scale-75 transform origin-right">
+                                                    {[1, 2, 3, 4, 5].map(star => (
+                                                        <span key={star} className="material-symbols-rounded !text-[12px] filled">
+                                                            {star <= comment.rating ? 'star' : 'star_border'}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <p className="text-xs text-slate-300 mt-1">{comment.comment_text || 'Delícia!'}</p>
                                         <span className="text-[9px] text-slate-500 font-medium block mt-1">

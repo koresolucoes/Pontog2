@@ -45,12 +45,14 @@ interface VideoState {
     videos: VideoPost[];
     comments: Record<number, VideoComment[]>;
     likedVideos: Record<number, boolean>;
+    userRatings: Record<number, number>; // Maps videoId -> rating
     loadingVideos: boolean;
     loadingComments: Record<number, boolean>;
     fetchVideos: () => Promise<void>;
     fetchComments: (videoId: number) => Promise<void>;
     addVideo: (title: string, description: string, videoFile: File) => Promise<void>;
-    addComment: (videoId: number, commentText: string, rating: number) => Promise<void>;
+    addComment: (videoId: number, commentText: string) => Promise<void>;
+    addRating: (videoId: number, rating: number) => Promise<void>;
     incrementViews: (videoId: number) => Promise<void>;
     toggleLike: (videoId: number) => Promise<void>;
     deleteVideo: (videoId: number) => Promise<void>;
@@ -61,12 +63,48 @@ export const useVideoStore = create<VideoState>((set, get) => ({
     videos: [],
     comments: {},
     likedVideos: {},
+    userRatings: {},
     loadingVideos: false,
     loadingComments: {},
 
     fetchVideos: async () => {
         set({ loadingVideos: true });
         try {
+            // Fetch all ratings to compute dynamic ratings
+            const { data: ratingsData } = await supabase
+                .from('video_ratings')
+                .select('video_id, rating')
+                .gt('rating', 0);
+
+            const ratingsMap: Record<number, { sum: number, count: number }> = {};
+            if (ratingsData) {
+                ratingsData.forEach((r: any) => {
+                    if (!ratingsMap[r.video_id]) {
+                        ratingsMap[r.video_id] = { sum: 0, count: 0 };
+                    }
+                    ratingsMap[r.video_id].sum += r.rating;
+                    ratingsMap[r.video_id].count += 1;
+                });
+            }
+
+            // Fetch user's own ratings
+            const currentUser = useAuthStore.getState().user;
+            const userRatingsMap: Record<number, number> = {};
+            if (currentUser) {
+                const { data: userRatingsData } = await supabase
+                    .from('video_ratings')
+                    .select('video_id, rating')
+                    .eq('user_id', currentUser.id)
+                    .gt('rating', 0);
+                
+                if (userRatingsData) {
+                    userRatingsData.forEach((r: any) => {
+                        userRatingsMap[r.video_id] = r.rating;
+                    });
+                }
+            }
+            set({ userRatings: userRatingsMap });
+
             // Attempt Supabase fetch
             const { data, error } = await supabase
                 .from('videos')
@@ -101,33 +139,36 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                     return age;
                 };
 
-                const mappedVideos: VideoPost[] = data.map((v: any) => ({
-                    id: v.id,
-                    user_id: v.user_id,
-                    title: v.title,
-                    description: v.description,
-                    video_url: getPublicImageUrl(v.video_url),
-                    thumbnail_url: v.thumbnail_url ? getPublicImageUrl(v.thumbnail_url) : 'https://placehold.co/600x400/1e293b/ffffff/png?text=Play',
-                    views_count: v.views_count || 0,
-                    likes_count: v.likes_count || 0,
-                    created_at: v.created_at,
-                    rating: v.rating || 5.0,
-                    ratings_count: v.ratings_count || 0,
-                    user_profile: {
-                        username: v.profiles?.username || 'Usuário',
-                        display_name: v.profiles?.display_name || v.profiles?.username || 'Usuário',
-                        avatar_url: getPublicImageUrl(v.profiles?.avatar_url),
-                        age: calculateAge(v.profiles?.date_of_birth),
-                        subscription_tier: v.profiles?.subscription_tier || 'free',
-                        oral_preference: v.profiles?.oral_preference,
-                        site_preference: v.profiles?.accommodation_preference
-                    }
-                }));
+                const mappedVideos: VideoPost[] = data.map((v: any) => {
+                    const stats = ratingsMap[v.id] || { sum: 5.0, count: 0 };
+                    const computedRating = stats.count > 0 ? (stats.sum / stats.count) : 5.0;
+                    return {
+                        id: v.id,
+                        user_id: v.user_id,
+                        title: v.title,
+                        description: v.description,
+                        video_url: getPublicImageUrl(v.video_url),
+                        thumbnail_url: v.thumbnail_url ? getPublicImageUrl(v.thumbnail_url) : 'https://placehold.co/600x400/1e293b/ffffff/png?text=Play',
+                        views_count: v.views_count || 0,
+                        likes_count: v.likes_count || 0,
+                        created_at: v.created_at,
+                        rating: computedRating,
+                        ratings_count: stats.count,
+                        user_profile: {
+                            username: v.profiles?.username || 'Usuário',
+                            display_name: v.profiles?.display_name || v.profiles?.username || 'Usuário',
+                            avatar_url: getPublicImageUrl(v.profiles?.avatar_url),
+                            age: calculateAge(v.profiles?.date_of_birth),
+                            subscription_tier: v.profiles?.subscription_tier || 'free',
+                            oral_preference: v.profiles?.oral_preference,
+                            site_preference: v.profiles?.accommodation_preference
+                        }
+                    };
+                });
 
                 set({ videos: mappedVideos, loadingVideos: false });
                 
                 // Fetch user likes
-                const currentUser = useAuthStore.getState().user;
                 if (currentUser) {
                     const { data: likesData } = await supabase
                         .from('video_likes')
@@ -168,6 +209,8 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                     )
                 `)
                 .eq('video_id', videoId)
+                .not('comment', 'is', null)
+                .neq('comment', '')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -284,7 +327,7 @@ export const useVideoStore = create<VideoState>((set, get) => ({
         }
     },
 
-    addComment: async (videoId: number, commentText: string, rating: number) => {
+    addComment: async (videoId: number, commentText: string) => {
         const currentUser = useAuthStore.getState().user;
         if (!currentUser) return;
 
@@ -295,45 +338,77 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                     video_id: videoId,
                     user_id: currentUser.id,
                     comment: commentText,
-                    rating: rating
+                    rating: 0 // pure comment, does not count towards star average
                 })
                 .select()
                 .single();
 
             if (error) throw error;
 
-            toast.success('Comentário e qualificação enviados!');
+            toast.success('Comentário enviado!');
             get().fetchComments(videoId);
-            
-            // Optimistic update for rating stats
-            let newRatingsCount = 0;
-            let newRating = 5;
-            set(state => ({
-                videos: state.videos.map(v => {
-                    if (v.id === videoId) {
-                        newRatingsCount = (v.ratings_count || 0) + 1;
-                        newRating = ((v.rating * (v.ratings_count || 0)) + rating) / newRatingsCount;
-                        return { 
-                            ...v, 
-                            ratings_count: newRatingsCount,
-                            rating: newRating
-                        };
-                    }
-                    return v;
-                })
-            }));
-
-            // Sync with Supabase videos table directly
-            if (newRatingsCount > 0) {
-                await supabase.from('videos').update({
-                    ratings_count: newRatingsCount,
-                    rating: newRating
-                }).eq('id', videoId);
-            }
-
         } catch (e) {
             console.error(e);
-            toast.error('Erro ao enviar avaliação.');
+            toast.error('Erro ao enviar comentário.');
+        }
+    },
+
+    addRating: async (videoId: number, rating: number) => {
+        const currentUser = useAuthStore.getState().user;
+        if (!currentUser) {
+            toast.error('Você precisa estar logado para avaliar.');
+            return;
+        }
+
+        try {
+            // Check if rating already exists for this video and user (where rating > 0)
+            const { data: existingRating, error: fetchError } = await supabase
+                .from('video_ratings')
+                .select('id')
+                .eq('video_id', videoId)
+                .eq('user_id', currentUser.id)
+                .gt('rating', 0)
+                .limit(1);
+
+            if (fetchError) throw fetchError;
+
+            if (existingRating && existingRating.length > 0) {
+                // Update existing rating
+                const { error: updateError } = await supabase
+                    .from('video_ratings')
+                    .update({ rating: rating })
+                    .eq('id', existingRating[0].id);
+
+                if (updateError) throw updateError;
+            } else {
+                // Insert new rating
+                const { error: insertError } = await supabase
+                    .from('video_ratings')
+                    .insert({
+                        video_id: videoId,
+                        user_id: currentUser.id,
+                        rating: rating,
+                        comment: ''
+                    });
+
+                if (insertError) throw insertError;
+            }
+
+            toast.success('Avaliação registrada com sucesso!');
+            
+            // Update local userRatings mapping
+            set(state => ({
+                userRatings: {
+                    ...state.userRatings,
+                    [videoId]: rating
+                }
+            }));
+
+            // Refresh video list to compute correct rating averages instantly
+            get().fetchVideos();
+        } catch (e) {
+            console.error(e);
+            toast.error('Erro ao registrar avaliação.');
         }
     },
 
@@ -350,9 +425,13 @@ export const useVideoStore = create<VideoState>((set, get) => ({
 
         try {
             // Update on Supabase
-            const { error } = await supabase.rpc('increment_video_views', { p_video_id: videoId });
-            if (error) {
-                console.error('RPC Error:', error);
+            let res = await supabase.rpc('increment_video_views', { video_id: videoId });
+            if (res.error) {
+                // Fallback to p_video_id if video_id is not found
+                res = await supabase.rpc('increment_video_views', { p_video_id: videoId });
+            }
+            if (res.error) {
+                console.error('RPC Error:', res.error);
             }
         } catch (e) {
             console.error('Failed to increment views:', e);

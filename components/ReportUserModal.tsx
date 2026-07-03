@@ -30,7 +30,7 @@ export const ReportUserModal: React.FC<ReportUserModalProps> = ({ user, onClose 
     };
 
     return (
-        <div className="fixed inset-0 bg-dark-900/80 backdrop-blur-sm flex items-center justify-center z-[60] animate-fade-in p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-dark-900/80 backdrop-blur-sm flex items-center justify-center z-[180] animate-fade-in p-4" onClick={onClose}>
             <div
                 className="bg-slate-800/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md border border-white/10 overflow-hidden animate-fade-in-up"
                 onClick={(e) => e.stopPropagation()}

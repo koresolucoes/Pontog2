@@ -27,7 +27,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   const cancelLabel = cancelText || t('common.cancel', { defaultValue: 'Cancelar' });
 
   return (
-    <div className="fixed inset-0 bg-dark-900/90 backdrop-blur-sm flex items-center justify-center z-[70] animate-fade-in p-4" onClick={onCancel}>
+    <div className="fixed inset-0 bg-dark-900/90 backdrop-blur-sm flex items-center justify-center z-[200] animate-fade-in p-4" onClick={onCancel}>
       <div 
         className="bg-slate-800 rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center animate-fade-in-up border border-white/10 relative overflow-hidden" 
         onClick={(e) => e.stopPropagation()}

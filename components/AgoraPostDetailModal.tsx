@@ -5,6 +5,7 @@ import { useAgoraStore } from '../stores/agoraStore';
 import { useAuthStore } from '../stores/authStore';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
+import { handleUserClick } from './postUtils';
 
 interface AgoraPostDetailModalProps {
   post: AgoraPost;
@@ -75,7 +76,10 @@ export const AgoraPostDetailModal: React.FC<AgoraPostDetailModalProps> = ({ post
     <div className="fixed inset-0 bg-dark-900/95 backdrop-blur-sm flex items-end sm:items-center justify-center z-[70] animate-fade-in p-0 sm:p-4" onClick={onClose}>
       <div className="bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md mx-auto animate-slide-in-up flex flex-col h-[90vh] border border-white/10" onClick={(e) => e.stopPropagation()}>
         <header className="p-4 border-b border-white/5 flex justify-between items-center flex-shrink-0 bg-slate-800/50 rounded-t-3xl">
-          <div className="flex items-center space-x-3">
+          <div 
+            className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => handleUserClick({ id: currentPost.user_id, username: currentPost.username, avatar_url: currentPost.avatar_url })}
+          >
             <img loading="lazy" src={currentPost.avatar_url} alt={currentPost.username} className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500" />
             <div>
               <h2 className="font-bold text-white leading-none">{currentPost.username}</h2>
@@ -121,11 +125,22 @@ export const AgoraPostDetailModal: React.FC<AgoraPostDetailModalProps> = ({ post
                 ) : (
                     comments.map(comment => (
                         <div key={comment.id} className="flex items-start space-x-3 group">
-                            <img loading="lazy" src={comment.profiles.avatar_url} alt={comment.profiles.username} className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1 border border-white/10"/>
+                            <img 
+                                loading="lazy" 
+                                src={comment.profiles.avatar_url} 
+                                alt={comment.profiles.username} 
+                                className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1 border border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => handleUserClick({ id: comment.user_id, username: comment.profiles.username, avatar_url: comment.profiles.avatar_url })}
+                            />
                             <div className="flex-1">
                                 <div className="bg-slate-800/50 rounded-2xl rounded-tl-none px-4 py-2 border border-white/5">
                                     <div className="flex items-baseline justify-between">
-                                        <span className="font-bold text-white text-sm">{comment.profiles.username}</span>
+                                        <span 
+                                            className="font-bold text-white text-sm cursor-pointer hover:underline"
+                                            onClick={() => handleUserClick({ id: comment.user_id, username: comment.profiles.username, avatar_url: comment.profiles.avatar_url })}
+                                        >
+                                            {comment.profiles.username}
+                                        </span>
                                         <span className="text-[10px] text-slate-500">{formatDistanceToNow(new Date(comment.created_at), { locale: ptBR, addSuffix: true } as any)}</span>
                                     </div>
                                     <p className="text-slate-300 text-sm mt-0.5 break-words leading-relaxed">{comment.content}</p>
