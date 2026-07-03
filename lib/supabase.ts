@@ -3,9 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // As variáveis de ambiente são injetadas pelo Vercel (ou seu bundler como o Vite)
 // Use VITE_ para variáveis que precisam ser expostas ao cliente (navegador)
-// FIX: Hardcoded credentials temporarily as requested.
-const supabaseUrl = "https://wwmiqdovqgysncmqnmvp.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWlxZG92cWd5c25jbXFubXZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzODU2MzEsImV4cCI6MjA3NTk2MTYzMX0.fVUzmHHZORcdI5SSm1HwSjEcDw_VZKyApw-qEi-kRkU";
+const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "https://wwmiqdovqgysncmqnmvp.supabase.co";
+const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWlxZG92cWd5c25jbXFubXZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzODU2MzEsImV4cCI6MjA3NTk2MTYzMX0.fVUzmHHZORcdI5SSm1HwSjEcDw_VZKyApw-qEi-kRkU";
 
 if (!supabaseUrl || !supabaseAnonKey) {
     // This provides a clear error during development if variables are missing.
