@@ -344,7 +344,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetch
                             ))}
                         </div>
                         <span className="text-xs text-slate-400 font-medium">
-                            {video.likes_count || 0} curtidas • {video.ratings_count} avaliações • {video.views_count} vistas
+                            {video.likes_count || 0} curtidas • {video.ratings_count || 0} avaliações • {video.views_count || 0} vistas
                         </span>
                     </div>
                 </div>

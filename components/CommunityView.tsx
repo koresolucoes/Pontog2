@@ -331,7 +331,7 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                 return;
             }
             try {
-                await useCommunityStore.getState().editPost(post.id, activeCommunity.id);
+                await useCommunityStore.getState().editPost(post.id, activeCommunity.id, newContent);
                 toast.success('Publicação editada com sucesso!');
             } catch (e) {
                 toast.error('Erro ao editar publicação');

@@ -304,6 +304,33 @@ export const useVideoStore = create<VideoState>((set, get) => ({
 
             toast.success('Comentário e qualificação enviados!');
             get().fetchComments(videoId);
+            
+            // Optimistic update for rating stats
+            let newRatingsCount = 0;
+            let newRating = 5;
+            set(state => ({
+                videos: state.videos.map(v => {
+                    if (v.id === videoId) {
+                        newRatingsCount = (v.ratings_count || 0) + 1;
+                        newRating = ((v.rating * (v.ratings_count || 0)) + rating) / newRatingsCount;
+                        return { 
+                            ...v, 
+                            ratings_count: newRatingsCount,
+                            rating: newRating
+                        };
+                    }
+                    return v;
+                })
+            }));
+
+            // Sync with Supabase videos table directly
+            if (newRatingsCount > 0) {
+                await supabase.from('videos').update({
+                    ratings_count: newRatingsCount,
+                    rating: newRating
+                }).eq('id', videoId);
+            }
+
         } catch (e) {
             console.error(e);
             toast.error('Erro ao enviar avaliação.');
@@ -311,20 +338,24 @@ export const useVideoStore = create<VideoState>((set, get) => ({
     },
 
     incrementViews: async (videoId: number) => {
+        // Optimistic update
+        set(state => ({
+            videos: state.videos.map(v => {
+                if (v.id === videoId) {
+                    return { ...v, views_count: (v.views_count || 0) + 1 };
+                }
+                return v;
+            })
+        }));
+
         try {
             // Update on Supabase
             const { error } = await supabase.rpc('increment_video_views', { p_video_id: videoId });
-            if (error) throw error;
+            if (error) {
+                console.error('RPC Error:', error);
+            }
         } catch (e) {
-            // Memory update fallback
-            set(state => ({
-                videos: state.videos.map(v => {
-                    if (v.id === videoId) {
-                        return { ...v, views_count: (v.views_count || 0) + 1 };
-                    }
-                    return v;
-                })
-            }));
+            console.error('Failed to increment views:', e);
         }
     },
 
@@ -339,11 +370,13 @@ export const useVideoStore = create<VideoState>((set, get) => ({
         const newIsLiked = !isLiked;
 
         // Optimistic update
+        let newLikesCount = 0;
         set(state => ({
             likedVideos: { ...state.likedVideos, [videoId]: newIsLiked },
             videos: state.videos.map(v => {
                 if (v.id === videoId) {
-                    return { ...v, likes_count: Math.max(0, (v.likes_count || 0) + (newIsLiked ? 1 : -1)) };
+                    newLikesCount = Math.max(0, (v.likes_count || 0) + (newIsLiked ? 1 : -1));
+                    return { ...v, likes_count: newLikesCount };
                 }
                 return v;
             })
@@ -357,6 +390,12 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                 const { error } = await supabase.from('video_likes').delete().match({ video_id: videoId, user_id: currentUser.id });
                 if (error) throw error;
             }
+
+            // Sync with Supabase videos table directly
+            await supabase.from('videos').update({
+                likes_count: newLikesCount
+            }).eq('id', videoId);
+
         } catch (e) {
             // Local fallback logic already handled optimistically
         }
