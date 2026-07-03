@@ -10,11 +10,12 @@ export const VideosView: React.FC = () => {
     const { t } = useTranslation();
     const { user } = useAuthStore();
     const { setActiveView, setChatUser } = useUiStore();
-    const { videos, comments, fetchVideos, fetchComments, addVideo, addComment, incrementViews } = useVideoStore();
+    const { videos, comments, likedVideos, fetchVideos, fetchComments, addVideo, addComment, incrementViews, toggleLike } = useVideoStore();
 
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const [uploadTitle, setUploadTitle] = useState('');
-    const [uploadUrl, setUploadUrl] = useState('');
+    const [uploadDescription, setUploadDescription] = useState('');
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [activeVideoCommentId, setActiveVideoCommentId] = useState<number | null>(null);
 
     // Form states for comments
@@ -31,18 +32,16 @@ export const VideosView: React.FC = () => {
             toast.error('Por favor, informe o título do vídeo.');
             return;
         }
+        if (!uploadFile) {
+            toast.error('Por favor, selecione um arquivo de vídeo.');
+            return;
+        }
 
-        const fallbackUrls = [
-            "https://assets.mixkit.co/videos/preview/mixkit-hands-of-a-dj-playing-music-40011-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-dancing-woman-in-the-city-40015-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-waves-breaking-in-the-ocean-1527-large.mp4"
-        ];
-        const videoUrlToUse = uploadUrl.trim() || fallbackUrls[Math.floor(Math.random() * fallbackUrls.length)];
-
-        await addVideo(uploadTitle, videoUrlToUse);
+        await addVideo(uploadTitle, uploadDescription, uploadFile);
         setIsUploadOpen(false);
         setUploadTitle('');
-        setUploadUrl('');
+        setUploadDescription('');
+        setUploadFile(null);
     };
 
     return (
@@ -88,9 +87,11 @@ export const VideosView: React.FC = () => {
                             key={video.id} 
                             video={video} 
                             comments={comments[video.id] || []}
+                            isLiked={likedVideos[video.id] || false}
                             onFetchComments={() => fetchComments(video.id)}
                             onAddComment={(text, rating) => addComment(video.id, text, rating)}
                             onIncrementViews={() => incrementViews(video.id)}
+                            onLike={() => toggleLike(video.id)}
                             onChatClick={(userToChat) => setChatUser(userToChat)}
                         />
                     ))
@@ -129,18 +130,23 @@ export const VideosView: React.FC = () => {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs text-slate-400 font-bold uppercase">URL do Vídeo (Opcional)</label>
-                                    <input 
-                                        type="url" 
-                                        placeholder="https://...mp4 (ou deixe em branco para amostra)" 
-                                        value={uploadUrl}
-                                        onChange={(e) => setUploadUrl(e.target.value)}
-                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                                    <label className="text-xs text-slate-400 font-bold uppercase">Descrição (Opcional)</label>
+                                    <textarea 
+                                        placeholder="Adicione detalhes sobre o vídeo..." 
+                                        value={uploadDescription}
+                                        onChange={(e) => setUploadDescription(e.target.value)}
+                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 min-h-[80px]"
                                     />
                                 </div>
-                                <p className="text-[10px] text-slate-500 leading-normal">
-                                    Para fins de demonstração, se você não tiver uma URL MP4 direta, utilizaremos loops de vídeo pré-carregados super rápidos.
-                                </p>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-slate-400 font-bold uppercase">Arquivo de Vídeo</label>
+                                    <input 
+                                        type="file" 
+                                        accept="video/mp4,video/x-m4v,video/*"
+                                        onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
+                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-600 file:text-white hover:file:bg-red-500"
+                                    />
+                                </div>
                                 <div className="flex gap-3 pt-2">
                                     <button 
                                         type="button" 
@@ -168,13 +174,15 @@ export const VideosView: React.FC = () => {
 interface VideoCardProps {
     video: VideoPost;
     comments: VideoComment[];
+    isLiked: boolean;
     onFetchComments: () => void;
     onAddComment: (text: string, rating: number) => void;
     onIncrementViews: () => void;
+    onLike: () => void;
     onChatClick: (user: any) => void;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video, comments, onFetchComments, onAddComment, onIncrementViews, onChatClick }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(true);
@@ -272,7 +280,10 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, onFetchComments,
             <div className="p-4 space-y-3.5 border-b border-white/5">
                 <div>
                     <h2 className="text-lg font-bold text-white tracking-wide">{video.title}</h2>
-                    <div className="flex items-center gap-2 mt-1">
+                    {(video as any).description && (
+                        <p className="text-sm text-slate-300 mt-1 line-clamp-2">{(video as any).description}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2">
                         {/* Star display */}
                         <div className="flex gap-0.5 text-yellow-400">
                             {[1, 2, 3, 4, 5].map(star => (
@@ -282,7 +293,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, onFetchComments,
                             ))}
                         </div>
                         <span className="text-xs text-slate-400 font-medium">
-                            {video.ratings_count} evaluaciones • {video.views_count} vistas • {formatDateLabel(video.created_at)}
+                            {video.likes_count || 0} curtidas • {video.ratings_count} avaliações • {video.views_count} vistas
                         </span>
                     </div>
                 </div>
@@ -324,6 +335,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, onFetchComments,
                     </div>
 
                     <div className="flex items-center gap-2">
+                        <button 
+                            onClick={onLike}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors shadow-md active:scale-95 ${isLiked ? 'bg-pink-600 text-white shadow-pink-900/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
+                            title="Curtir"
+                        >
+                            <span className={`material-symbols-rounded text-xl ${isLiked ? 'filled' : ''}`}>favorite</span>
+                        </button>
                         <button 
                             onClick={() => onChatClick({ id: video.user_id, username: video.user_profile?.username, avatar_url: video.user_profile?.avatar_url })}
                             className="w-10 h-10 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 transition-colors text-white shadow-md shadow-red-900/20 active:scale-95"
