@@ -10,7 +10,7 @@ export const VideosView: React.FC = () => {
     const { t } = useTranslation();
     const { user } = useAuthStore();
     const { setActiveView, setChatUser } = useUiStore();
-    const { videos, comments, likedVideos, fetchVideos, fetchComments, addVideo, addComment, incrementViews, toggleLike } = useVideoStore();
+    const { videos, comments, likedVideos, fetchVideos, fetchComments, addVideo, addComment, incrementViews, toggleLike, deleteVideo, editVideo } = useVideoStore();
 
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const [uploadTitle, setUploadTitle] = useState('');
@@ -93,6 +93,9 @@ export const VideosView: React.FC = () => {
                             onIncrementViews={() => incrementViews(video.id)}
                             onLike={() => toggleLike(video.id)}
                             onChatClick={(userToChat) => setChatUser(userToChat)}
+                            isOwner={user?.id === video.user_id}
+                            onDeleteVideo={() => deleteVideo(video.id)}
+                            onEditVideo={(title, desc) => editVideo(video.id, title, desc)}
                         />
                     ))
                 )}
@@ -180,9 +183,12 @@ interface VideoCardProps {
     onIncrementViews: () => void;
     onLike: () => void;
     onChatClick: (user: any) => void;
+    isOwner?: boolean;
+    onDeleteVideo?: () => void;
+    onEditVideo?: (title: string, desc: string) => void;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick, isOwner, onDeleteVideo, onEditVideo }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(true);
@@ -192,6 +198,10 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetch
     const [showCommentsSection, setShowCommentsSection] = useState(false);
     const [starRating, setStarRating] = useState(5);
     const [newCommentText, setNewCommentText] = useState('');
+
+    const [isEditing, setIsEditing] = useState(false);
+    const [editTitle, setEditTitle] = useState(video.title);
+    const [editDesc, setEditDesc] = useState(video.description || '');
 
     useEffect(() => {
         if (showCommentsSection) {
@@ -224,6 +234,13 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetch
         onAddComment(newCommentText, starRating);
         setNewCommentText('');
         setStarRating(5);
+    };
+
+    const handleSaveEdit = () => {
+        if (onEditVideo) {
+            onEditVideo(editTitle, editDesc);
+        }
+        setIsEditing(false);
     };
 
     // Format human-friendly dates
@@ -279,13 +296,46 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetch
 
             {/* Video Metadata Panel */}
             <div className="p-4 space-y-3.5 border-b border-white/5">
-                <div>
-                    <h2 className="text-lg font-bold text-white tracking-wide">{video.title}</h2>
-                    {(video as any).description && (
-                        <p className="text-sm text-slate-300 mt-1 line-clamp-2">{(video as any).description}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2">
-                        {/* Star display */}
+                {isEditing ? (
+                    <div className="space-y-3">
+                        <input 
+                            type="text"
+                            value={editTitle}
+                            onChange={e => setEditTitle(e.target.value)}
+                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-red-500"
+                            placeholder="Título do vídeo"
+                        />
+                        <textarea 
+                            value={editDesc}
+                            onChange={e => setEditDesc(e.target.value)}
+                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-red-500 min-h-[80px]"
+                            placeholder="Descrição"
+                        />
+                        <div className="flex gap-2 justify-end">
+                            <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-xs font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors">Cancelar</button>
+                            <button onClick={handleSaveEdit} className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-colors">Salvar</button>
+                        </div>
+                    </div>
+                ) : (
+                    <div>
+                        <div className="flex justify-between items-start">
+                            <h2 className="text-lg font-bold text-white tracking-wide">{video.title}</h2>
+                            {isOwner && (
+                                <div className="flex gap-2 ml-4">
+                                    <button onClick={() => setIsEditing(true)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-white transition-colors" title="Editar">
+                                        <span className="material-symbols-rounded text-sm">edit</span>
+                                    </button>
+                                    <button onClick={onDeleteVideo} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-red-500 transition-colors" title="Excluir">
+                                        <span className="material-symbols-rounded text-sm">delete</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        {(video as any).description && (
+                            <p className="text-sm text-slate-300 mt-1 line-clamp-2">{(video as any).description}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-2">
+                            {/* Star display */}
                         <div className="flex gap-0.5 text-yellow-400">
                             {[1, 2, 3, 4, 5].map(star => (
                                 <span key={star} className="material-symbols-rounded text-sm filled">
@@ -298,6 +348,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetch
                         </span>
                     </div>
                 </div>
+                )}
 
                 {/* Profile detail card below like the screenshot */}
                 <div className="bg-slate-800/40 border border-white/5 rounded-2xl p-3 flex items-center justify-between">

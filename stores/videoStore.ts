@@ -53,6 +53,8 @@ interface VideoState {
     addComment: (videoId: number, commentText: string, rating: number) => Promise<void>;
     incrementViews: (videoId: number) => Promise<void>;
     toggleLike: (videoId: number) => Promise<void>;
+    deleteVideo: (videoId: number) => Promise<void>;
+    editVideo: (videoId: number, newTitle: string, newDescription: string) => Promise<void>;
 }
 
 export const useVideoStore = create<VideoState>((set, get) => ({
@@ -357,6 +359,44 @@ export const useVideoStore = create<VideoState>((set, get) => ({
             }
         } catch (e) {
             // Local fallback logic already handled optimistically
+        }
+    },
+
+    deleteVideo: async (videoId: number) => {
+        const currentUser = useAuthStore.getState().user;
+        if (!currentUser) return;
+        try {
+            const { error } = await supabase
+                .from('videos')
+                .delete()
+                .match({ id: videoId, user_id: currentUser.id });
+            if (error) throw error;
+            set(state => ({
+                videos: state.videos.filter(v => v.id !== videoId)
+            }));
+            toast.success('Vídeo eliminado con éxito.');
+        } catch (e) {
+            console.error(e);
+            toast.error('Error al eliminar el video.');
+        }
+    },
+
+    editVideo: async (videoId: number, newTitle: string, newDescription: string) => {
+        const currentUser = useAuthStore.getState().user;
+        if (!currentUser) return;
+        try {
+            const { error } = await supabase
+                .from('videos')
+                .update({ title: newTitle, description: newDescription })
+                .match({ id: videoId, user_id: currentUser.id });
+            if (error) throw error;
+            set(state => ({
+                videos: state.videos.map(v => v.id === videoId ? { ...v, title: newTitle, description: newDescription } : v)
+            }));
+            toast.success('Vídeo actualizado con éxito.');
+        } catch (e) {
+            console.error(e);
+            toast.error('Error al actualizar el video.');
         }
     }
 }));
