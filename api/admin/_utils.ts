@@ -3,6 +3,17 @@ import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
 
+function getSupabaseClient() {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return null;
+    try {
+        return createClient(url, key);
+    } catch (e) {
+        return null;
+    }
+}
+
 // In-memory audit logs cache for warm serverless sessions if DB table doesn't exist yet
 export interface AuditLog {
     id: string;
@@ -106,10 +117,10 @@ export function enforceRoles(req: VercelRequest, allowedRoles: ('owner' | 'moder
 
 // Get recent audit logs
 export async function getAuditLogs(req: VercelRequest): Promise<AuditLog[]> {
-    const supabaseAdmin = createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabaseAdmin = getSupabaseClient();
+    if (!supabaseAdmin) {
+        return [...MEMORY_AUDIT_LOGS].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
 
     try {
         const { data, error } = await supabaseAdmin
@@ -155,38 +166,36 @@ export async function recordAuditLog(
     }
 
     // Try to save to Supabase
-    const supabaseAdmin = createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    try {
-        const { error } = await supabaseAdmin
-            .from('admin_audit_logs')
-            .insert([{
-                id: logEntry.id,
-                admin_email: logEntry.admin_email,
-                admin_name: logEntry.admin_name,
-                role: logEntry.role,
-                action: logEntry.action,
-                target_id: logEntry.target_id,
-                details: logEntry.details,
-                ip_address: logEntry.ip_address,
-                created_at: logEntry.created_at
-            }]);
-        if (error) throw error;
-        console.log(`[AUDIT LOG] Log saved to DB successfully: ${action}`);
-    } catch (err: any) {
-        console.log(`[AUDIT LOG] Saved to memory (DB table missing): ${logEntry.admin_email} -> ${action}: ${details}`);
+    const supabaseAdmin = getSupabaseClient();
+    if (supabaseAdmin) {
+        try {
+            const { error } = await supabaseAdmin
+                .from('admin_audit_logs')
+                .insert([{
+                    id: logEntry.id,
+                    admin_email: logEntry.admin_email,
+                    admin_name: logEntry.admin_name,
+                    role: logEntry.role,
+                    action: logEntry.action,
+                    target_id: logEntry.target_id,
+                    details: logEntry.details,
+                    ip_address: logEntry.ip_address,
+                    created_at: logEntry.created_at
+                }]);
+            if (error) throw error;
+            console.log(`[AUDIT LOG] Log saved to DB successfully: ${action}`);
+        } catch (err: any) {
+            console.log(`[AUDIT LOG] Saved to memory (DB table missing): ${logEntry.admin_email} -> ${action}: ${details}`);
+        }
+    } else {
+        console.log(`[AUDIT LOG] Saved to memory (Supabase not configured): ${logEntry.admin_email} -> ${action}: ${details}`);
     }
 }
 
 // System Settings Helper (dynamic config)
 export async function getSystemSettings(): Promise<Record<string, any>> {
-    const supabaseAdmin = createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabaseAdmin = getSupabaseClient();
+    if (!supabaseAdmin) return MEMORY_SETTINGS;
 
     try {
         const { data, error } = await supabaseAdmin
@@ -211,21 +220,19 @@ export async function getSystemSettings(): Promise<Record<string, any>> {
 export async function updateSystemSetting(key: string, value: any, adminEmail: string) {
     MEMORY_SETTINGS[key] = value;
 
-    const supabaseAdmin = createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    try {
-        const { error } = await supabaseAdmin
-            .from('system_settings')
-            .upsert({
-                key,
-                value,
-                updated_at: new Date().toISOString()
-            });
-        if (error) throw error;
-    } catch (err) {
-        console.warn(`Could not persist setting '${key}' in Supabase (table missing). Saved in memory only.`);
+    const supabaseAdmin = getSupabaseClient();
+    if (supabaseAdmin) {
+        try {
+            const { error } = await supabaseAdmin
+                .from('system_settings')
+                .upsert({
+                    key,
+                    value,
+                    updated_at: new Date().toISOString()
+                });
+            if (error) throw error;
+        } catch (err) {
+            console.warn(`Could not persist setting '${key}' in Supabase (table missing). Saved in memory only.`);
+        }
     }
 }
