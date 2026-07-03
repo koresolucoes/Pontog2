@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { User } from '../types';
 
-export type View = 'home' | 'map' | 'grid' | 'inbox' | 'profile' | 'agora' | 'news' | 'communities';
+export type View = 'home' | 'map' | 'grid' | 'inbox' | 'profile' | 'agora' | 'news' | 'communities' | 'videos';
 
 interface UiState {
   activeView: View;

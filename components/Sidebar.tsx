@@ -111,6 +111,12 @@ export const Sidebar: React.FC = () => {
                             onClick={() => handleNavClick('news')}
                             iconColor="text-blue-400"
                         />
+                        <SidebarLink 
+                            icon="play_circle" 
+                            label="Vídeos" 
+                            onClick={() => handleNavClick('videos')}
+                            iconColor="text-red-500"
+                        />
                         <div className="py-2">
                             <div className="h-px bg-white/5 mx-2"></div>
                         </div>

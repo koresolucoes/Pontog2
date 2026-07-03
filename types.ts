@@ -56,6 +56,8 @@ export interface Profile {
   relationship_status?: string;
   looking_for?: string[];
   interests?: string[];
+  oral_preference?: string | null;
+  site_preference?: string | null;
 }
 
 // O tipo User estende Profile com campos calculados como 'idade'
