@@ -32,6 +32,9 @@ interface CommunityState {
     deletePost: (postId: string, communityId: string) => Promise<void>;
     editPost: (postId: string, communityId: string, content: string) => Promise<void>;
     deleteCommunity: (communityId: string) => Promise<void>;
+    requestConnection: (targetUserId: string) => Promise<void>;
+    acceptConnection: (connectionId: string) => Promise<void>;
+    rejectConnection: (connectionId: string) => Promise<void>;
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
@@ -262,6 +265,29 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 await supabase.from('community_post_likes').delete().eq('post_id', postId).eq('user_id', userId);
             } else {
                 await supabase.from('community_post_likes').insert({ post_id: postId, user_id: userId });
+
+                // Send push notification to post author if liker is not the author
+                if (post.author_id && post.author_id !== userId) {
+                    supabase.auth.getSession().then(({ data: { session } }) => {
+                        if (session) {
+                            supabase.from('profiles').select('username, display_name').eq('id', userId).single().then(({ data: profile }) => {
+                                const likerName = profile?.display_name || profile?.username || 'Alguém';
+                                fetch('/api/send-generic-push', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${session.access_token}`
+                                    },
+                                    body: JSON.stringify({
+                                        receiver_id: post.author_id,
+                                        title: 'Sua publicação recebeu uma curtida! ❤️',
+                                        body: `${likerName} curtiu o seu post.`
+                                    })
+                                }).catch(err => console.error("Error sending like push:", err));
+                            });
+                        }
+                    });
+                }
             }
         } catch (error) {
             console.error('Error toggling like:', error);
@@ -449,5 +475,41 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         } finally {
             set({ loading: false });
         }
+    },
+
+    requestConnection: async (targetUserId: string) => {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) return;
+        
+        const { error } = await supabase
+            .from('user_connections')
+            .insert({
+                follower_id: userData.user.id,
+                following_id: targetUserId,
+                status: 'pending'
+            });
+            
+        if (error) throw error;
+        await get().fetchConnections();
+    },
+    
+    acceptConnection: async (connectionId: string) => {
+        const { error } = await supabase
+            .from('user_connections')
+            .update({ status: 'accepted' })
+            .eq('id', connectionId);
+            
+        if (error) throw error;
+        await get().fetchConnections();
+    },
+    
+    rejectConnection: async (connectionId: string) => {
+        const { error } = await supabase
+            .from('user_connections')
+            .delete()
+            .eq('id', connectionId);
+            
+        if (error) throw error;
+        await get().fetchConnections();
     }
 }));

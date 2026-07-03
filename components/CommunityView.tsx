@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useCommunityStore } from '../stores/communityStore';
 import { useAuthStore } from '../stores/authStore';
 import { useUiStore } from '../stores/uiStore';
+import { useMapStore } from '../stores/mapStore';
 import { Community, CommunityPost } from '../types';
 import { toast } from 'react-hot-toast';
 import { CommunityPostDetailModal } from './CommunityPostDetailModal';
@@ -18,6 +19,28 @@ const renderContent = (content: string) => {
             ? <span key={i} className="text-primary-400 font-medium hover:underline cursor-pointer">{part}</span> 
             : part
     );
+};
+
+export const handleUserClick = (author: any) => {
+    if (!author) return;
+    const calculateAge = (dobString: string | null): number => {
+        if (!dobString) return 18;
+        try {
+            const dob = new Date(dobString);
+            const diff = Date.now() - dob.getTime();
+            const ageDate = new Date(diff);
+            return Math.abs(ageDate.getUTCFullYear() - 1970);
+        } catch (e) {
+            return 18;
+        }
+    };
+    useMapStore.getState().setSelectedUser({
+        ...author,
+        age: author.age || calculateAge(author.date_of_birth),
+        status: author.status || 'active',
+        is_incognito: author.is_incognito || false,
+        has_completed_onboarding: author.has_completed_onboarding ?? true
+    });
 };
 
 export const CommunityView: React.FC = () => {
@@ -540,7 +563,10 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                     ) : currentCommunityPosts.length > 0 ? (
                         currentCommunityPosts.map(post => (
                             <div key={post.id} className="p-4 border-b border-white/5 hover:bg-slate-800/20 transition-colors flex gap-3">
-                                <div className="w-12 h-12 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
+                                <div 
+                                    onClick={() => handleUserClick(post.author)} 
+                                    className="w-12 h-12 rounded-full bg-slate-700 overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                >
                                     {post.author?.avatar_url ? (
                                         <img src={post.author.avatar_url} alt="" className="w-full h-full object-cover" />
                                     ) : (
@@ -550,8 +576,18 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
                                         <div className="flex flex-wrap items-baseline gap-1.5 mb-1">
-                                            <span className="font-bold text-white text-base truncate">{post.author?.display_name || post.author?.username || 'Usuário'}</span>
-                                            <span className="text-slate-500 text-sm truncate">@{post.author?.username || 'user'}</span>
+                                            <span 
+                                                onClick={() => handleUserClick(post.author)} 
+                                                className="font-bold text-white text-base truncate cursor-pointer hover:underline"
+                                            >
+                                                {post.author?.display_name || post.author?.username || 'Usuário'}
+                                            </span>
+                                            <span 
+                                                onClick={() => handleUserClick(post.author)} 
+                                                className="text-slate-500 text-sm truncate cursor-pointer hover:underline"
+                                            >
+                                                @{post.author?.username || 'user'}
+                                            </span>
                                             <span className="text-slate-500 text-sm">·</span>
                                             <span className="text-slate-500 text-sm hover:underline cursor-pointer">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric'})}</span>
                                         </div>
@@ -656,14 +692,22 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                                     {post.repost && (
                                         <div className="mt-3 border border-white/10 rounded-xl p-3 bg-slate-800/30">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-6 h-6 rounded-full bg-slate-700 overflow-hidden">
+                                                <div 
+                                                    onClick={() => handleUserClick(post.repost.author)} 
+                                                    className="w-6 h-6 rounded-full bg-slate-700 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
+                                                >
                                                     {post.repost.author?.avatar_url ? (
                                                         <img src={post.repost.author.avatar_url} alt="" className="w-full h-full object-cover" />
                                                     ) : (
                                                         <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-[14px] text-slate-500">person</span>
                                                     )}
                                                 </div>
-                                                <span className="font-bold text-white text-sm">{post.repost.author?.display_name || post.repost.author?.username}</span>
+                                                <span 
+                                                    onClick={() => handleUserClick(post.repost.author)} 
+                                                    className="font-bold text-white text-sm cursor-pointer hover:underline"
+                                                >
+                                                    {post.repost.author?.display_name || post.repost.author?.username}
+                                                </span>
                                             </div>
                                             <p className="text-slate-300 text-sm leading-relaxed">{renderContent(post.repost.content)}</p>
                                         </div>
@@ -1275,9 +1319,18 @@ const ManageMembersModal: React.FC<{ community: Community, onClose: () => void, 
                     {activeTab === 'members' && members.map(m => (
                         <div key={m.user_id} className="flex items-center justify-between bg-dark-900 p-4 rounded-2xl border border-white/5">
                             <div className="flex items-center gap-3">
-                                <img src={m.profile?.avatar_url || 'https://placehold.co/100x100/1f2937/d1d5db/png?text=U'} className="w-10 h-10 rounded-full object-cover" />
+                                <img 
+                                    src={m.profile?.avatar_url || 'https://placehold.co/100x100/1f2937/d1d5db/png?text=U'} 
+                                    className="w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                                    onClick={() => { handleUserClick(m.profile); onClose(); }}
+                                />
                                 <div>
-                                    <p className="text-white font-bold">{m.profile?.username || 'Usuário'}</p>
+                                    <p 
+                                        className="text-white font-bold cursor-pointer hover:underline"
+                                        onClick={() => { handleUserClick(m.profile); onClose(); }}
+                                    >
+                                        {m.profile?.username || 'Usuário'}
+                                    </p>
                                     <p className="text-xs text-slate-400 capitalize">{m.role}</p>
                                 </div>
                             </div>

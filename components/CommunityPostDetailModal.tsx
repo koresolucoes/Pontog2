@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useCommunityStore } from '../stores/communityStore';
 import { useAuthStore } from '../stores/authStore';
+import { handleUserClick } from './CommunityView';
 import { toast } from 'react-hot-toast';
 import type { CommunityPost, CommunityComment } from '../types';
 
@@ -110,10 +111,11 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not logged in');
             
+            const commentText = newComment;
             const { error } = await supabase.from('community_comments').insert({
                 post_id: post.id,
                 author_id: user.id,
-                content: newComment
+                content: commentText
             });
             if (error) throw error;
             
@@ -121,6 +123,28 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
             await loadComments();
             // Update comments count in post
             await fetchCommunityPosts(communityId);
+
+            // Send push notification to post author if commenter is not the author
+            if (post.author_id && post.author_id !== user.id) {
+                const { session } = (await supabase.auth.getSession()).data;
+                if (session && currentUser) {
+                    const commenterName = currentUser.display_name || currentUser.username || 'Alguém';
+                    const truncated = commentText.length > 50 ? commentText.slice(0, 50) + '...' : commentText;
+                    
+                    fetch('/api/send-generic-push', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`
+                        },
+                        body: JSON.stringify({
+                            receiver_id: post.author_id,
+                            title: 'Novo comentário na sua publicação! 💬',
+                            body: `${commenterName} comentou: "${truncated}"`
+                        })
+                    }).catch(err => console.error("Error sending comment push:", err));
+                }
+            }
         } catch (e) {
             console.error(e);
             toast.error('Erro ao enviar comentário');
@@ -154,10 +178,24 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
                     {/* Main post reference (optional, could just be comments) */}
                     <div className="mb-6 pb-6 border-b border-white/5">
                         <div className="flex items-center gap-3 mb-3">
-                            <img src={post.author?.avatar_url || 'https://placehold.co/100'} className="w-10 h-10 rounded-full object-cover" />
+                            <img 
+                                src={post.author?.avatar_url || 'https://placehold.co/100'} 
+                                className="w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                                onClick={() => { handleUserClick(post.author); onClose(); }}
+                            />
                             <div>
-                                <p className="font-bold text-white text-sm">{post.author?.display_name || post.author?.username}</p>
-                                <p className="text-slate-500 text-xs">@{post.author?.username}</p>
+                                <p 
+                                    className="font-bold text-white text-sm cursor-pointer hover:underline"
+                                    onClick={() => { handleUserClick(post.author); onClose(); }}
+                                >
+                                    {post.author?.display_name || post.author?.username}
+                                </p>
+                                <p 
+                                    className="text-slate-500 text-xs cursor-pointer hover:underline"
+                                    onClick={() => { handleUserClick(post.author); onClose(); }}
+                                >
+                                    @{post.author?.username}
+                                </p>
                             </div>
                         </div>
                         <p className="text-slate-200 text-sm whitespace-pre-wrap">{post.content}</p>
@@ -172,11 +210,20 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
                         <div className="space-y-4">
                             {comments.map(c => (
                                 <div key={c.id} className="flex gap-3">
-                                    <img src={c.author?.avatar_url || 'https://placehold.co/100'} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                    <img 
+                                        src={c.author?.avatar_url || 'https://placehold.co/100'} 
+                                        className="w-8 h-8 rounded-full object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
+                                        onClick={() => { handleUserClick(c.author); onClose(); }}
+                                    />
                                     <div className="flex-1 bg-dark-900 rounded-2xl p-3 border border-white/5 relative">
                                         <div className="flex justify-between items-start mb-1">
                                             <div>
-                                                <span className="font-bold text-white text-sm mr-2">{c.author?.display_name || c.author?.username}</span>
+                                                <span 
+                                                    className="font-bold text-white text-sm mr-2 cursor-pointer hover:underline"
+                                                    onClick={() => { handleUserClick(c.author); onClose(); }}
+                                                >
+                                                    {c.author?.display_name || c.author?.username}
+                                                </span>
                                                 <span className="text-slate-500 text-xs">{new Date(c.created_at).toLocaleDateString()}</span>
                                             </div>
                                             {currentUser?.id === c.author_id && (

@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { formatLastSeen } from '../lib/utils';
 import { AlbumGalleryModal } from './AlbumGalleryModal';
 import { useUserActionsStore } from '../stores/userActionsStore';
+import { useCommunityStore } from '../stores/communityStore';
 import { ReportUserModal } from './ReportUserModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useTranslation } from 'react-i18next';
@@ -45,16 +46,41 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
   const [isReportModalOpen, setReportModalOpen] = useState(false);
   const [isBlockConfirmOpen, setBlockConfirmOpen] = useState(false);
   
+  // Connection Request States
+  const [connection, setConnection] = useState<any>(null);
+  const [firstMessage, setFirstMessage] = useState('');
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
+  
   // Video Control
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   
   const agoraPost = posts.find(p => p.user_id === user.id);
 
+  const fetchConnection = async () => {
+    if (!currentUser || !user || currentUser.id === user.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('user_connections')
+        .select('*')
+        .or(`and(follower_id.eq.${currentUser.id},following_id.eq.${user.id}),and(follower_id.eq.${user.id},following_id.eq.${currentUser.id})`)
+        .limit(1);
+      
+      if (!error && data && data.length > 0) {
+        setConnection(data[0]);
+      } else {
+        setConnection(null);
+      }
+    } catch (e) {
+      console.error('Error fetching connection:', e);
+    }
+  };
+
   useEffect(() => {
     fetchAgoraPosts();
     if (user && currentUser && user.id !== currentUser.id) {
         fetchAlbumsAndAccessStatusForUser(user.id);
+        fetchConnection();
         supabase.rpc('record_profile_view', { p_viewed_id: user.id })
             .then(({ error }) => {
                 if(error) console.error("Error recording profile view:", error);
@@ -75,6 +101,139 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
         clearViewedUserData();
     }
   }, [user, currentUser, fetchAlbumsAndAccessStatusForUser, clearViewedUserData, fetchAgoraPosts]);
+
+  const handleRequestConnection = async () => {
+    if (!currentUser || !user) return;
+    if (!firstMessage.trim()) {
+        toast.error('Por favor, escreva uma mensagem inicial.');
+        return;
+    }
+    
+    setIsSendingRequest(true);
+    try {
+        // 1. Create connection in 'user_connections'
+        const { data: connData, error: connError } = await supabase
+            .from('user_connections')
+            .insert({
+                follower_id: currentUser.id,
+                following_id: user.id,
+                status: 'pending'
+            })
+            .select('*')
+            .single();
+            
+        if (connError) throw connError;
+        setConnection(connData);
+        
+        // 2. Get or create conversation
+        const { data: convId, error: convError } = await supabase.rpc('get_or_create_conversation', {
+            p_one: currentUser.id,
+            p_two: user.id
+        });
+        
+        if (convError) throw convError;
+        
+        // 3. Send initial message
+        const { error: msgError } = await supabase.from('messages').insert({
+            sender_id: currentUser.id,
+            conversation_id: convId,
+            content: firstMessage.trim()
+        });
+        
+        if (msgError) throw msgError;
+        
+        // 4. Send generic push notification
+        const { session } = (await supabase.auth.getSession()).data;
+        if (session) {
+            const senderName = currentUser.display_name || currentUser.username || 'Alguém';
+            const truncated = firstMessage.length > 50 ? firstMessage.slice(0, 50) + '...' : firstMessage;
+            
+            fetch('/api/send-generic-push', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                    receiver_id: user.id,
+                    title: 'Nova solicitação de conexão! 🤝',
+                    body: `${senderName} enviou uma mensagem inicial: "${truncated}"`
+                })
+            }).catch(err => console.error("Error sending connection request push:", err));
+        }
+        
+        toast.success('Solicitação de conexão enviada com sucesso!');
+        setFirstMessage('');
+        
+        // Refresh community connections
+        useCommunityStore.getState().fetchConnections();
+    } catch (e: any) {
+        console.error('Error requesting connection:', e);
+        toast.error('Erro ao enviar solicitação de conexão.');
+    } finally {
+        setIsSendingRequest(false);
+    }
+  };
+
+  const handleAcceptConnection = async () => {
+    if (!connection) return;
+    try {
+        const { error } = await supabase
+            .from('user_connections')
+            .update({ status: 'accepted' })
+            .eq('id', connection.id);
+            
+        if (error) throw error;
+        setConnection({ ...connection, status: 'accepted' });
+        
+        // Send generic push notification to the original sender
+        const { session } = (await supabase.auth.getSession()).data;
+        if (session && currentUser) {
+            const senderName = currentUser.display_name || currentUser.username || 'Alguém';
+            
+            fetch('/api/send-generic-push', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                    receiver_id: connection.follower_id,
+                    title: 'Solicitação de conexão aceita! 🎉',
+                    body: `${senderName} aceitou sua solicitação de conexão.`
+                })
+            }).catch(err => console.error("Error sending connection accept push:", err));
+        }
+        
+        toast.success('Solicitação de conexão aceita!');
+        
+        // Refresh community connections
+        useCommunityStore.getState().fetchConnections();
+    } catch (e) {
+        console.error('Error accepting connection:', e);
+        toast.error('Erro ao aceitar conexão.');
+    }
+  };
+
+  const handleRejectConnection = async () => {
+    if (!connection) return;
+    try {
+        const { error } = await supabase
+            .from('user_connections')
+            .delete()
+            .eq('id', connection.id);
+            
+        if (error) throw error;
+        setConnection(null);
+        toast.success('Solicitação de conexão recusada.');
+        
+        // Refresh community connections
+        useCommunityStore.getState().fetchConnections();
+    } catch (e) {
+        console.error('Error rejecting connection:', e);
+        toast.error('Erro ao recusar conexão.');
+    }
+  };
 
   const isOnline = onlineUsers.includes(user.id);
   const statusText = isOnline ? t('profile_modal.online_now', { defaultValue: 'Online Agora' }) : formatLastSeen(user.last_seen);
@@ -463,32 +622,85 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
         </div>
         
         {/* Action Bar */}
-        <div className="p-4 border-t border-white/10 bg-slate-900 flex-shrink-0 flex flex-col gap-3 pb-8 sm:pb-4">
-          {currentUser?.subscription_tier === 'free' && winkCount !== null && (
-              <div className="text-center text-xs text-slate-500">
-                  {10 - winkCount > 0 ? (
-                      <p>{t('profile_modal.you_have', { defaultValue: 'Você tem' })} <span className="font-bold text-slate-300">{10 - winkCount}</span> {t('profile_modal.winks_today', { defaultValue: 'chamados hoje.' })}</p>
-                  ) : (
-                      <p>{t('profile_modal.no_winks', { defaultValue: 'Acabaram os chamados.' })} <button onClick={() => { onClose(); setSubscriptionModalOpen(true); }} className="text-primary-400 hover:underline font-semibold">{t('profile_modal.get_plus', { defaultValue: 'Vire Plus' })}</button></p>
-                  )}
-              </div>
-          )}
-          
-          <div className="flex gap-3">
-            <button 
-              onClick={handleWink} 
-              disabled={currentUser?.subscription_tier === 'free' && winkCount !== null && winkCount >= 10}
-              className="flex-1 bg-slate-800 border border-white/10 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
-            >
-              <span className="material-symbols-rounded text-xl text-primary-500 filled">favorite</span>
-              <span>{t('profile_modal.wink', { defaultValue: 'Chamar' })}</span>
-            </button>
-            <button onClick={handleChatClick} className="flex-1 bg-gradient-to-r from-primary-600 to-secondary-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary-900/30 transition-all active:scale-95">
-              <span className="material-symbols-rounded text-xl filled">chat_bubble</span>
-              <span>{t('profile_modal.message', { defaultValue: 'Mensagem' })}</span>
-            </button>
+        {user.id !== currentUser?.id && (
+          <div className="p-4 border-t border-white/10 bg-slate-900 flex-shrink-0 flex flex-col gap-3 pb-8 sm:pb-4">
+            {currentUser?.subscription_tier === 'free' && winkCount !== null && connection?.status === 'accepted' && (
+                <div className="text-center text-xs text-slate-500">
+                    {10 - winkCount > 0 ? (
+                        <p>{t('profile_modal.you_have', { defaultValue: 'Você tem' })} <span className="font-bold text-slate-300">{10 - winkCount}</span> {t('profile_modal.winks_today', { defaultValue: 'chamados hoje.' })}</p>
+                    ) : (
+                        <p>{t('profile_modal.no_winks', { defaultValue: 'Acabaram os chamados.' })} <button onClick={() => { onClose(); setSubscriptionModalOpen(true); }} className="text-primary-400 hover:underline font-semibold">{t('profile_modal.get_plus', { defaultValue: 'Vire Plus' })}</button></p>
+                    )}
+                </div>
+            )}
+            
+            {connection === null ? (
+                <div className="space-y-3 bg-slate-800/40 p-4 rounded-2xl border border-white/5 shadow-inner">
+                    <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase">Solicitação de Conexão</p>
+                    <textarea
+                        value={firstMessage}
+                        onChange={(e) => setFirstMessage(e.target.value)}
+                        placeholder="Envie uma primeira mensagem para iniciar a conversa..."
+                        maxLength={150}
+                        className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-500 transition-colors resize-none h-18"
+                    />
+                    <button
+                        onClick={handleRequestConnection}
+                        disabled={isSendingRequest || !firstMessage.trim()}
+                        className="w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary-900/30 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                    >
+                        {isSendingRequest ? (
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <>
+                                <span className="material-symbols-rounded text-xl">handshake</span>
+                                <span>Solicitar Conexão</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            ) : connection.status === 'pending' ? (
+                connection.follower_id === currentUser?.id ? (
+                    <div className="text-center p-4 bg-slate-800/40 rounded-2xl border border-white/5 space-y-2">
+                        <span className="material-symbols-rounded text-slate-400 text-3xl mb-1 animate-pulse">hourglass_empty</span>
+                        <p className="text-sm font-semibold text-slate-300">Solicitação Pendente</p>
+                        <p className="text-xs text-slate-500">Aguardando a resposta de {user.display_name || user.username}.</p>
+                    </div>
+                ) : (
+                    <div className="p-4 bg-slate-800/40 rounded-2xl border border-white/5 space-y-3 shadow-inner">
+                        <div className="text-center">
+                            <span className="material-symbols-rounded text-primary-500 text-3xl mb-1 animate-bounce">handshake</span>
+                            <p className="text-sm font-bold text-white">Solicitação Recebida</p>
+                            <p className="text-xs text-slate-400 mt-1">{user.display_name || user.username} quer se conectar!</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={handleRejectConnection} className="flex-1 bg-slate-850 border border-white/5 text-red-400 font-bold py-2.5 rounded-xl text-sm transition-colors hover:bg-slate-700">
+                                Recusar
+                            </button>
+                            <button onClick={handleAcceptConnection} className="flex-1 bg-gradient-to-r from-primary-600 to-secondary-600 text-white font-bold py-2.5 rounded-xl text-sm transition-all hover:shadow-lg active:scale-95">
+                                Aceitar
+                            </button>
+                        </div>
+                    </div>
+                )
+            ) : (
+                <div className="flex gap-3">
+                  <button 
+                    onClick={handleWink} 
+                    disabled={currentUser?.subscription_tier === 'free' && winkCount !== null && winkCount >= 10}
+                    className="flex-1 bg-slate-800 border border-white/10 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                  >
+                    <span className="material-symbols-rounded text-xl text-primary-500 filled">favorite</span>
+                    <span>{t('profile_modal.wink', { defaultValue: 'Chamar' })}</span>
+                  </button>
+                  <button onClick={handleChatClick} className="flex-1 bg-gradient-to-r from-primary-600 to-secondary-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary-900/30 transition-all active:scale-95">
+                    <span className="material-symbols-rounded text-xl filled">chat_bubble</span>
+                    <span>{t('profile_modal.message', { defaultValue: 'Mensagem' })}</span>
+                  </button>
+                </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
     
