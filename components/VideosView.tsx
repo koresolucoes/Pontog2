@@ -197,7 +197,8 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetch
         if (showCommentsSection) {
             onFetchComments();
         }
-    }, [showCommentsSection, onFetchComments]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showCommentsSection]);
 
     const handleVideoClick = () => {
         if (!videoRef.current) return;
