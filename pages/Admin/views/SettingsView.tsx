@@ -34,6 +34,14 @@ export const SettingsView: React.FC = () => {
     const [newAdminRole, setNewAdminRole] = useState<'owner' | 'moderator' | 'support' | 'financial'>('moderator');
     const [creatingAdmin, setCreatingAdmin] = useState(false);
 
+    // MFA 2FA states
+    const [mfaEnabled, setMfaEnabled] = useState(false);
+    const [mfaSetupData, setMfaSetupData] = useState<{ secret: string; otpauthUri: string } | null>(null);
+    const [mfaSetupCode, setMfaSetupCode] = useState('');
+    const [mfaDisableCode, setMfaDisableCode] = useState('');
+    const [showMfaSetup, setShowMfaSetup] = useState(false);
+    const [loadingMfa, setLoadingMfa] = useState(false);
+
     const token = useAdminStore((state) => state.getToken());
     const currentAdminUser = useAdminStore((state) => state.adminUser);
 
@@ -72,14 +80,119 @@ export const SettingsView: React.FC = () => {
         }
     };
 
+    const fetchMfaStatus = async () => {
+        try {
+            const response = await fetch('/api/admin/mfa/status', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setMfaEnabled(data.mfaEnabled);
+            }
+        } catch (e) {
+            console.error('Failed to load MFA status', e);
+        }
+    };
+
     useEffect(() => {
         const init = async () => {
             setLoading(true);
-            await Promise.all([fetchSettings(), fetchAdmins()]);
+            await Promise.all([fetchSettings(), fetchAdmins(), fetchMfaStatus()]);
             setLoading(false);
         };
         init();
     }, [token]);
+
+    const handleInitiateMfaSetup = async () => {
+        setLoadingMfa(true);
+        try {
+            const response = await fetch('/api/admin/mfa/setup', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Erro ao iniciar configuração do MFA.');
+            setMfaSetupData(data);
+            setShowMfaSetup(true);
+            setMfaSetupCode('');
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setLoadingMfa(false);
+        }
+    };
+
+    const handleEnableMfa = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!mfaSetupCode || mfaSetupCode.length < 6) {
+            toast.error('O código deve conter 6 dígitos.');
+            return;
+        }
+
+        setLoadingMfa(true);
+        try {
+            const response = await fetch('/api/admin/mfa/enable', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    secret: mfaSetupData?.secret,
+                    code: mfaSetupCode
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Erro ao habilitar o MFA.');
+
+            toast.success('Autenticação em duas etapas (2FA) habilitada com sucesso!');
+            setMfaEnabled(true);
+            setShowMfaSetup(false);
+            setMfaSetupData(null);
+            setMfaSetupCode('');
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setLoadingMfa(false);
+        }
+    };
+
+    const handleDisableMfa = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!mfaDisableCode || mfaDisableCode.length < 6) {
+            toast.error('Insira o código de 6 dígitos atual para desativar.');
+            return;
+        }
+
+        setLoadingMfa(true);
+        try {
+            const response = await fetch('/api/admin/mfa/disable', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    code: mfaDisableCode
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Erro ao desativar o MFA.');
+
+            toast.success('MFA desativado da sua conta com sucesso.');
+            setMfaEnabled(false);
+            setMfaDisableCode('');
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setLoadingMfa(false);
+        }
+    };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -313,6 +426,164 @@ export const SettingsView: React.FC = () => {
                         </div>
                     </div>
                 </form>
+
+                {/* Two-Factor Authentication (MFA) Section */}
+                <div className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6 mt-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-white/5">
+                        <div>
+                            <h3 className="font-bold text-white text-lg flex items-center gap-2">
+                                <span className="material-symbols-rounded text-pink-500">security</span>
+                                Segurança da Conta & Autenticação (2FA / MFA)
+                            </h3>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                                Ative a proteção em duas etapas utilizando aplicativos autenticadores (Google Authenticator, Authy, Microsoft Authenticator, etc.).
+                            </p>
+                        </div>
+                        <div>
+                            {mfaEnabled ? (
+                                <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-bold font-mono">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    PROTEGIDO COM MFA
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-xs font-bold font-mono">
+                                    MFA DESATIVADO
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {mfaEnabled ? (
+                        <div className="space-y-4">
+                            <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl space-y-2">
+                                <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                                    <span className="material-symbols-rounded text-emerald-400 text-sm">verified_user</span>
+                                    Sua conta está altamente protegida
+                                </h4>
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                    Toda vez que você realizar login com seu e-mail e senha, será solicitado o código dinâmico de 6 dígitos gerado em seu smartphone.
+                                </p>
+                            </div>
+
+                            {/* Disable MFA form */}
+                            <form onSubmit={handleDisableMfa} className="space-y-3 pt-2">
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                    Desativar Autenticação em Duas Etapas
+                                </label>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <input
+                                        type="text"
+                                        maxLength={6}
+                                        placeholder="Código atual de 6 dígitos"
+                                        value={mfaDisableCode}
+                                        onChange={(e) => setMfaDisableCode(e.target.value.replace(/\D/g, ''))}
+                                        className="bg-slate-950/50 rounded-xl py-2.5 px-4 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500 border border-white/5 text-sm font-mono text-center tracking-widest w-full sm:max-w-xs"
+                                        required
+                                        disabled={loadingMfa}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={loadingMfa}
+                                        className="px-5 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/10 font-bold text-xs rounded-xl transition-all shadow-md active:scale-[0.98] disabled:opacity-50"
+                                    >
+                                        {loadingMfa ? 'Processando...' : 'Desativar MFA'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {!showMfaSetup ? (
+                                <div className="space-y-4">
+                                    <p className="text-xs text-slate-400 leading-relaxed">
+                                        Para habilitar, você precisará escanear um código QR gerado pelo sistema utilizando o aplicativo autenticador de sua preferência no celular e inserir o código de verificação para confirmar.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={handleInitiateMfaSetup}
+                                        disabled={loadingMfa}
+                                        className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl transition-all shadow-md hover:shadow-pink-900/10 active:scale-[0.98] disabled:opacity-50"
+                                    >
+                                        <span className="material-symbols-rounded text-sm">qr_code_2</span>
+                                        {loadingMfa ? 'Gerando Chave...' : 'Habilitar Autenticação de Dois Fatores (MFA)'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleEnableMfa} className="space-y-6 p-4 bg-slate-950/40 border border-white/5 rounded-xl">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                                        <div className="space-y-3 text-center md:text-left">
+                                            <h4 className="text-sm font-bold text-white">1. Escaneie este QR Code</h4>
+                                            <p className="text-xs text-slate-400 leading-relaxed">
+                                                Abra o Google Authenticator ou aplicativo similar e adicione uma nova conta escaneando o código QR ao lado.
+                                            </p>
+                                            
+                                            {mfaSetupData?.secret && (
+                                                <div className="pt-2 text-left">
+                                                    <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Chave Manual (Caso não consiga escanear)</span>
+                                                    <div className="px-3 py-1.5 bg-slate-900 border border-white/5 rounded-lg text-xs font-mono text-pink-300 select-all break-all">
+                                                        {mfaSetupData.secret}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex justify-center">
+                                            {mfaSetupData?.otpauthUri && (
+                                                <div className="p-3 bg-white rounded-xl shadow-lg border border-white/10">
+                                                    <img 
+                                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(mfaSetupData.otpauthUri)}`} 
+                                                        alt="QR Code de Configuração MFA" 
+                                                        className="w-40 h-40"
+                                                        referrerPolicy="no-referrer"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-white/5 space-y-3">
+                                        <h4 className="text-sm font-bold text-white">2. Insira o Código de Verificação de 6 Dígitos</h4>
+                                        <p className="text-xs text-slate-400">
+                                            Digite o código de 6 dígitos que está sendo exibido no seu aplicativo autenticador para confirmar a sincronização.
+                                        </p>
+                                        
+                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                                            <input
+                                                type="text"
+                                                maxLength={6}
+                                                placeholder="000 000"
+                                                value={mfaSetupCode}
+                                                onChange={(e) => setMfaSetupCode(e.target.value.replace(/\D/g, ''))}
+                                                className="bg-slate-900 border border-white/5 rounded-xl py-2.5 px-4 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-pink-500 text-sm font-mono text-center tracking-widest w-full sm:max-w-xs"
+                                                required
+                                                disabled={loadingMfa}
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="submit"
+                                                    disabled={loadingMfa}
+                                                    className="px-5 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl transition-all shadow-md disabled:opacity-50"
+                                                >
+                                                    {loadingMfa ? 'Confirmando...' : 'Confirmar e Ativar 2FA'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setShowMfaSetup(false);
+                                                        setMfaSetupData(null);
+                                                    }}
+                                                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all"
+                                                >
+                                                    Cancelar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Admin Management Section - only visible to owners */}
