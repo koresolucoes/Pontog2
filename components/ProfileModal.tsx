@@ -608,6 +608,65 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
               />
             )}
           </div>
+
+          {/* Redes Sociais Display */}
+          {user.redes_sociais && (user.redes_sociais.instagram || user.redes_sociais.twitter || user.redes_sociais.telegram || user.redes_sociais.onlyfans) && (
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                <span className="material-symbols-rounded filled text-base text-primary-500">share</span> {t('profile_modal.redes_sociais', { defaultValue: 'Redes Sociais' })}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {user.redes_sociais.instagram && (
+                  <a 
+                    href={`https://instagram.com/${user.redes_sociais.instagram.replace('@', '')}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    referrerPolicy="no-referrer"
+                    className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-800/40 border border-white/5 hover:bg-slate-800 transition-all text-sm font-semibold text-pink-400"
+                  >
+                    <span className="material-symbols-rounded !text-[20px] filled">photo_camera</span>
+                    <span className="truncate">Instagram</span>
+                  </a>
+                )}
+                {user.redes_sociais.twitter && (
+                  <a 
+                    href={`https://twitter.com/${user.redes_sociais.twitter.replace('@', '')}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    referrerPolicy="no-referrer"
+                    className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-800/40 border border-white/5 hover:bg-slate-800 transition-all text-sm font-semibold text-sky-400"
+                  >
+                    <span className="material-symbols-rounded !text-[20px] filled">flutter_dash</span>
+                    <span className="truncate">Twitter / X</span>
+                  </a>
+                )}
+                {user.redes_sociais.telegram && (
+                  <a 
+                    href={user.redes_sociais.telegram.startsWith('http') ? user.redes_sociais.telegram : `https://t.me/${user.redes_sociais.telegram.replace('@', '')}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    referrerPolicy="no-referrer"
+                    className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-800/40 border border-white/5 hover:bg-slate-800 transition-all text-sm font-semibold text-blue-400"
+                  >
+                    <span className="material-symbols-rounded !text-[20px] filled">send</span>
+                    <span className="truncate">Telegram</span>
+                  </a>
+                )}
+                {user.redes_sociais.onlyfans && (
+                  <a 
+                    href={user.redes_sociais.onlyfans.startsWith('http') ? user.redes_sociais.onlyfans : `https://${user.redes_sociais.onlyfans}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    referrerPolicy="no-referrer"
+                    className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-800/40 border border-white/5 hover:bg-slate-800 transition-all text-sm font-semibold text-yellow-500 col-span-2 sm:col-span-1"
+                  >
+                    <span className="material-symbols-rounded !text-[20px] filled">star</span>
+                    <span className="truncate">OnlyFans / Privacy</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
           
           {user.tribes && Array.isArray(user.tribes) && user.tribes.length > 0 && (
             <div>

@@ -56,6 +56,17 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
     }
   };
 
+  const handleSocialChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      redes_sociais: {
+        ...(prev.redes_sociais || {}),
+        [name]: value
+      }
+    }));
+  };
+
   const handleTribeToggle = (tribeName: string) => {
     const currentTribes = Array.isArray(formData.tribes) ? formData.tribes : [];
     const newTribes = currentTribes.includes(tribeName)
@@ -370,6 +381,45 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                       onChange={handleChange} 
                       options={['Não informado', 'Solteiro(a)', 'Casado(a)', 'Em um relacionamento', 'Relacionamento Aberto', 'Poliamor', 'Complicado']}
                   />
+              </div>
+
+              {/* Redes Sociais Section */}
+              <div className="bg-slate-800/30 p-4 rounded-2xl border border-white/5 space-y-4 animate-fade-in">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+                      <span className="material-symbols-rounded text-primary-500 filled">share</span> {t('profile_modal.redes_sociais', { defaultValue: 'Redes Sociais' })}
+                  </h3>
+                  <p className="text-xs text-slate-500">{t('edit_profile.socials_desc', { defaultValue: 'Adicione seus perfis e links externos para que outros membros possam se conectar com você.' })}</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <InputField 
+                          label="Instagram" 
+                          name="instagram" 
+                          value={formData.redes_sociais?.instagram || ''} 
+                          onChange={handleSocialChange} 
+                          placeholder="@seu_instagram" 
+                      />
+                      <InputField 
+                          label="Twitter / X" 
+                          name="twitter" 
+                          value={formData.redes_sociais?.twitter || ''} 
+                          onChange={handleSocialChange} 
+                          placeholder="@seu_twitter" 
+                      />
+                      <InputField 
+                          label="Telegram" 
+                          name="telegram" 
+                          value={formData.redes_sociais?.telegram || ''} 
+                          onChange={handleSocialChange} 
+                          placeholder="@seu_telegram" 
+                      />
+                      <InputField 
+                          label="OnlyFans / Privacy" 
+                          name="onlyfans" 
+                          value={formData.redes_sociais?.onlyfans || ''} 
+                          onChange={handleSocialChange} 
+                          placeholder="Link OnlyFans ou Privacy" 
+                      />
+                  </div>
               </div>
 
               {/* Video Presentation Section */}

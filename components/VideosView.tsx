@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useVideoStore, VideoPost, VideoComment } from '../stores/videoStore';
 import { useAuthStore } from '../stores/authStore';
@@ -17,10 +18,44 @@ export const VideosView: React.FC = () => {
     const [uploadTitle, setUploadTitle] = useState('');
     const [uploadDescription, setUploadDescription] = useState('');
     const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [uploadStep, setUploadStep] = useState<number>(1);
+    const [uploadCategory, setUploadCategory] = useState<string>('explicito');
+    const [agreedLawDisclaimer, setAgreedLawDisclaimer] = useState<boolean>(false);
+    const [agreedConsentDisclaimer, setAgreedConsentDisclaimer] = useState<boolean>(false);
+
+    const openUploadModal = () => {
+        setUploadTitle('');
+        setUploadDescription('');
+        setUploadFile(null);
+        setUploadCategory('explicito');
+        setUploadStep(1);
+        setAgreedLawDisclaimer(false);
+        setAgreedConsentDisclaimer(false);
+        setIsUploadOpen(true);
+    };
+
+    // Dynamic states for premium video filter and options
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const [sortBy, setSortBy] = useState<'recent' | 'views' | 'rating'>('recent');
+    const [globalNsfwBlur, setGlobalNsfwBlur] = useState<boolean>(() => {
+        const saved = localStorage.getItem('globalNsfwBlur');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
 
     useEffect(() => {
         fetchVideos();
     }, [fetchVideos]);
+
+    const toggleNsfwBlur = () => {
+        const newValue = !globalNsfwBlur;
+        setGlobalNsfwBlur(newValue);
+        localStorage.setItem('globalNsfwBlur', JSON.stringify(newValue));
+        if (newValue) {
+            toast.success('Filtro de conteúdo explícito ativado (NSFW Blur)');
+        } else {
+            toast.success('Filtro desativado. Todo conteúdo visível.');
+        }
+    };
 
     const handleUploadSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -33,57 +68,173 @@ export const VideosView: React.FC = () => {
             return;
         }
 
-        await addVideo(uploadTitle, uploadDescription, uploadFile);
+        const finalDescription = `${uploadDescription} #${uploadCategory}`;
+        await addVideo(uploadTitle, finalDescription, uploadFile);
         setIsUploadOpen(false);
         setUploadTitle('');
         setUploadDescription('');
         setUploadFile(null);
     };
 
+    const categories = [
+        { id: 'all', label: 'Todos 🔥', icon: '' },
+        { id: 'explicito', label: 'Explícito 🌶️', icon: '' },
+        { id: 'amador', label: 'Amador 🔞', icon: '' },
+        { id: 'solo', label: 'Solo 👅', icon: '' },
+        { id: 'casais', label: 'Casais 👥', icon: '' },
+        { id: 'bdsm', label: 'BDSM ⛓️', icon: '' },
+        { id: 'sensual', label: 'Sensual ✨', icon: '' },
+        { id: 'favorites', label: 'Favoritos ♥', icon: '' },
+    ];
+
+    // Filter & Sort computation
+    const filteredAndSortedVideos = React.useMemo(() => {
+        let list = [...videos];
+
+        // Filter by category
+        if (selectedCategory !== 'all') {
+            if (selectedCategory === 'favorites') {
+                list = list.filter(v => likedVideos[v.id]);
+            } else {
+                const tag = `#${selectedCategory}`;
+                list = list.filter(v => {
+                    const titleText = (v.title || '').toLowerCase();
+                    const descText = (v.description || '').toLowerCase();
+                    return titleText.includes(tag) || descText.includes(tag) || titleText.includes(selectedCategory) || descText.includes(selectedCategory);
+                });
+            }
+        }
+
+        // Sort by
+        if (sortBy === 'recent') {
+            list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        } else if (sortBy === 'views') {
+            list.sort((a, b) => (b.views_count || 0) - (a.views_count || 0));
+        } else if (sortBy === 'rating') {
+            list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        }
+
+        return list;
+    }, [videos, selectedCategory, sortBy, likedVideos]);
+
     return (
         <div className="h-full w-full bg-dark-950 flex flex-col text-slate-100 overflow-hidden relative">
-            {/* Custom Red Header like the screenshot */}
-            <header className="bg-red-600 text-white h-16 px-4 flex items-center justify-between shadow-md z-20 flex-shrink-0">
-                <button 
-                    onClick={() => setActiveView('home')} 
-                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/10 transition-colors"
-                >
-                    <span className="material-symbols-rounded text-2xl">arrow_back</span>
-                </button>
-                <h1 className="text-xl font-bold tracking-wide">{t('videos.title', { defaultValue: 'Vídeos' })}</h1>
+            {/* Custom Red Header with premium Adult branding */}
+            <header className="bg-slate-900 border-b border-white/10 text-white h-16 px-4 flex items-center justify-between shadow-lg z-20 flex-shrink-0">
                 <div className="flex items-center gap-2">
                     <button 
-                        onClick={() => setIsUploadOpen(true)}
-                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/10 transition-colors"
-                        title="Upload Vídeo"
+                        onClick={() => setActiveView('home')} 
+                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
+                        title="Voltar"
                     >
-                        <span className="material-symbols-rounded text-2xl">add_circle</span>
+                        <span className="material-symbols-rounded text-2xl text-slate-300">arrow_back</span>
                     </button>
+                    <div className="flex flex-col text-left">
+                        <h1 className="text-sm font-black tracking-wide bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent flex items-center gap-1.5 leading-none">
+                            <span>VÍDEOS ADULTOS</span>
+                            <span className="text-[9px] font-black bg-red-600 text-white px-1 py-0.5 rounded border border-red-500/20 shadow-sm leading-none">18+</span>
+                        </h1>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Rede Social de Conteúdo Quente</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                    {/* NSFW Blur Shield Toggle */}
+                    <button 
+                        onClick={toggleNsfwBlur}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all border ${globalNsfwBlur ? 'bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'bg-slate-800 border-white/5 text-slate-400 hover:text-white'}`}
+                        title={globalNsfwBlur ? "Ocultar miniaturas (Blur Ativo)" : "Mostrar tudo sem blur"}
+                    >
+                        <span className="material-symbols-rounded text-lg">
+                            {globalNsfwBlur ? 'visibility_off' : 'visibility'}
+                        </span>
+                    </button>
+
+                    <button 
+                        onClick={openUploadModal}
+                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gradient-to-tr from-red-600 to-pink-600 text-white hover:opacity-90 transition-all shadow-md shadow-red-900/40"
+                        title="Enviar Vídeo"
+                    >
+                        <span className="material-symbols-rounded text-lg">add</span>
+                    </button>
+                    
                     {user && (
                         <img 
                             src={user.avatar_url} 
                             alt={user.username} 
-                            className="w-9 h-9 rounded-full object-cover border border-white/20 cursor-pointer"
+                            className="w-8 h-8 rounded-full object-cover border border-white/10 cursor-pointer hover:border-red-500/50 transition-colors"
                             onClick={() => setActiveView('profile')}
                         />
                     )}
                 </div>
             </header>
 
+            {/* Quick Categories Bar & Sort Controls */}
+            <div className="bg-slate-900/50 backdrop-blur-md border-b border-white/5 px-4 py-2 flex flex-col gap-2 z-15 flex-shrink-0">
+                {/* Horizontal scrolling Categories */}
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                    {categories.map(cat => (
+                        <button
+                            key={cat.id}
+                            onClick={() => setSelectedCategory(cat.id)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 border ${
+                                selectedCategory === cat.id
+                                ? 'bg-red-600/10 border-red-500/40 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
+                                : 'bg-slate-800/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-white/10'
+                            }`}
+                        >
+                            {cat.icon && <span className="material-symbols-rounded text-sm">{cat.icon}</span>}
+                            <span>{cat.label}</span>
+                        </button>
+                    ))}
+                </div>
+
+                {/* Filter and sorting options */}
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold uppercase tracking-wider px-1">
+                    <span>{filteredAndSortedVideos.length} Vídeos Encontrados</span>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] text-slate-500">Ordenar por:</span>
+                        <div className="flex gap-2">
+                            {[
+                                { id: 'recent', label: 'Recentes' },
+                                { id: 'views', label: 'Populares' },
+                                { id: 'rating', label: 'Avaliados' }
+                            ].map(opt => (
+                                <button
+                                    key={opt.id}
+                                    onClick={() => setSortBy(opt.id as any)}
+                                    className={`transition-colors hover:text-white ${sortBy === opt.id ? 'text-red-400 underline underline-offset-4' : ''}`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Main scrollable body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24 no-scrollbar">
-                {videos.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-                        <span className="material-symbols-rounded text-5xl animate-pulse mb-3">videocam_off</span>
-                        <p className="text-sm font-medium">Nenhum vídeo publicado ainda.</p>
+                {filteredAndSortedVideos.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-500 bg-slate-900/20 rounded-3xl border border-white/5">
+                        <span className="material-symbols-rounded text-5xl animate-pulse mb-3 text-red-500/40">videocam_off</span>
+                        <p className="text-sm font-bold text-slate-400">Nenhum vídeo nesta categoria.</p>
+                        <p className="text-xs text-slate-500 mt-1">Seja o primeiro a enviar um vídeo caliente!</p>
+                        <button 
+                            onClick={openUploadModal}
+                            className="mt-4 px-4 py-2 bg-slate-850 hover:bg-slate-800 text-xs font-bold text-slate-200 rounded-xl border border-white/5 transition-all"
+                        >
+                            Publicar Vídeo
+                        </button>
                     </div>
                 ) : (
-                    videos.map(video => (
+                    filteredAndSortedVideos.map(video => (
                         <VideoCard 
                             key={video.id} 
                             video={video} 
                             comments={comments[video.id] || []}
                             isLiked={likedVideos[video.id] || false}
+                            globalNsfwBlur={globalNsfwBlur}
                             onFetchComments={() => fetchComments(video.id)}
                             onAddComment={(text) => addComment(video.id, text)}
                             onIncrementViews={() => incrementViews(video.id)}
@@ -98,74 +249,287 @@ export const VideosView: React.FC = () => {
             </div>
 
             {/* Video Upload Modal */}
-            <AnimatePresence>
-                {isUploadOpen && (
-                    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-                        <motion.div 
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl relative"
-                        >
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isUploadOpen && (
+                        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[300] p-4">
+                            <motion.div 
+                                initial={{ scale: 0.95, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.95, opacity: 0 }}
+                                className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl relative overflow-hidden"
+                            >
                             <button 
                                 onClick={() => setIsUploadOpen(false)}
-                                className="absolute top-4 right-4 text-slate-400 hover:text-white"
+                                className="absolute top-4 right-4 text-slate-400 hover:text-white z-10 transition-colors"
                             >
                                 <span className="material-symbols-rounded">close</span>
                             </button>
-                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                <span className="material-symbols-rounded text-red-500">upload_file</span>
-                                Enviar Vídeo
+                            
+                            <h2 className="text-lg font-black mb-5 flex items-center gap-2 text-white">
+                                <span className="material-symbols-rounded text-red-500 animate-pulse">upload_file</span>
+                                Enviar Vídeo Quente
                             </h2>
+
+                            {/* Step Indicator */}
+                            <div className="flex items-center justify-between mb-6 px-1">
+                                {[
+                                    { step: 1, label: "Info" },
+                                    { step: 2, label: "Segurança" },
+                                    { step: 3, label: "Mídia" }
+                                ].map((item, idx) => (
+                                    <React.Fragment key={item.step}>
+                                        <div className="flex flex-col items-center">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all ${
+                                                uploadStep === item.step 
+                                                    ? 'bg-gradient-to-tr from-red-600 to-pink-600 text-white shadow-lg shadow-red-900/40 scale-110' 
+                                                    : uploadStep > item.step 
+                                                        ? 'bg-green-600 text-white' 
+                                                        : 'bg-slate-800 text-slate-500 border border-white/5'
+                                            }`}>
+                                                {uploadStep > item.step ? (
+                                                    <span className="material-symbols-rounded text-sm">check</span>
+                                                ) : item.step}
+                                            </div>
+                                            <span className={`text-[9px] font-bold uppercase tracking-wider mt-1.5 transition-colors ${
+                                                uploadStep === item.step ? 'text-red-400 font-extrabold' : 'text-slate-500'
+                                            }`}>{item.label}</span>
+                                        </div>
+                                        {idx < 2 && (
+                                            <div className={`flex-1 h-0.5 mx-2 transition-all rounded-full ${
+                                                uploadStep > item.step ? 'bg-green-600/50' : 'bg-slate-800'
+                                            }`} />
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+
                             <form onSubmit={handleUploadSubmit} className="space-y-4">
-                                <div className="space-y-1">
-                                    <label className="text-xs text-slate-400 font-bold uppercase">Título do Vídeo</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Ex: Brincadeira quente de ontem..." 
-                                        value={uploadTitle}
-                                        onChange={(e) => setUploadTitle(e.target.value)}
-                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs text-slate-400 font-bold uppercase">Descrição (Opcional)</label>
-                                    <textarea 
-                                        placeholder="Adicione detalhes sobre o vídeo..." 
-                                        value={uploadDescription}
-                                        onChange={(e) => setUploadDescription(e.target.value)}
-                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 min-h-[80px]"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs text-slate-400 font-bold uppercase">Arquivo de Vídeo</label>
-                                    <input 
-                                        type="file" 
-                                        accept="video/mp4,video/x-m4v,video/*"
-                                        onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
-                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-600 file:text-white hover:file:bg-red-500"
-                                    />
-                                </div>
-                                <div className="flex gap-3 pt-2">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setIsUploadOpen(false)}
-                                        className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button 
-                                        type="submit" 
-                                        className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-500 transition-all shadow-lg shadow-red-900/30"
-                                    >
-                                        Publicar
-                                    </button>
-                                </div>
+                                {uploadStep === 1 && (
+                                    <div className="space-y-4 animate-fade-in">
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-slate-400 font-bold uppercase">Título do Vídeo <span className="text-red-500">*</span></label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Ex: Brincadeira quente de ontem..." 
+                                                value={uploadTitle}
+                                                onChange={(e) => setUploadTitle(e.target.value)}
+                                                className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm"
+                                            />
+                                        </div>
+                                        
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs text-slate-400 font-bold uppercase">Categoria do Vídeo <span className="text-red-500">*</span></label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { id: 'explicito', label: '🌶️ Explícito' },
+                                                    { id: 'amador', label: '🔞 Amador' },
+                                                    { id: 'solo', label: '👅 Solo' },
+                                                    { id: 'casais', label: '👥 Casais' },
+                                                    { id: 'bdsm', label: '⛓️ BDSM' },
+                                                    { id: 'sensual', label: '✨ Sensual' }
+                                                ].map(cat => (
+                                                    <button
+                                                        key={cat.id}
+                                                        type="button"
+                                                        onClick={() => setUploadCategory(cat.id)}
+                                                        className={`py-2 rounded-xl text-xs font-black transition-all border ${
+                                                            uploadCategory === cat.id
+                                                                ? 'bg-red-600/20 border-red-500/60 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.15)]'
+                                                                : 'bg-slate-800/60 border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'
+                                                        }`}
+                                                    >
+                                                        {cat.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-slate-400 font-bold uppercase">Descrição (Opcional)</label>
+                                            <textarea 
+                                                placeholder="Adicione detalhes sobre o vídeo..." 
+                                                value={uploadDescription}
+                                                onChange={(e) => setUploadDescription(e.target.value)}
+                                                className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 min-h-[70px] text-sm resize-none"
+                                            />
+                                        </div>
+                                        
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Clique para adicionar Tags Rápidas:</label>
+                                            <div className="flex flex-wrap gap-1.5 py-1">
+                                                {[
+                                                    { tag: '#explicito', label: '🌶️ Explícito' },
+                                                    { tag: '#amador', label: '🔞 Amador' },
+                                                    { tag: '#solo', label: '👅 Solo' },
+                                                    { tag: '#casais', label: '👥 Casais' },
+                                                    { tag: '#bdsm', label: '⛓️ BDSM' },
+                                                    { tag: '#sensual', label: '✨ Sensual' }
+                                                ].map(item => (
+                                                    <button
+                                                        key={item.tag}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (!uploadDescription.includes(item.tag)) {
+                                                                setUploadDescription(prev => prev ? `${prev} ${item.tag}` : item.tag);
+                                                            }
+                                                        }}
+                                                        className="px-2.5 py-1.5 rounded-xl bg-slate-850 border border-white/5 hover:border-red-500/30 text-[10px] font-bold text-slate-300 hover:text-white transition-all active:scale-95 flex items-center gap-1"
+                                                    >
+                                                        {item.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-3 pt-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setIsUploadOpen(false)}
+                                                className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                disabled={!uploadTitle.trim()}
+                                                onClick={() => setUploadStep(2)}
+                                                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-505 transition-all shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                                            >
+                                                Avançar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {uploadStep === 2 && (
+                                    <div className="space-y-4 animate-fade-in text-slate-200">
+                                        <div className="p-4 bg-red-550/10 border border-red-500/20 rounded-2xl space-y-2">
+                                            <div className="flex items-center gap-2 text-red-400 font-extrabold text-xs uppercase tracking-wide">
+                                                <span className="material-symbols-rounded text-lg">warning</span>
+                                                CONTEÚDO SEGURO & LEI
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                                                Esta comunidade tem <strong>TOLERÂNCIA ZERO</strong> para conteúdos ilegais ou abusivos. É terminantemente proibido por lei:
+                                            </p>
+                                            <ul className="text-[11px] text-slate-300 space-y-1.5 pl-1 list-none font-semibold">
+                                                <li className="flex items-start gap-1.5">
+                                                    <span className="text-red-500 text-xs">✕</span> 
+                                                    <span><strong>Pedofilia / Infantil</strong> ou representação de menores de 18 anos.</span>
+                                                </li>
+                                                <li className="flex items-start gap-1.5">
+                                                    <span className="text-red-500 text-xs">✕</span> 
+                                                    <span><strong>Zoofilia</strong>, bestialidade ou crueldade com animais.</span>
+                                                </li>
+                                                <li className="flex items-start gap-1.5">
+                                                    <span className="text-red-500 text-xs">✕</span> 
+                                                    <span><strong>Não-consensualidade</strong> (vazamentos de fotos/vídeos).</span>
+                                                </li>
+                                                <li className="flex items-start gap-1.5">
+                                                    <span className="text-red-500 text-xs">✕</span> 
+                                                    <span><strong>Violência extrema</strong>, mutilações ou necrofilia.</span>
+                                                </li>
+                                            </ul>
+                                            <p className="text-[10px] text-red-400 font-bold leading-relaxed pt-1 border-t border-red-500/10">
+                                                ⚠️ ATENÇÃO: Enviar conteúdo proibido é crime federal. Cooperamos ativamente com investigações policiais enviando endereço IP e dados.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-3 pt-1">
+                                            <label className="flex items-start gap-3 cursor-pointer group">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={agreedConsentDisclaimer}
+                                                    onChange={(e) => setAgreedConsentDisclaimer(e.target.checked)}
+                                                    className="mt-0.5 accent-red-600 rounded bg-slate-800 border-white/10 text-red-600"
+                                                />
+                                                <span className="text-[11px] text-slate-300 group-hover:text-white transition-colors leading-relaxed">
+                                                    Declaro que sou maior de idade (18+), e que todos os participantes deste vídeo deram seu consentimento explícito.
+                                                </span>
+                                            </label>
+
+                                            <label className="flex items-start gap-3 cursor-pointer group">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={agreedLawDisclaimer}
+                                                    onChange={(e) => setAgreedLawDisclaimer(e.target.checked)}
+                                                    className="mt-0.5 accent-red-600 rounded bg-slate-800 border-white/10 text-red-600"
+                                                />
+                                                <span className="text-[11px] text-slate-300 group-hover:text-white transition-colors leading-relaxed">
+                                                    Estou ciente de que publicar pedofilia, zoofilia ou não-consensual é crime e resultará em denúncia imediata com banimento.
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        <div className="flex gap-3 pt-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setUploadStep(1)}
+                                                className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                            >
+                                                Voltar
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                disabled={!agreedLawDisclaimer || !agreedConsentDisclaimer}
+                                                onClick={() => setUploadStep(3)}
+                                                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-500 transition-all shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                                            >
+                                                Aceitar e Avançar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {uploadStep === 3 && (
+                                    <div className="space-y-4 animate-fade-in">
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-slate-400 font-bold uppercase">Arquivo de Vídeo <span className="text-red-500">*</span></label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="file" 
+                                                    accept="video/mp4,video/quicktime,video/webm,video/*"
+                                                    onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
+                                                    className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-red-600 file:text-white hover:file:bg-red-500 text-xs cursor-pointer focus:outline-none"
+                                                />
+                                            </div>
+                                            {uploadFile && (
+                                                <div className="p-3 bg-slate-800/40 border border-white/5 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-300">
+                                                    <div className="flex items-center gap-2 truncate">
+                                                        <span className="material-symbols-rounded text-green-400 text-base">check_circle</span>
+                                                        <span className="truncate">{uploadFile.name}</span>
+                                                    </div>
+                                                    <span className="text-slate-500 flex-shrink-0 ml-2">{(uploadFile.size / (1024 * 1024)).toFixed(1)} MB</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex gap-3 pt-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setUploadStep(2)}
+                                                className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                            >
+                                                Voltar
+                                            </button>
+                                            <button 
+                                                type="submit" 
+                                                disabled={!uploadFile}
+                                                className="flex-1 bg-gradient-to-r from-red-600 to-pink-600 text-white font-extrabold py-3 rounded-xl hover:opacity-95 transition-all shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 text-sm"
+                                            >
+                                                <span className="material-symbols-rounded text-base">rocket_launch</span>
+                                                <span>Publicar Vídeo</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </form>
                         </motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence>,
+            document.body
+        )}
         </div>
     );
 };
@@ -174,6 +538,7 @@ interface VideoCardProps {
     video: VideoPost;
     comments: VideoComment[];
     isLiked: boolean;
+    globalNsfwBlur: boolean;
     onFetchComments: () => void;
     onAddComment: (text: string) => void;
     onIncrementViews: () => void;
@@ -184,7 +549,7 @@ interface VideoCardProps {
     onEditVideo?: (title: string, desc: string) => void;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: initialComments, isLiked: initialIsLiked, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick, isOwner, onDeleteVideo, onEditVideo }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: initialComments, isLiked: initialIsLiked, globalNsfwBlur, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick, isOwner, onDeleteVideo, onEditVideo }) => {
     // Get real-time state data
     const storeVideo = useVideoStore(state => state.videos.find(v => v.id === initialVideo.id));
     const video = storeVideo || initialVideo;
@@ -196,6 +561,9 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
     const [isMuted, setIsMuted] = useState(true);
     const [hasIncrementedView, setHasIncrementedView] = useState(false);
 
+    // Click to bypass NSFW blur shield
+    const [isRevealed, setIsRevealed] = useState(false);
+
     // Interactive comments display
     const [showCommentsSection, setShowCommentsSection] = useState(false);
     const userRating = useVideoStore(state => state.userRatings[video.id]);
@@ -205,6 +573,11 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState(video.title);
     const [editDesc, setEditDesc] = useState(video.description || '');
+
+    // Reset reveal status when global filter changes or video changes
+    useEffect(() => {
+        setIsRevealed(false);
+    }, [globalNsfwBlur, video.id]);
 
     useEffect(() => {
         if (showCommentsSection) {
@@ -265,19 +638,50 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
     return (
         <div className="bg-slate-900 rounded-3xl border border-white/5 overflow-hidden shadow-xl flex flex-col">
             {/* Video Player Box */}
-            <div className="relative aspect-video w-full bg-black cursor-pointer group overflow-hidden" onClick={handleVideoClick}>
+            <div className="relative aspect-video w-full bg-black cursor-pointer group overflow-hidden" onClick={globalNsfwBlur && !isRevealed ? undefined : handleVideoClick}>
                 <video 
                     ref={videoRef}
                     src={video.video_url} 
                     poster={video.thumbnail_url}
-                    className="w-full h-full object-cover" 
+                    className={`w-full h-full object-cover transition-all duration-500 ${globalNsfwBlur && !isRevealed ? 'blur-2xl scale-105 saturate-50' : ''}`} 
                     loop 
                     muted={isMuted}
                     playsInline
                 />
                 
+                {/* Blur Shield / NSFW Confirmation Overlay */}
+                {globalNsfwBlur && !isRevealed && (
+                    <div 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsRevealed(true);
+                            // Auto-play on reveal
+                            setTimeout(() => {
+                                if (videoRef.current) {
+                                    videoRef.current.play().catch(err => console.log('Autoplay blocked:', err));
+                                    setIsPlaying(true);
+                                    if (!hasIncrementedView) {
+                                        onIncrementViews();
+                                        setHasIncrementedView(true);
+                                    }
+                                }
+                            }, 50);
+                        }}
+                        className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 p-4 z-10 transition-colors hover:bg-black/80"
+                    >
+                        <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-500 flex items-center justify-center shadow-lg mb-2.5 animate-pulse">
+                            <span className="material-symbols-rounded text-2xl">no_adult_content</span>
+                        </div>
+                        <h4 className="text-xs font-black text-white uppercase tracking-wider mb-0.5">CONTEÚDO ADULTO EXPLICÍTO</h4>
+                        <p className="text-[10px] text-slate-400 text-center max-w-[260px] mb-3">Este vídeo pode conter nudez ou conteúdo explícito. Toque para assistir.</p>
+                        <button className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-pink-600 hover:opacity-95 text-white text-[10px] font-black tracking-wider uppercase transition-all shadow-md shadow-red-900/30 active:scale-95">
+                            Revelar (18+)
+                        </button>
+                    </div>
+                )}
+
                 {/* Custom Overlay Controls */}
-                {!isPlaying && (
+                {(!globalNsfwBlur || isRevealed) && !isPlaying && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] transition-opacity">
                         <div className="w-16 h-16 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
                             <span className="material-symbols-rounded text-4xl filled pl-1">play_arrow</span>
@@ -380,62 +784,70 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                 {/* Profile detail card below like the screenshot */}
                 <div 
                     onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}
-                    className="bg-slate-800/40 border border-white/5 rounded-2xl p-3 flex items-center justify-between cursor-pointer hover:bg-slate-800/60 transition-all mt-3"
+                    className="bg-slate-950/40 border border-white/5 rounded-2xl p-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-950/60 transition-all mt-3 gap-3"
                 >
-                    <div className="flex items-center gap-3">
-                        <div className="relative w-12 h-12 flex-shrink-0">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className="relative w-10 h-10 flex-shrink-0">
                             <img 
                                 src={video.user_profile?.avatar_url} 
                                 alt={video.user_profile?.username} 
-                                className="w-full h-full rounded-2xl object-cover border border-white/10"
+                                className="w-full h-full rounded-full object-cover border border-white/10"
                             />
-                            <div className="absolute -bottom-1 -right-1 bg-green-500 w-3.5 h-3.5 rounded-full border-2 border-slate-900 flex items-center justify-center"></div>
+                            <div className="absolute bottom-0 right-0 bg-green-500 w-2.5 h-2.5 rounded-full border border-slate-950 flex items-center justify-center"></div>
                         </div>
                         
-                        <div className="text-left">
-                            <div className="flex items-center gap-1">
-                                <span className="material-symbols-rounded text-slate-400 text-sm">location_on</span>
-                                <span className="text-xs text-slate-400 font-bold">{video.user_profile?.location || 'Brasil'}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-sm font-black text-white mt-0.5">
-                                <span className="text-green-400">●</span>
-                                <span className="hover:underline">{video.user_profile?.display_name || video.user_profile?.username}</span>
+                        <div className="text-left min-w-0 flex-1">
+                            <div className="flex items-center gap-1 text-sm font-bold text-slate-100 min-w-0">
+                                <span className="truncate hover:underline">{video.user_profile?.display_name || video.user_profile?.username}</span>
                                 {video.user_profile?.subscription_tier === 'plus' && (
-                                    <span className="material-symbols-rounded text-xs text-yellow-400 filled">auto_awesome</span>
+                                    <span className="material-symbols-rounded text-xs text-yellow-400 filled flex-shrink-0">auto_awesome</span>
                                 )}
                             </div>
-                            {/* Tags list like • Te la chupo • Tengo sitio */}
-                            <div className="flex items-center gap-2 mt-1 flex-wrap text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                {video.user_profile?.oral_preference && (
-                                    <span>• {video.user_profile?.oral_preference}</span>
-                                )}
-                                {video.user_profile?.site_preference && (
-                                    <span>• {video.user_profile?.site_preference}</span>
-                                )}
+                            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-400 font-medium">
+                                <span className="material-symbols-rounded text-xs text-slate-500 flex-shrink-0">location_on</span>
+                                <span className="truncate">{video.user_profile?.location || 'Brasil'}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {/* Creator Support Tip Button */}
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                useUiStore.getState().setDonationModalOpen(true);
+                                toast.success(`Apoie o criador ${video.user_profile?.display_name || video.user_profile?.username}!`);
+                            }}
+                            className="w-9 h-9 flex items-center justify-center rounded-full bg-amber-500/10 hover:bg-amber-500/15 text-amber-400 active:bg-amber-500/20 border border-amber-500/10 transition-all active:scale-95"
+                            title="Apoiar Criador"
+                        >
+                            <span className="material-symbols-rounded text-[18px] filled">volunteer_activism</span>
+                        </button>
+
                         <button 
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onLike();
                             }}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors shadow-md active:scale-95 ${isLiked ? 'bg-pink-600 text-white shadow-pink-900/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
+                            className={`w-9 h-9 flex items-center justify-center rounded-full border transition-all active:scale-95 ${
+                                isLiked 
+                                    ? 'bg-pink-500/15 text-pink-400 border-pink-500/20 hover:bg-pink-500/20' 
+                                    : 'bg-slate-800/40 text-slate-400 border-white/5 hover:bg-slate-800/60 hover:text-white'
+                            }`}
                             title="Curtir"
                         >
-                            <span className={`material-symbols-rounded text-xl ${isLiked ? 'filled' : ''}`}>favorite</span>
+                            <span className={`material-symbols-rounded text-[18px] ${isLiked ? 'filled' : ''}`}>favorite</span>
                         </button>
+                        
                         <button 
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onChatClick({ id: video.user_id, username: video.user_profile?.username, avatar_url: video.user_profile?.avatar_url });
                             }}
-                            className="w-10 h-10 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 transition-colors text-white shadow-md shadow-red-900/20 active:scale-95"
+                            className="w-9 h-9 flex items-center justify-center rounded-full bg-red-500/10 hover:bg-red-500/15 text-red-400 active:bg-red-500/20 border border-red-500/10 transition-all active:scale-95"
                             title="Chat"
                         >
-                            <span className="material-symbols-rounded text-xl filled">chat_bubble</span>
+                            <span className="material-symbols-rounded text-[18px] filled">chat_bubble</span>
                         </button>
                     </div>
                 </div>

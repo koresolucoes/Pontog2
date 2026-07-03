@@ -58,6 +58,12 @@ export interface Profile {
   interests?: string[];
   oral_preference?: string | null;
   site_preference?: string | null;
+  redes_sociais?: {
+    instagram?: string;
+    twitter?: string;
+    telegram?: string;
+    onlyfans?: string;
+  } | null;
 }
 
 // O tipo User estende Profile com campos calculados como 'idade'
