@@ -1,23 +1,14 @@
-
 // api/admin/venues.ts
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import jwt from 'jsonwebtoken';
+import { enforceRoles, recordAuditLog } from './_utils';
 import { add } from 'date-fns';
-
-const verifyAdmin = (req: VercelRequest) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) throw new Error('Not authenticated');
-    jwt.verify(token, process.env.JWT_SECRET!);
-};
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ) {
   try {
-    verifyAdmin(req);
-    
     const supabaseAdmin = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -25,6 +16,8 @@ export default async function handler(
     
     switch (req.method) {
         case 'GET':
+            // All admins can view venues
+            enforceRoles(req, ['owner', 'moderator', 'support', 'financial']);
             const { data: get_data, error: get_error } = await supabaseAdmin
                 .from('venues')
                 .select('*')
@@ -32,11 +25,11 @@ export default async function handler(
             if (get_error) throw get_error;
             return res.status(200).json(get_data);
 
-        case 'POST':
-            // Criação manual pelo admin
+        case 'POST': {
+            // Only Owner and Moderator can create venues
+            const admin = enforceRoles(req, ['owner', 'moderator']);
             const { id: _id, created_at: _cat, submitted_by: _sub, ...newVenueData } = req.body;
             
-            // Ensure types are correct to prevent 500 DB errors
             const postPayload = {
                 ...newVenueData,
                 lat: parseFloat(newVenueData.lat),
@@ -51,13 +44,24 @@ export default async function handler(
                 .insert([postPayload])
                 .select();
             if (post_error) throw post_error;
+            
+            await recordAuditLog(
+              req, 
+              admin, 
+              'CREATE_VENUE', 
+              post_data[0]?.id || 'unknown', 
+              `Criou novo local (guia): "${postPayload.name}" em ${postPayload.address}`
+            );
             return res.status(201).json(post_data[0]);
+        }
 
-        case 'PUT':
+        case 'PUT': {
+            // Only Owner and Moderator can edit venues
+            const admin = enforceRoles(req, ['owner', 'moderator']);
             const { id: put_id } = req.query;
             const { id: _pid, created_at: _pcat, submitted_by: _psub, ...updates } = req.body;
 
-            // Check if we are approving a venue
+            // Check if we are approving/verifying a venue submitted by a user
             if (updates.is_verified === true) {
                 const { data: currentVenue } = await supabaseAdmin
                     .from('venues')
@@ -65,13 +69,11 @@ export default async function handler(
                     .eq('id', put_id as string)
                     .single();
                 
-                // Só concede prêmio se tinha um autor e ainda não estava verificado
                 if (currentVenue && currentVenue.submitted_by && !currentVenue.is_verified) {
                     const userId = currentVenue.submitted_by;
                     console.log(`[GAMIFICATION] Venue approved! Processing reward for user ${userId}`);
 
                     try {
-                        // 1. Buscar perfil atual para lógica de acumulação
                         const { data: userProfile } = await supabaseAdmin
                             .from('profiles')
                             .select('subscription_tier, subscription_expires_at')
@@ -83,16 +85,12 @@ export default async function handler(
                             let currentExpiresAt = userProfile.subscription_expires_at ? new Date(userProfile.subscription_expires_at) : null;
                             let newExpiresAt: Date;
 
-                            // Lógica Acumulativa:
-                            // Se já é Plus E a data de expiração é futura, adiciona 3 dias ao final da vigência.
-                            // Caso contrário (Free ou Plus vencido), adiciona 3 dias a partir de agora.
                             if (userProfile.subscription_tier === 'plus' && currentExpiresAt && currentExpiresAt > now) {
                                 newExpiresAt = add(currentExpiresAt, { days: 3 });
                             } else {
                                 newExpiresAt = add(now, { days: 3 });
                             }
 
-                            // 2. Atualizar perfil do usuário
                             await supabaseAdmin
                                 .from('profiles')
                                 .update({
@@ -101,7 +99,6 @@ export default async function handler(
                                 })
                                 .eq('id', userId);
 
-                            // 3. Criar registro histórico de "pagamento" (recompensa)
                             await supabaseAdmin.from('payments').insert({
                                 mercadopago_id: `reward_venue_${put_id}_${Date.now()}`,
                                 user_id: userId,
@@ -111,16 +108,20 @@ export default async function handler(
                                 created_at: new Date().toISOString()
                             });
                             
-                            console.log(`[GAMIFICATION] Reward granted. New expiry: ${newExpiresAt.toISOString()}`);
+                            await recordAuditLog(
+                              req, 
+                              admin, 
+                              'APPROVE_VENUE_REWARD', 
+                              put_id as string, 
+                              `Aprovou local "${currentVenue.name}" sugerido pelo usuário ID ${userId} e concedeu 3 dias de Plus grátis.`
+                            );
                         }
                     } catch (rewardError) {
                         console.error("[GAMIFICATION] Error granting reward:", rewardError);
-                        // Não interrompe o fluxo principal de salvar o local, apenas loga o erro
                     }
                 }
             }
 
-            // Ensure types are correct
             const putPayload = {
                 ...updates,
                 lat: updates.lat ? parseFloat(updates.lat) : undefined,
@@ -134,16 +135,43 @@ export default async function handler(
                 .eq('id', put_id as string)
                 .select();
             if (put_error) throw put_error;
+            
+            await recordAuditLog(
+              req, 
+              admin, 
+              'UPDATE_VENUE', 
+              put_id as string, 
+              `Atualizou informações do local ID: ${put_id} ("${put_data[0]?.name || 'unknown'}")`
+            );
             return res.status(200).json(put_data[0]);
+        }
         
-        case 'DELETE':
+        case 'DELETE': {
+            // Only Owner and Moderator can delete venues
+            const admin = enforceRoles(req, ['owner', 'moderator']);
             const { id: del_id } = req.query;
+
+            const { data: venue } = await supabaseAdmin
+              .from('venues')
+              .select('name')
+              .eq('id', del_id as string)
+              .single();
+
             const { error: del_error } = await supabaseAdmin
                 .from('venues')
                 .delete()
                 .eq('id', del_id as string);
             if (del_error) throw del_error;
+            
+            await recordAuditLog(
+              req, 
+              admin, 
+              'DELETE_VENUE', 
+              del_id as string, 
+              `Excluiu o local: "${venue?.name || del_id}"`
+            );
             return res.status(200).json({ success: true });
+        }
         
         default:
             res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
@@ -152,7 +180,10 @@ export default async function handler(
 
   } catch (error: any) {
     console.error(`Error in /api/admin/venues: ${error.message}`);
-    res.status(error.message === 'Not authenticated' ? 401 : 500).json({ 
+    if (error.message === 'Not authenticated' || error.message.includes('Forbidden') || error.name === 'JsonWebTokenError') {
+       return res.status(401).json({ error: error.message || 'Authentication failed' });
+    }
+    res.status(500).json({ 
         error: error.message || 'Server error',
         details: error.details || error.hint || JSON.stringify(error) 
     });

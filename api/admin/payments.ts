@@ -1,20 +1,15 @@
 // api/admin/payments.ts
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import jwt from 'jsonwebtoken';
-
-const verifyAdmin = (req: VercelRequest) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) throw new Error('Not authenticated');
-    jwt.verify(token, process.env.JWT_SECRET!);
-};
+import { enforceRoles } from './_utils';
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ) {
   try {
-    verifyAdmin(req);
+    // Only owner or financial can view payment histories
+    enforceRoles(req, ['owner', 'financial']);
     
     const supabaseAdmin = createClient(
       process.env.SUPABASE_URL!,
@@ -22,20 +17,24 @@ export default async function handler(
     );
 
     const { data, error } = await supabaseAdmin
-        .from('payments')
-        .select(`
-            *,
-            profiles (
-                username
-            )
-        `)
-        .order('created_at', { ascending: false });
+      .from('payments')
+      .select(`
+          *,
+          profiles (
+              username
+          )
+      `)
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
         
     res.status(200).json(data);
 
   } catch (error: any) {
-    res.status(401).json({ error: error.message || 'Authentication failed' });
+    console.error(`Error in /api/admin/payments: ${error.message}`);
+    if (error.message === 'Not authenticated' || error.message.includes('Forbidden') || error.name === 'JsonWebTokenError') {
+       return res.status(401).json({ error: error.message || 'Authentication failed' });
+    }
+    res.status(500).json({ error: error.message || 'Server error' });
   }
 }

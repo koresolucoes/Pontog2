@@ -3,10 +3,17 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import toast from 'react-hot-toast';
 
+export interface AdminUser {
+  email: string;
+  role: 'owner' | 'moderator' | 'support' | 'financial';
+  name: string;
+}
+
 interface AdminState {
   isAdminAuthenticated: boolean;
   token: string | null;
-  login: (apiKey: string) => Promise<boolean>;
+  adminUser: AdminUser | null;
+  login: (emailOrKey: string, password?: string) => Promise<boolean>;
   logout: () => void;
   getToken: () => string | null;
 }
@@ -16,23 +23,33 @@ export const useAdminStore = create<AdminState>()(
     (set, get) => ({
       isAdminAuthenticated: false,
       token: null,
+      adminUser: null,
       
-      login: async (apiKey: string) => {
+      login: async (emailOrKey: string, password?: string) => {
         try {
+          const bodyPayload: any = {};
+          
+          if (password) {
+            bodyPayload.email = emailOrKey;
+            bodyPayload.password = password;
+          } else {
+            bodyPayload.apiKey = emailOrKey;
+          }
+
           const response = await fetch('/api/admin-login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ apiKey }),
+            body: JSON.stringify(bodyPayload),
           });
           
           if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Chave inválida.');
+            throw new Error(errorData.error || 'Chave ou credenciais inválidas.');
           }
 
-          const { token } = await response.json();
-          set({ isAdminAuthenticated: true, token });
-          toast.success('Login bem-sucedido!');
+          const { token, adminUser } = await response.json();
+          set({ isAdminAuthenticated: true, token, adminUser });
+          toast.success(`Bem-vindo, ${adminUser?.name || 'Administrador'}!`);
           return true;
         } catch (error: any) {
           toast.error(error.message);
@@ -41,7 +58,7 @@ export const useAdminStore = create<AdminState>()(
       },
       
       logout: () => {
-        set({ isAdminAuthenticated: false, token: null });
+        set({ isAdminAuthenticated: false, token: null, adminUser: null });
         window.location.href = '/admin';
       },
 
@@ -50,7 +67,7 @@ export const useAdminStore = create<AdminState>()(
       },
     }),
     {
-      name: 'admin-auth-storage', // name of the item in the storage (must be unique)
+      name: 'admin-auth-storage',
     }
   )
 );

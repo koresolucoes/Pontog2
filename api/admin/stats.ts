@@ -1,30 +1,24 @@
 // api/admin/stats.ts
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import jwt from 'jsonwebtoken';
-
-const verifyAdmin = (req: VercelRequest) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) throw new Error('Not authenticated');
-    jwt.verify(token, process.env.JWT_SECRET!);
-};
+import { enforceRoles } from './_utils';
+import { subDays, format, isAfter, parseISO } from 'date-fns';
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ) {
   try {
-    verifyAdmin(req);
+    // All admins are allowed to retrieve dashboard stats
+    enforceRoles(req, ['owner', 'moderator', 'support', 'financial']);
     
     const supabaseAdmin = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     ) as any;
 
-    // FIX: Fetch profiles and auth users separately to avoid the schema cache issue with joins
     const [{ data: allProfiles, error: profilesError }, { data: authUsersData, error: authUsersError }] = await Promise.all([
       supabaseAdmin.from('profiles').select(`id, subscription_tier, subscription_expires_at`),
-      // NOTE: This fetches up to 1000 users. For larger user bases, pagination would be required.
       supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }) 
     ]);
     
@@ -46,17 +40,47 @@ export default async function handler(
 
     const { data: totalRevenueData, error: revenueError } = await supabaseAdmin
         .from('payments')
-        .select('amount')
+        .select('amount, status, created_at')
         .eq('status', 'approved');
         
     if (revenueError) throw revenueError;
     const totalRevenue = totalRevenueData.reduce((sum: number, item: any) => sum + item.amount, 0);
-        
+
+    // --- TIME SERIES GENERATION (7 Days) ---
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = subDays(new Date(), 6 - i);
+        return {
+            dateStr: format(date, 'yyyy-MM-dd'),
+            label: format(date, 'dd/MM'),
+            signups: 0,
+            revenue: 0
+        };
+    });
+
+    // Populate signups
+    authUsersData.users.forEach((user: { created_at: string }) => {
+        const userDate = user.created_at ? format(parseISO(user.created_at), 'yyyy-MM-dd') : null;
+        const dayMatch = last7Days.find(d => d.dateStr === userDate);
+        if (dayMatch) {
+            dayMatch.signups += 1;
+        }
+    });
+
+    // Populate revenues
+    totalRevenueData.forEach((pay: { amount: number, created_at: string }) => {
+        const payDate = pay.created_at ? format(parseISO(pay.created_at), 'yyyy-MM-dd') : null;
+        const dayMatch = last7Days.find(d => d.dateStr === payDate);
+        if (dayMatch) {
+            dayMatch.revenue += pay.amount;
+        }
+    });
+
     res.status(200).json({
-        totalUsers: totalUsers,
-        activeSubscriptions: activeSubscriptions,
-        totalRevenue: totalRevenue,
-        dailySignups: dailySignups
+        totalUsers,
+        activeSubscriptions,
+        totalRevenue,
+        dailySignups,
+        timeSeries: last7Days
     });
 
   } catch (error: any) {
