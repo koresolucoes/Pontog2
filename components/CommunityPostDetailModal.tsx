@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useCommunityStore } from '../stores/communityStore';
 import { useAuthStore } from '../stores/authStore';
-import { handleUserClick } from './CommunityView';
+import { handleUserClick, renderContent } from './postUtils';
 import { toast } from 'react-hot-toast';
 import type { CommunityPost, CommunityComment } from '../types';
 
@@ -198,7 +198,31 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
                                 </p>
                             </div>
                         </div>
-                        <p className="text-slate-200 text-sm whitespace-pre-wrap">{post.content}</p>
+                        <p className="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{renderContent(post.content)}</p>
+                        
+                        {post.repost && (
+                            <div className="mt-3 border border-white/10 rounded-xl p-3 bg-slate-800/30">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div 
+                                        onClick={() => { handleUserClick(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author); onClose(); }} 
+                                        className="w-6 h-6 rounded-full bg-slate-700 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
+                                    >
+                                        {(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.avatar_url ? (
+                                            <img src={(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.avatar_url} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-[14px] text-slate-500">person</span>
+                                        )}
+                                    </div>
+                                    <span 
+                                        onClick={() => { handleUserClick(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author); onClose(); }} 
+                                        className="font-bold text-white text-sm cursor-pointer hover:underline"
+                                    >
+                                        {(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.display_name || (Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.username || 'Usuário'}
+                                    </span>
+                                </div>
+                                <p className="text-slate-300 text-sm leading-relaxed">{renderContent((Array.isArray(post.repost) ? post.repost[0]?.content : post.repost?.content) || '')}</p>
+                            </div>
+                        )}
                     </div>
 
                     {comments.length === 0 ? (

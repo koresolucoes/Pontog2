@@ -10,38 +10,7 @@ import { Community, CommunityPost } from '../types';
 import { toast } from 'react-hot-toast';
 import { CommunityPostDetailModal } from './CommunityPostDetailModal';
 import { supabase } from '../lib/supabase';
-
-
-const renderContent = (content: string) => {
-    if (!content) return null;
-    return content.split(/(#[a-zA-Z0-9_À-ÿ]+)/g).map((part, i) => 
-        part.startsWith('#') 
-            ? <span key={i} className="text-primary-400 font-medium hover:underline cursor-pointer">{part}</span> 
-            : part
-    );
-};
-
-export const handleUserClick = (author: any) => {
-    if (!author) return;
-    const calculateAge = (dobString: string | null): number => {
-        if (!dobString) return 18;
-        try {
-            const dob = new Date(dobString);
-            const diff = Date.now() - dob.getTime();
-            const ageDate = new Date(diff);
-            return Math.abs(ageDate.getUTCFullYear() - 1970);
-        } catch (e) {
-            return 18;
-        }
-    };
-    useMapStore.getState().setSelectedUser({
-        ...author,
-        age: author.age || calculateAge(author.date_of_birth),
-        status: author.status || 'active',
-        is_incognito: author.is_incognito || false,
-        has_completed_onboarding: author.has_completed_onboarding ?? true
-    });
-};
+import { handleUserClick, renderContent } from './postUtils';
 
 export const CommunityView: React.FC = () => {
     const { t } = useTranslation();
@@ -693,23 +662,23 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                                         <div className="mt-3 border border-white/10 rounded-xl p-3 bg-slate-800/30">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <div 
-                                                    onClick={() => handleUserClick(post.repost.author)} 
+                                                    onClick={() => handleUserClick(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)} 
                                                     className="w-6 h-6 rounded-full bg-slate-700 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
                                                 >
-                                                    {post.repost.author?.avatar_url ? (
-                                                        <img src={post.repost.author.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                    {(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.avatar_url ? (
+                                                        <img src={(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.avatar_url} alt="" className="w-full h-full object-cover" />
                                                     ) : (
                                                         <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-[14px] text-slate-500">person</span>
                                                     )}
                                                 </div>
                                                 <span 
-                                                    onClick={() => handleUserClick(post.repost.author)} 
+                                                    onClick={() => handleUserClick(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)} 
                                                     className="font-bold text-white text-sm cursor-pointer hover:underline"
                                                 >
-                                                    {post.repost.author?.display_name || post.repost.author?.username}
+                                                    {(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.display_name || (Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.username}
                                                 </span>
                                             </div>
-                                            <p className="text-slate-300 text-sm leading-relaxed">{renderContent(post.repost.content)}</p>
+                                            <p className="text-slate-300 text-sm leading-relaxed">{renderContent((Array.isArray(post.repost) ? post.repost[0]?.content : post.repost?.content))}</p>
                                         </div>
                                     )}
 

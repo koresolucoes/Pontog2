@@ -493,7 +493,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
           )}
           
           {/* Looking For Display */}
-          {user.looking_for && user.looking_for.length > 0 && (
+          {user.looking_for && Array.isArray(user.looking_for) && user.looking_for.length > 0 && (
             <div>
                 <h3 className="text-xs font-bold text-green-400 uppercase mb-3 flex items-center gap-2">
                     <span className="material-symbols-rounded filled text-base">search</span> {t('profile_modal.looking_for_title', { defaultValue: 'O que busco' })}
@@ -509,7 +509,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
           )}
 
           {/* Kinks Display */}
-          {user.kinks && user.kinks.length > 0 && (
+          {user.kinks && Array.isArray(user.kinks) && user.kinks.length > 0 && (
             <div>
                 <h3 className="text-xs font-bold text-secondary-400 uppercase mb-3 flex items-center gap-2">
                     <span className="material-symbols-rounded filled text-base">interests</span> {t('profile_modal.kinks', { defaultValue: 'O que curto' })}
@@ -571,7 +571,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
             )}
           </div>
           
-          {user.tribes && user.tribes.length > 0 && (
+          {user.tribes && Array.isArray(user.tribes) && user.tribes.length > 0 && (
             <div>
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3">{t('profile_modal.tribes', { defaultValue: 'Tribos' })}</h3>
               <div className="flex flex-wrap gap-2">

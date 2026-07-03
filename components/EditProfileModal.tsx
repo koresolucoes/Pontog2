@@ -57,25 +57,25 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
   };
 
   const handleTribeToggle = (tribeName: string) => {
-    const currentTribes = formData.tribes || [];
+    const currentTribes = Array.isArray(formData.tribes) ? formData.tribes : [];
     const newTribes = currentTribes.includes(tribeName)
-      ? currentTribes.filter(t => t !== tribeName)
+      ? currentTribes.filter((t: string) => t !== tribeName)
       : [...currentTribes, tribeName];
     setFormData(prev => ({ ...prev, tribes: newTribes }));
   };
 
   const handleKinkToggle = (kink: string) => {
-    const currentKinks = formData.kinks || [];
+    const currentKinks = Array.isArray(formData.kinks) ? formData.kinks : [];
     const newKinks = currentKinks.includes(kink)
-        ? currentKinks.filter(k => k !== kink)
+        ? currentKinks.filter((k: string) => k !== kink)
         : [...currentKinks, kink];
     setFormData(prev => ({ ...prev, kinks: newKinks }));
   }
 
   const handleLookingForToggle = (item: string) => {
-    const current = formData.looking_for || [];
+    const current = Array.isArray(formData.looking_for) ? formData.looking_for : [];
     const updated = current.includes(item)
-        ? current.filter(i => i !== item)
+        ? current.filter((i: string) => i !== item)
         : [...current, item];
     setFormData(prev => ({ ...prev, looking_for: updated }));
   }
@@ -226,7 +226,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
     
     await supabase.from('profile_tribes').delete().eq('profile_id', profile.id);
         
-    if (formTribes && formTribes.length > 0) {
+    if (formTribes && Array.isArray(formTribes) && formTribes.length > 0) {
         const selectedTribeIds = tribes.filter(t => formTribes.includes(t.name)).map(t => t.id);
         const newProfileTribes = selectedTribeIds.map(tribeId => ({ profile_id: profile.id, tribe_id: tribeId }));
         
@@ -467,7 +467,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                       type="button"
                       onClick={() => handleLookingForToggle(item)}
                       className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all border ${
-                        formData.looking_for?.includes(item)
+                        Array.isArray(formData.looking_for) && formData.looking_for.includes(item)
                           ? 'bg-green-600 border-green-500 text-white shadow-lg shadow-green-900/30'
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                       }`}
@@ -507,7 +507,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                       type="button"
                       onClick={() => handleKinkToggle(kink)}
                       className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all border ${
-                        formData.kinks?.includes(kink)
+                        Array.isArray(formData.kinks) && formData.kinks.includes(kink)
                           ? 'bg-secondary-600 border-secondary-500 text-white shadow-lg shadow-secondary-900/30'
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                       }`}
@@ -529,7 +529,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
                       type="button"
                       onClick={() => handleTribeToggle(tribe.name)}
                       className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all border ${
-                        formData.tribes?.includes(tribe.name)
+                        Array.isArray(formData.tribes) && formData.tribes.includes(tribe.name)
                           ? 'bg-primary-600 border-primary-500 text-white shadow-lg shadow-primary-900/30'
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                       }`}

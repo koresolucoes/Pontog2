@@ -91,21 +91,74 @@ export const useInboxStore = create<InboxState>((set, get) => {
             if (!force && now - get().lastConversationsFetch < 60000 && get().conversations.length > 0) return;
 
             set({ loadingConversations: true });
-            const { data, error } = await supabase.rpc('get_my_conversations');
             
-            if (error) {
-                console.error('Error fetching conversations:', error);
-                set({ loadingConversations: false });
-                return;
+            try {
+                const { data, error } = await supabase.rpc('get_my_conversations');
+                
+                if (error) throw error;
+                
+                const processedConversations = (data || []).map((convo: any) => ({
+                    ...convo,
+                    other_participant_avatar_url: getPublicImageUrl(convo.other_participant_avatar_url)
+                }));
+                
+                set({ conversations: processedConversations, loadingConversations: false, lastConversationsFetch: now });
+                updateTotalUnreadCount();
+            } catch (err: any) {
+                console.error('Error fetching conversations:', err);
+                
+                // Fallback manual JS fetch para contornar falhas de RPC devido a alterações de esquema
+                try {
+                    const currentUser = useAuthStore.getState().user;
+                    if (!currentUser) throw new Error("Sem usuário autenticado");
+                    
+                    const { data: myParts } = await supabase.from('conversation_participants').select('conversation_id').eq('user_id', currentUser.id);
+                    const convIds = (myParts || []).map(p => p.conversation_id);
+                    
+                    if (convIds.length === 0) {
+                        set({ conversations: [], loadingConversations: false, lastConversationsFetch: now });
+                        updateTotalUnreadCount();
+                        return;
+                    }
+                    
+                    const { data: otherParts } = await supabase.from('conversation_participants').select('conversation_id, user_id, profiles!inner(*)').in('conversation_id', convIds).neq('user_id', currentUser.id);
+                    const { data: msgs } = await supabase.from('messages').select('*').in('conversation_id', convIds).order('created_at', { ascending: false }).limit(300);
+                        
+                    const conversationsResult: any[] = [];
+                    
+                    for (const convId of convIds) {
+                        const otherPart = (otherParts || []).find(p => p.conversation_id === convId);
+                        const convMsgs = (msgs || []).filter(m => m.conversation_id === convId);
+                        const lastMsg = convMsgs.length > 0 ? convMsgs[0] : null;
+                        
+                        if (otherPart && otherPart.profiles && lastMsg) {
+                            const profile: any = Array.isArray(otherPart.profiles) ? otherPart.profiles[0] : otherPart.profiles;
+                            const unreadCount = convMsgs.filter(m => m.sender_id !== currentUser.id && !m.viewed_at).length;
+                            
+                            conversationsResult.push({
+                                conversation_id: convId,
+                                other_participant_id: profile.id,
+                                other_participant_username: profile.username || 'Usuário',
+                                other_participant_avatar_url: getPublicImageUrl(profile.avatar_url),
+                                other_participant_last_seen: profile.last_seen,
+                                last_message_content: lastMsg.content || (lastMsg.image_url ? '📷 Foto' : ''),
+                                last_message_created_at: lastMsg.created_at,
+                                last_message_sender_id: lastMsg.sender_id,
+                                unread_count: unreadCount,
+                                other_participant_subscription_tier: profile.subscription_tier || 'free'
+                            });
+                        }
+                    }
+                    
+                    conversationsResult.sort((a, b) => new Date(b.last_message_created_at).getTime() - new Date(a.last_message_created_at).getTime());
+                    
+                    set({ conversations: conversationsResult, loadingConversations: false, lastConversationsFetch: now });
+                    updateTotalUnreadCount();
+                } catch (fallbackErr) {
+                    console.error('Fallback fetchConversations failed:', fallbackErr);
+                    set({ loadingConversations: false });
+                }
             }
-            
-            const processedConversations = data.map((convo: any) => ({
-                ...convo,
-                other_participant_avatar_url: getPublicImageUrl(convo.other_participant_avatar_url)
-            }))
-
-            set({ conversations: processedConversations, loadingConversations: false, lastConversationsFetch: now });
-            updateTotalUnreadCount();
         },
 
         fetchWinks: async (force = false) => {
@@ -113,27 +166,45 @@ export const useInboxStore = create<InboxState>((set, get) => {
             if (!force && now - get().lastWinksFetch < 60000 && get().winks.length > 0) return;
 
             set({ loadingWinks: true });
-            const { data, error } = await supabase.rpc('get_my_winks');
-
-            if (error) {
-                console.error('Error fetching winks:', error);
-                set({ loadingWinks: false });
-                return;
-            }
             
-            if (!data) {
-                set({ winks: [], loadingWinks: false, lastWinksFetch: now });
-                updateTotalUnreadCount();
-                return;
+            let winksWithAgeAndUrls: any[] = [];
+            
+            try {
+                const { data, error } = await supabase.rpc('get_my_winks');
+                if (error) throw error;
+                
+                winksWithAgeAndUrls = (data || []).map((wink: any) => ({
+                    ...(wink as User),
+                    wink_created_at: wink.wink_created_at,
+                    age: calculateAge(wink.date_of_birth),
+                    avatar_url: getPublicImageUrl(wink.avatar_url),
+                    public_photos: Array.isArray(wink.public_photos) ? wink.public_photos.map(getPublicImageUrl) : [],
+                }));
+            } catch (err) {
+                console.error('Error fetching winks:', err);
+                
+                try {
+                    const currentUser = useAuthStore.getState().user;
+                    if (!currentUser) throw new Error("Sem usuário autenticado");
+                    
+                    const { data: winksData } = await supabase.from('winks').select('created_at, sender:sender_id(*)').eq('receiver_id', currentUser.id).order('created_at', { ascending: false });
+                    
+                    winksWithAgeAndUrls = (winksData || []).map((w: any) => {
+                        const sender = Array.isArray(w.sender) ? w.sender[0] : w.sender;
+                        return {
+                            ...(sender as User),
+                            wink_created_at: w.created_at,
+                            age: calculateAge(sender?.date_of_birth),
+                            avatar_url: getPublicImageUrl(sender?.avatar_url),
+                            public_photos: sender?.public_photos && Array.isArray(sender.public_photos) ? sender.public_photos.map(getPublicImageUrl) : [],
+                        };
+                    });
+                } catch (fallbackErr) {
+                    console.error('Fallback fetchWinks failed:', fallbackErr);
+                    set({ loadingWinks: false });
+                    return;
+                }
             }
-
-            const winksWithAgeAndUrls = data.map((wink: any) => ({
-                ...(wink as User),
-                wink_created_at: wink.wink_created_at,
-                age: calculateAge(wink.date_of_birth),
-                avatar_url: getPublicImageUrl(wink.avatar_url),
-                public_photos: (wink.public_photos || []).map(getPublicImageUrl),
-            }));
 
             // LÓGICA DE PERSISTÊNCIA
             // Verifica o localStorage para ver a última vez que o usuário abriu a aba de winks

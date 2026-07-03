@@ -188,7 +188,13 @@ interface VideoCardProps {
     onEditVideo?: (title: string, desc: string) => void;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick, isOwner, onDeleteVideo, onEditVideo }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: initialComments, isLiked: initialIsLiked, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick, isOwner, onDeleteVideo, onEditVideo }) => {
+    // Get real-time state data
+    const storeVideo = useVideoStore(state => state.videos.find(v => v.id === initialVideo.id));
+    const video = storeVideo || initialVideo;
+    const comments = useVideoStore(state => state.comments[initialVideo.id] || initialComments);
+    const isLiked = useVideoStore(state => state.likedVideos[initialVideo.id] ?? initialIsLiked);
+
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(true);
@@ -344,7 +350,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetch
                             ))}
                         </div>
                         <span className="text-xs text-slate-400 font-medium">
-                            {video.likes_count || 0} curtidas • {video.ratings_count || 0} avaliações • {video.views_count || 0} vistas
+                            {video.likes_count || 0} curtidas • {Math.max(comments.length, video.ratings_count || 0)} avaliações • {video.views_count || 0} vistas
                         </span>
                     </div>
                 </div>
@@ -409,7 +415,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, comments, isLiked, onFetch
             <div className="px-4 py-3 bg-slate-900/50 flex items-center justify-between cursor-pointer border-b border-white/5" onClick={() => setShowCommentsSection(!showCommentsSection)}>
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-300">
                     <span className="material-symbols-rounded text-lg">forum</span>
-                    <span>{comments.length || video.ratings_count} comentarios</span>
+                    <span>{Math.max(comments.length, video.ratings_count || 0)} comentarios</span>
                 </div>
                 <span className="material-symbols-rounded text-slate-500 transition-transform">
                     {showCommentsSection ? 'expand_less' : 'expand_more'}
