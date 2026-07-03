@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
 
-function getSupabaseClient() {
+export function getSupabaseClient() {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) return null;
@@ -146,7 +146,16 @@ export async function recordAuditLog(
     targetId: string,
     details: string
 ) {
-    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket?.remoteAddress || '127.0.0.1';
+    let ipAddress = '127.0.0.1';
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    if (Array.isArray(xForwardedFor)) {
+        ipAddress = xForwardedFor[0] || '127.0.0.1';
+    } else if (typeof xForwardedFor === 'string') {
+        ipAddress = xForwardedFor.split(',')[0].trim();
+    } else if (req.socket?.remoteAddress) {
+        ipAddress = req.socket.remoteAddress;
+    }
+
     const logEntry: AuditLog = {
         id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         admin_email: admin.email,
@@ -155,7 +164,7 @@ export async function recordAuditLog(
         action,
         target_id: targetId,
         details,
-        ip_address: ipAddress.split(',')[0].trim(),
+        ip_address: ipAddress,
         created_at: new Date().toISOString(),
     };
 

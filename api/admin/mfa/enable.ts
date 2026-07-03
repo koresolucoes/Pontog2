@@ -1,7 +1,7 @@
 // api/admin/mfa/enable.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAdminAndGetRole, recordAuditLog } from '../_utils';
+import { verifyAdminAndGetRole, recordAuditLog, getSupabaseClient } from '../_utils';
 import { verifyTOTP } from '../_totp';
 
 export default async function handler(
@@ -28,10 +28,10 @@ export default async function handler(
     }
 
     // Persist secret in the database
-    const supabaseAdmin = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabaseAdmin = getSupabaseClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: 'Integração com Supabase não está configurada.' });
+    }
 
     const { error } = await supabaseAdmin
       .from('admins')

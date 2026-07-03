@@ -2,7 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
-import { getAdminAccounts, recordAuditLog } from './admin/_utils';
+import { getAdminAccounts, recordAuditLog, getSupabaseClient } from './admin/_utils';
 import { verifyTOTP } from './admin/_totp';
 
 export default async function handler(
@@ -30,10 +30,10 @@ export default async function handler(
         return res.status(401).json({ error: 'Sessão MFA expirada ou inválida.' });
       }
 
-      const supabaseAdmin = createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      const supabaseAdmin = getSupabaseClient();
+      if (!supabaseAdmin) {
+        return res.status(500).json({ error: 'Supabase integration is not configured.' });
+      }
 
       const { data: dbAdmin, error: dbError } = await supabaseAdmin
         .from('admins')
@@ -133,54 +133,52 @@ export default async function handler(
 
   // Try checking the database `admins` table first
   try {
-    const supabaseAdmin = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabaseAdmin = getSupabaseClient();
+    if (supabaseAdmin) {
+      const { data: dbAdmin, error: dbError } = await supabaseAdmin
+        .from('admins')
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .eq('is_active', true)
+        .single();
 
-    const { data: dbAdmin, error: dbError } = await supabaseAdmin
-      .from('admins')
-      .select('*')
-      .eq('email', email.toLowerCase())
-      .eq('is_active', true)
-      .single();
+      if (!dbError && dbAdmin) {
+        if (dbAdmin.password_hash === password) {
+          // If MFA is enabled (mfa_secret exists), don't return the real token yet!
+          if (dbAdmin.mfa_secret) {
+            const tempToken = jwt.sign(
+              { email: dbAdmin.email, purpose: 'mfa_pending' },
+              jwtSecret,
+              { expiresIn: '5m' } // 5 minutes validity
+            );
 
-    if (!dbError && dbAdmin) {
-      if (dbAdmin.password_hash === password) {
-        // If MFA is enabled (mfa_secret exists), don't return the real token yet!
-        if (dbAdmin.mfa_secret) {
-          const tempToken = jwt.sign(
-            { email: dbAdmin.email, purpose: 'mfa_pending' },
-            jwtSecret,
-            { expiresIn: '5m' } // 5 minutes validity
+            return res.status(200).json({
+              mfaRequired: true,
+              tempToken,
+              message: 'Código de autenticação em dois fatores requerido.'
+            });
+          }
+
+          const adminUser = {
+            email: dbAdmin.email,
+            role: dbAdmin.role as 'owner' | 'moderator' | 'support' | 'financial',
+            name: dbAdmin.name
+          };
+
+          const token = jwt.sign(
+            adminUser, 
+            jwtSecret, 
+            { expiresIn: '8h' }
           );
 
-          return res.status(200).json({
-            mfaRequired: true,
-            tempToken,
-            message: 'Código de autenticação em dois fatores requerido.'
+          // Record audit log
+          await recordAuditLog(req, adminUser, 'LOGIN', adminUser.email, `Login realizado com sucesso via banco de dados por ${adminUser.name} (${adminUser.role}).`);
+
+          return res.status(200).json({ 
+            token,
+            adminUser
           });
         }
-
-        const adminUser = {
-          email: dbAdmin.email,
-          role: dbAdmin.role as 'owner' | 'moderator' | 'support' | 'financial',
-          name: dbAdmin.name
-        };
-
-        const token = jwt.sign(
-          adminUser, 
-          jwtSecret, 
-          { expiresIn: '8h' }
-        );
-
-        // Record audit log
-        await recordAuditLog(req, adminUser, 'LOGIN', adminUser.email, `Login realizado com sucesso via banco de dados por ${adminUser.name} (${adminUser.role}).`);
-
-        return res.status(200).json({ 
-          token,
-          adminUser
-        });
       }
     }
   } catch (err) {

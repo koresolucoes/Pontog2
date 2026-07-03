@@ -1,7 +1,7 @@
 // api/admin/mfa/status.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAdminAndGetRole } from '../_utils';
+import { verifyAdminAndGetRole, getSupabaseClient } from '../_utils';
 
 export default async function handler(
   req: VercelRequest,
@@ -15,10 +15,10 @@ export default async function handler(
   try {
     const admin = verifyAdminAndGetRole(req);
 
-    const supabaseAdmin = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabaseAdmin = getSupabaseClient();
+    if (!supabaseAdmin) {
+      return res.status(200).json({ mfaEnabled: false });
+    }
 
     const { data: dbAdmin, error } = await supabaseAdmin
       .from('admins')
