@@ -1,6 +1,6 @@
 // api/admin/audit-logs.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { enforceRoles, getAuditLogs } from './_utils';
+import { enforceRoles, getAuditLogs } from './_utils.js';
 
 export default async function handler(
   req: VercelRequest,

@@ -1,7 +1,7 @@
 // api/admin/mfa/status.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAdminAndGetRole, getSupabaseClient } from '../_utils';
+import { verifyAdminAndGetRole, getSupabaseClient } from '../_utils.js';
 
 export default async function handler(
   req: VercelRequest,

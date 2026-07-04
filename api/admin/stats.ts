@@ -1,7 +1,7 @@
 // api/admin/stats.ts
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { enforceRoles } from './_utils';
+import { enforceRoles } from './_utils.js';
 import { subDays, format, isAfter, parseISO } from 'date-fns';
 
 export default async function handler(

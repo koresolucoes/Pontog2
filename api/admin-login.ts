@@ -2,8 +2,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
-import { getAdminAccounts, recordAuditLog, getSupabaseClient } from './admin/_utils';
-import { verifyTOTP } from './admin/_totp';
+import { getAdminAccounts, recordAuditLog, getSupabaseClient } from './admin/_utils.js';
+import { verifyTOTP } from './admin/_totp.js';
 
 export default async function handler(
   req: VercelRequest,

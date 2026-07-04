@@ -1,7 +1,7 @@
 // api/admin/plans.ts
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { enforceRoles, recordAuditLog } from './_utils';
+import { enforceRoles, recordAuditLog } from './_utils.js';
 
 export default async function handler(
   req: VercelRequest,

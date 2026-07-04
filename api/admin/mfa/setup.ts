@@ -1,7 +1,7 @@
 // api/admin/mfa/setup.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { verifyAdminAndGetRole } from '../_utils';
-import { generateBase32Secret } from '../_totp';
+import { verifyAdminAndGetRole } from '../_utils.js';
+import { generateBase32Secret } from '../_totp.js';
 
 export default async function handler(
   req: VercelRequest,

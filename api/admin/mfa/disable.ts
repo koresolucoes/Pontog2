@@ -1,8 +1,8 @@
 // api/admin/mfa/disable.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAdminAndGetRole, recordAuditLog, getSupabaseClient } from '../_utils';
-import { verifyTOTP } from '../_totp';
+import { verifyAdminAndGetRole, recordAuditLog, getSupabaseClient } from '../_utils.js';
+import { verifyTOTP } from '../_totp.js';
 
 export default async function handler(
   req: VercelRequest,

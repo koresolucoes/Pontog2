@@ -1,6 +1,6 @@
 // api/admin/settings.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { enforceRoles, getSystemSettings, updateSystemSetting, recordAuditLog } from './_utils';
+import { enforceRoles, getSystemSettings, updateSystemSetting, recordAuditLog } from './_utils.js';
 
 export default async function handler(
   req: VercelRequest,
