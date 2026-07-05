@@ -89,6 +89,42 @@ export default async function handler(
         );
         break;
 
+      case 'grant-owner':
+        if (admin.role !== 'owner') {
+          return res.status(403).json({ error: 'Apenas Administradores do tipo Owner podem conceder status de dono de local.' });
+        }
+        updates = {
+          is_owner: true,
+        };
+        message = 'Status de Dono concedido.';
+        
+        await recordAuditLog(
+          req, 
+          admin, 
+          'GRANT_OWNER', 
+          userId, 
+          `Concedeu status de dono para o usuário @${targetName}. Motivo: ${reason || 'Não informado'}`
+        );
+        break;
+
+      case 'revoke-owner':
+        if (admin.role !== 'owner') {
+          return res.status(403).json({ error: 'Apenas Administradores do tipo Owner podem revogar status de dono de local.' });
+        }
+        updates = {
+          is_owner: false,
+        };
+        message = 'Status de Dono revogado.';
+        
+        await recordAuditLog(
+          req, 
+          admin, 
+          'REVOKE_OWNER', 
+          userId, 
+          `Revogou status de dono do usuário @${targetName}. Motivo: ${reason || 'Não informado'}`
+        );
+        break;
+
       case 'suspend':
         // Owner, Moderator, and Support can suspend
         if (!duration_days || typeof duration_days !== 'number') {

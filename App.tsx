@@ -22,6 +22,7 @@ import { usePwaStore } from './stores/pwaStore';
 import { SubscriptionModal } from './components/SubscriptionModal';
 import { DonationModal } from './components/DonationModal';
 import { AdminPanel } from './pages/Admin/AdminPanel';
+import { OwnerPanel } from './pages/Owner/OwnerPanel';
 import { Onboarding } from './components/Onboarding';
 import { Sidebar } from './components/Sidebar';
 import { AnimatedBackground } from './components/AnimatedBackground';
@@ -37,6 +38,9 @@ import { useTranslation } from 'react-i18next';
 const App: React.FC = () => {
     if (window.location.pathname.startsWith('/admin')) {
         return <AdminPanel />;
+    }
+    if (window.location.pathname.startsWith('/owner')) {
+        return <OwnerPanel />;
     }
 
     const { t } = useTranslation();

@@ -105,6 +105,14 @@ export const Sidebar: React.FC = () => {
 
                     {/* Menu Items */}
                     <nav className="space-y-1">
+                        {user?.is_owner && (
+                            <SidebarLink 
+                                icon="storefront" 
+                                label="Painel B2B (Locais)" 
+                                onClick={() => { window.location.href = '/owner'; handleClose(); }}
+                                iconColor="text-purple-400"
+                            />
+                        )}
                         <SidebarLink 
                             icon="newspaper" 
                             label="G News & Blog" 

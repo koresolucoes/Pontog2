@@ -48,6 +48,7 @@ export interface Profile {
   can_host: boolean; // Adicionado para indicar se tem local
   is_verified: boolean; // Adicionado para selo de verificação
   has_seen_tour: boolean; // Adicionado para o tour guiado
+  is_owner?: boolean; // Adicionado para painel B2B
   
   // FASE 1: Expansão para Rede Social Inclusiva (Comunidade LGBTQ+)
   gender_identity?: string;
@@ -217,6 +218,7 @@ export interface Venue {
     image_url: string;
     opening_hours?: string;
     is_partner: boolean; // Se é parceiro pagante (destaque)
+    owner_id?: string; // B2B Owner ID
     is_verified: boolean; // Status de verificação
     tags: string[];
     osm_id?: string; // ID do OpenStreetMap

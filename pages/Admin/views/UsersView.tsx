@@ -44,6 +44,12 @@ const ActionDropdown: React.FC<{
                             <button onClick={() => handleActionClick('grant-plus')} className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Conceder Plus</button>
                         )}
                         <hr className="border-gray-600 my-1"/>
+                        {user.is_owner ? (
+                            <button onClick={() => handleActionClick('revoke-owner')} className="block w-full text-left px-4 py-2 text-sm text-purple-400 hover:bg-gray-600">Remover Dono (B2B)</button>
+                        ) : (
+                            <button onClick={() => handleActionClick('grant-owner')} className="block w-full text-left px-4 py-2 text-sm text-purple-400 hover:bg-gray-600">Tornar Dono (B2B)</button>
+                        )}
+                        <hr className="border-gray-600 my-1"/>
                         {user.status === 'active' ? (
                             <>
                                 <button onClick={() => handleActionClick('suspend', 1)} className="block w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-gray-600">Suspender (1 dia)</button>
@@ -163,6 +169,8 @@ export const UsersView: React.FC = () => {
         'suspend': `suspender a conta de`,
         'ban': `BANIR PERMANENTEMENTE a conta de`,
         'reactivate': `reativar a conta de`,
+        'grant-owner': `tornar dono de local (B2B) o usuário`,
+        'revoke-owner': `remover o status de dono de local (B2B) de`,
     };
 
     return (
@@ -199,7 +207,12 @@ export const UsersView: React.FC = () => {
                                             <img className="h-10 w-10 rounded-full object-cover" src={user.avatar_url} alt={user.username} />
                                         </div>
                                         <div className="ml-4">
-                                            <div className="text-sm font-medium text-white">{user.username}</div>
+                                            <div className="text-sm font-medium text-white flex items-center gap-2">
+                                                {user.username}
+                                                {user.is_owner && (
+                                                    <span className="material-symbols-rounded text-[16px] text-purple-400" title="Dono de Local (B2B)">storefront</span>
+                                                )}
+                                            </div>
                                             <div className="text-sm text-gray-400">{user.email}</div>
                                         </div>
                                     </div>
