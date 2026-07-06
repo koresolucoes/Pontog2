@@ -14,12 +14,11 @@ export default async function handler(
     );
 
     if (req.method === 'GET') {
-      const { data, error } = await supabaseAdmin
+      const { data: claims, error } = await supabaseAdmin
         .from('venue_claims')
         .select(`
           *,
-          users:profiles (username, email),
-          venues:venue_id (name, address)
+          venues (name, address)
         `)
         .order('created_at', { ascending: false });
 
@@ -27,7 +26,24 @@ export default async function handler(
         console.error('Error fetching venue claims:', error);
         return res.status(500).json({ error: 'Erro ao buscar reivindicações' });
       }
-
+      
+      // Fetch user profiles manually
+      const userIds = [...new Set(claims.map((c: any) => c.user_id))];
+      const { data: profiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, username, email')
+        .in('id', userIds);
+        
+      const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
+          acc[p.id] = p;
+          return acc;
+      }, {});
+      
+      const data = claims.map((c: any) => ({
+          ...c,
+          users: profilesMap[c.user_id] || { username: 'Desconhecido', email: '' }
+      }));
+      
       return res.status(200).json(data);
     } 
     
