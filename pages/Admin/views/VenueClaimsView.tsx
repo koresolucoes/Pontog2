@@ -99,7 +99,7 @@ export const VenueClaimsView: React.FC = () => {
                                                 <div className="text-xs text-gray-400">{claim.venues?.address}</div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <p className="text-sm text-gray-300 line-clamp-3">{claim.proof}</p>
+                                                <p className="text-sm text-gray-300 line-clamp-3">{claim.message}</p>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                                                 {new Date(claim.created_at).toLocaleString()}

@@ -84,7 +84,7 @@ export const useOwnerStore = create<OwnerState>((set, get) => ({
             // Assuming an owner_claims table
             const { error } = await supabase
                 .from('venue_claims')
-                .insert({ venue_id: venueId, user_id: userId, proof: proofText, status: 'pending' });
+                .insert({ venue_id: venueId, user_id: userId, message: proofText, status: 'pending' });
             
             if (error) {
                 toast.error('Erro ao enviar reivindicação. Tente novamente.');
