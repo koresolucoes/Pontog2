@@ -18,7 +18,7 @@ export default async function handler(
         .from('venue_claims')
         .select(`
           *,
-          users:user_id (username, email),
+          users:profiles (username, email),
           venues:venue_id (name, address)
         `)
         .order('created_at', { ascending: false });

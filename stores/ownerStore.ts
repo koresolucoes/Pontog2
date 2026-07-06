@@ -57,7 +57,7 @@ export const useOwnerStore = create<OwnerState>((set, get) => ({
                 .select(`
                     user_id,
                     checked_in_at,
-                    users ( username, avatar_url )
+                    profiles ( username, avatar_url )
                 `)
                 .eq('venue_id', venueId)
                 .order('checked_in_at', { ascending: false });
@@ -67,8 +67,8 @@ export const useOwnerStore = create<OwnerState>((set, get) => ({
             const formatted = data.map((d: any) => ({
                 user_id: d.user_id,
                 checked_in_at: d.checked_in_at,
-                username: d.users?.username || 'Unknown',
-                avatar_url: d.users?.avatar_url || ''
+                username: d.profiles?.username || 'Unknown',
+                avatar_url: d.profiles?.avatar_url || ''
             }));
             
             set(state => ({

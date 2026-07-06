@@ -22,12 +22,16 @@ export default async function handler(
       supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }) 
     ]);
     
-    if (profilesError) throw profilesError;
+    let validProfiles = allProfiles || [];
+    if (profilesError) {
+      console.warn("Profiles error (missing cols):", profilesError);
+    }
+
     if (authUsersError) throw authUsersError;
 
-    const totalUsers = allProfiles.length;
+    const totalUsers = validProfiles.length > 0 ? validProfiles.length : (authUsersData.users?.length || 0);
 
-    const activeSubscriptions = allProfiles.filter((p: any) => 
+    const activeSubscriptions = validProfiles.filter((p: any) => 
         p.subscription_tier === 'plus' &&
         p.subscription_expires_at &&
         new Date(p.subscription_expires_at) > new Date()
@@ -43,8 +47,11 @@ export default async function handler(
         .select('amount, status, created_at')
         .eq('status', 'approved');
         
-    if (revenueError) throw revenueError;
-    const totalRevenue = totalRevenueData.reduce((sum: number, item: any) => sum + item.amount, 0);
+    let validRevenueData = totalRevenueData || [];
+    if (revenueError) {
+      console.warn("Payments error (missing table):", revenueError);
+    }
+    const totalRevenue = validRevenueData.reduce((sum: number, item: any) => sum + item.amount, 0);
 
     // --- TIME SERIES GENERATION (7 Days) ---
     const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -67,7 +74,7 @@ export default async function handler(
     });
 
     // Populate revenues
-    totalRevenueData.forEach((pay: { amount: number, created_at: string }) => {
+    validRevenueData.forEach((pay: { amount: number, created_at: string }) => {
         const payDate = pay.created_at ? format(parseISO(pay.created_at), 'yyyy-MM-dd') : null;
         const dayMatch = last7Days.find(d => d.dateStr === payDate);
         if (dayMatch) {
