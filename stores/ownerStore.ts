@@ -13,6 +13,8 @@ interface OwnerState {
     claimVenue: (userId: string, venueId: string, proofText: string) => Promise<boolean>;
     banUser: (venueId: string, userId: string, reason: string) => Promise<boolean>;
     unbanUser: (venueId: string, userId: string) => Promise<boolean>;
+    updateVenue: (venueId: string, updates: Partial<Venue>) => Promise<boolean>;
+    sendPromotion: (venueId: string, title: string, message: string) => Promise<boolean>;
 }
 
 export const useOwnerStore = create<OwnerState>((set, get) => ({
@@ -125,6 +127,53 @@ export const useOwnerStore = create<OwnerState>((set, get) => ({
             return true;
         } catch(err) {
             toast.error('Erro ao desbanir usuário.');
+            return false;
+        }
+    },
+    updateVenue: async (venueId: string, updates: Partial<Venue>) => {
+        try {
+            const { error } = await supabase
+                .from('venues')
+                .update(updates)
+                .eq('id', venueId);
+            
+            if (error) throw error;
+            
+            set(state => ({
+                managedVenues: state.managedVenues.map(v => v.id === venueId ? { ...v, ...updates } as Venue : v)
+            }));
+            
+            toast.success('Perfil do local atualizado.');
+            return true;
+        } catch (err) {
+            toast.error('Erro ao atualizar local.');
+            return false;
+        }
+    },
+    sendPromotion: async (venueId: string, title: string, message: string) => {
+        try {
+            const user = useAuthStore.getState().user;
+            if (!user) return false;
+            
+            const session = useAuthStore.getState().session;
+            
+            const response = await fetch('/api/owner/send-promo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ venueId, title, message })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Falha ao enviar');
+            }
+            
+            toast.success('Promoção enviada aos clientes!');
+            return true;
+        } catch (err) {
+            toast.error('Erro ao enviar promoção.');
             return false;
         }
     }
