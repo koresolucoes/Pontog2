@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useMapStore } from '../stores/mapStore';
 import { useAgoraStore } from '../stores/agoraStore';
 import { useUserActionsStore } from '../stores/userActionsStore';
+import { useAuthStore } from '../stores/authStore';
 import { User } from '../types';
 import { FilterModal } from './FilterModal';
 import { AdSenseUnit } from './AdSenseUnit';
@@ -38,6 +39,8 @@ const UserCard = memo(({
 }) => {
     const { t } = useTranslation();
     const isPlus = user.subscription_tier === 'plus';
+    const { profile } = useAuthStore();
+    const isPlusUser = profile?.subscription_tier === 'plus';
 
     return (
         <div 
@@ -97,7 +100,11 @@ const UserCard = memo(({
                     {user.distance_km != null && (
                         <span className="bg-white/10 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/5 flex items-center gap-1">
                             <span className="material-symbols-rounded" style={{ fontSize: '10px' }}>location_on</span>
-                            {user.distance_km < 1 ? `${Math.round(user.distance_km * 1000)}m` : `${user.distance_km.toFixed(0)}km`}
+                            {isPlusUser ? (
+                                user.distance_km < 1 ? `${Math.round(user.distance_km * 1000)}m` : `${user.distance_km.toFixed(1)}km`
+                            ) : (
+                                user.distance_km < 1 ? t('profile_modal.approx_1km', { defaultValue: 'Cerca de 1km' }) : `Aprox. ${user.distance_km.toFixed(0)}km`
+                            )}
                         </span>
                     )}
                 </div>

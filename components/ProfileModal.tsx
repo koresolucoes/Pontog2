@@ -460,7 +460,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
                         </span>
                          {user.distance_km != null && (
                              <span className="text-xs text-slate-300 font-medium drop-shadow-md">
-                                {user.distance_km < 1 ? t('profile_modal.near_you', { defaultValue: '< 1km de você' }) : `${user.distance_km.toFixed(0)}km ` + t('profile_modal.from_you', { defaultValue: 'de você' })}
+                                {currentUser?.subscription_tier === 'plus' ? (
+                                    user.distance_km < 1 ? t('profile_modal.near_you_precise', { defaultValue: `${Math.round(user.distance_km * 1000)}m de você` }) : `${user.distance_km.toFixed(1)}km ` + t('profile_modal.from_you', { defaultValue: 'de você' })
+                                ) : (
+                                    user.distance_km < 1 ? t('profile_modal.approx_1km_from_you', { defaultValue: 'Cerca de 1km de você' }) : `Aprox. ${user.distance_km.toFixed(0)}km ` + t('profile_modal.from_you', { defaultValue: 'de você' })
+                                )}
                              </span>
                          )}
                          

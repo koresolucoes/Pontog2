@@ -175,7 +175,25 @@ export const useMapStore = create<MapState>((set, get) => ({
 
     set({ lastLocationUpdate: now });
 
-    const { lat, lng } = coords;
+    let { lat, lng } = coords;
+
+    // Check if user is a Plus member. If not, add location fuzzing for physical safety.
+    const profile = useAuthStore.getState().profile;
+    const isPlus = profile?.subscription_tier === 'plus';
+
+    if (!isPlus) {
+        // Apply random displacement between 100m and 400m
+        // Earth radius ~ 6,378,137m
+        const radius = 100 + Math.random() * 300; // 100m to 400m
+        const angle = Math.random() * 2 * Math.PI;
+
+        const latOffset = (radius * Math.sin(angle)) / 111111;
+        const lngOffset = (radius * Math.cos(angle)) / (111111 * Math.cos(lat * Math.PI / 180));
+
+        lat += latOffset;
+        lng += lngOffset;
+    }
+
     // Fire and forget - don't await to block UI
     supabase.rpc('update_my_location', {
         new_lat: lat,

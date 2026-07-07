@@ -807,7 +807,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
     {viewingOncePhoto && viewingOncePhoto.image_url && (
         <ViewOncePhotoModal
             imageUrl={getPublicImageUrl(viewingOncePhoto.image_url)}
-            onClose={() => setViewingOncePhoto(null)}
+            onClose={async () => {
+                const pathToDelete = viewingOncePhoto.image_url;
+                setViewingOncePhoto(null);
+                if (pathToDelete) {
+                    try {
+                        const { error } = await supabase.storage.from('user_uploads').remove([pathToDelete]);
+                        if (error) {
+                            console.error("Error deleting view-once image from storage on close:", error);
+                        } else {
+                            console.log("Successfully deleted view-once photo from storage on close:", pathToDelete);
+                        }
+                    } catch (e) {
+                        console.error("Error deleting view-once image:", e);
+                    }
+                }
+            }}
         />
     )}
     </>

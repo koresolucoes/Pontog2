@@ -179,6 +179,22 @@ const MyLocationMarkerIcon = (avatarUrl: string, canHost: boolean, isTraveling: 
     });
 };
 
+// Let's create a consistent, seed-based coordinate displacement based on user's ID to preserve user privacy for free subscribers
+const getConsistentFuzzOffset = (userId: string): { latOffset: number; lngOffset: number } => {
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+        hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const latSign = hash % 2 === 0 ? 1 : -1;
+    // Offset range approx 150m to 450m (0.0015 to 0.0045 degrees)
+    const latOffset = latSign * (0.0015 + (Math.abs(hash) % 30) / 10000); 
+    
+    const lngSign = (hash >> 2) % 2 === 0 ? 1 : -1;
+    const lngOffset = lngSign * (0.0015 + (Math.abs(hash >> 3) % 30) / 10000);
+    
+    return { latOffset, lngOffset };
+};
+
 export const Map: React.FC = () => {
   const { 
       users, venues, myLocation, onlineUsers, loading, error, filters, 
@@ -218,6 +234,19 @@ export const Map: React.FC = () => {
           return true;
       });
 
+      // Se o usuário não for assinante Plus, aplicamos uma desfocagem (fuzzing) determinística baseada no ID do outro usuário.
+      // Isso protege as coordenadas exatas dos outros usuários no mapa para não-assinantes.
+      const isPlusUser = profile?.subscription_tier === 'plus';
+      const mapUsers = visibleUsers.map(user => {
+          if (isPlusUser) return user;
+          const { latOffset, lngOffset } = getConsistentFuzzOffset(user.id);
+          return {
+              ...user,
+              lat: user.lat! + latOffset,
+              lng: user.lng! + lngOffset
+          };
+      });
+
       // 2. Clear existing markers
       userMarkersRef.current.forEach(m => m.remove());
       userMarkersRef.current.clear();
@@ -232,7 +261,7 @@ export const Map: React.FC = () => {
 
       if (!shouldCluster) {
           // Renderização Normal (Sem Cluster)
-          visibleUsers.forEach(user => {
+          mapUsers.forEach(user => {
               const isOnline = onlineUsers.includes(user.id);
               const isAgora = agoraUserIds.includes(user.id);
               
@@ -252,7 +281,7 @@ export const Map: React.FC = () => {
       const processedUsers = new Set<string>();
 
       // Prioriza usuários "Agora" ou "Online" como sementes de cluster
-      const sortedUsers = [...visibleUsers].sort((a, b) => {
+      const sortedUsers = [...mapUsers].sort((a, b) => {
           const aScore = (agoraUserIds.includes(a.id) ? 2 : 0) + (onlineUsers.includes(a.id) ? 1 : 0);
           const bScore = (agoraUserIds.includes(b.id) ? 2 : 0) + (onlineUsers.includes(b.id) ? 1 : 0);
           return bScore - aScore;
