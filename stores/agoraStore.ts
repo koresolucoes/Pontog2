@@ -31,6 +31,7 @@ interface AgoraState {
   addComment: (postId: number, content: string) => Promise<void>;
   fetchCommentsForPost: (postId: number) => Promise<AgoraComment[]>;
   toggleLikeComment: (commentId: number, hasLiked: boolean) => Promise<void>;
+  publishAgoraCheckin: (venueName: string, venueImageUrl: string) => Promise<void>;
 }
 
 let isPaginatedRpcSupported = true;
@@ -374,6 +375,45 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
       await supabase.from('agora_comment_likes').insert({ comment_id: commentId, user_id: user.id });
     }
     // The component handles the optimistic update, so no need to refetch here.
+  },
+
+  publishAgoraCheckin: async (venueName: string, venueImageUrl: string) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+    
+    // We create a post directly with the venue image url
+    const payload = {
+        user_id: user.id,
+        photo_url: venueImageUrl,
+        status_text: `Acabou de chegar em ${venueName} 📍`,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    };
+    
+    const { error: insertError } = await supabase
+      .from('agora_posts')
+      .insert(payload);
+
+    if (insertError) {
+        if (insertError.code === '23505') {
+            // Update existing post
+            const { error: updateError } = await supabase
+                .from('agora_posts')
+                .update({
+                    photo_url: venueImageUrl,
+                    status_text: payload.status_text,
+                    expires_at: payload.expires_at
+                })
+                .eq('user_id', user.id);
+            if (updateError) {
+                console.error("Error updating Agora post:", updateError);
+            }
+        } else {
+            console.error("Error inserting Agora post:", insertError);
+        }
+    }
+    
+    // Refresh posts
+    await get().fetchAgoraPosts(true);
   },
 
 }));

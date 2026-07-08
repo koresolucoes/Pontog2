@@ -4,7 +4,7 @@ import { Venue, VenueCheckin, VenueReview, VenueReviewReply } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 import { useMapStore } from '../stores/mapStore';
-import { useCommunityStore } from '../stores/communityStore';
+import { useAgoraStore } from '../stores/agoraStore';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -21,7 +21,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
   const user = useAuthStore(state => state.user);
   const mapUsers = useMapStore(state => state.users);
   const setSelectedUser = useMapStore(state => state.setSelectedUser);
-  const createPost = useCommunityStore(state => state.createPost);
+  const publishAgoraCheckin = useAgoraStore(state => state.publishAgoraCheckin);
 
 
   // Safety Evaluation State
@@ -283,12 +283,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
             useAuthStore.setState({ user: { ...user, current_checkin_venue_id: venue.id, current_checkin_venue_name: venue.name } });
 
             if (postToAgora) {
-                // Mock post creation in community store
-                const agoraPost = {
-                    photo_url: venue.image_url,
-                    status_text: `Acabou de chegar em ${venue.name} 📍`,
-                };
-                createPost(agoraPost);
+                publishAgoraCheckin(venue.name, venue.image_url);
                 toast.success('Publicado no feed Agora!');
             }
 
