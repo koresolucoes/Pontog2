@@ -83,8 +83,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
           photos,
           created_at,
           likes_count,
-          replies_count,
-          profiles ( username, avatar_url )
+          replies_count
         `)
         .eq('venue_id', venue.id)
         .order('created_at', { ascending: false });
@@ -95,19 +94,34 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
       }
 
       if (data && data.length > 0) {
-        const formattedReviews: VenueReview[] = data.map((r: any) => ({
-          id: r.id,
-          venue_id: r.venue_id,
-          user_id: r.user_id,
-          comment: r.comment,
-          photos: r.photos || [],
-          created_at: r.created_at,
-          likes_count: r.likes_count || 0,
-          replies_count: r.replies_count || 0,
-          user_has_liked: false,
-          username: r.profiles?.username || 'Usuário',
-          avatar_url: r.profiles?.avatar_url || ''
-        }));
+        // Fetch profiles of these users separately to avoid dependency on explicit foreign keys
+        const userIds = Array.from(new Set(data.map((r: any) => r.user_id)));
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', userIds);
+
+        const profilesMap = new Map();
+        if (profilesData) {
+          profilesData.forEach(p => profilesMap.set(p.id, p));
+        }
+
+        const formattedReviews: VenueReview[] = data.map((r: any) => {
+          const profile = profilesMap.get(r.user_id);
+          return {
+            id: r.id,
+            venue_id: r.venue_id,
+            user_id: r.user_id,
+            comment: r.comment,
+            photos: r.photos || [],
+            created_at: r.created_at,
+            likes_count: r.likes_count || 0,
+            replies_count: r.replies_count || 0,
+            user_has_liked: false,
+            username: profile?.username || 'Usuário',
+            avatar_url: profile?.avatar_url || ''
+          };
+        });
 
         const localReviewsStr = localStorage.getItem(`venue_reviews_${venue.id}`);
         const localReviews: VenueReview[] = localReviewsStr ? JSON.parse(localReviewsStr) : [];
