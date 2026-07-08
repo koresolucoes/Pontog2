@@ -43,6 +43,11 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
   const [newReviewText, setNewReviewText] = useState('');
   const [showReviewInput, setShowReviewInput] = useState(false);
 
+  // Experience Reviews Replies State
+  const [expandedReviews, setExpandedReviews] = useState<Record<string, boolean>>({});
+  const [replies, setReplies] = useState<Record<string, VenueReviewReply[]>>({});
+  const [newReplyText, setNewReplyText] = useState<Record<string, string>>({});
+
   const loadFallbackReviews = () => {
     const localReviewsStr = localStorage.getItem(`venue_reviews_${venue.id}`);
     if (localReviewsStr) {
@@ -310,6 +315,227 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
           localStorage.setItem(`venue_reviews_${venue.id}`, JSON.stringify(updatedLocalReviews));
           
           toast.success(t('venue.review_published_fallback', { defaultValue: 'Avaliação salva localmente (banco de dados pendente).' }));
+      }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+      if (!user) return;
+
+      const previousReviews = [...reviews];
+      setReviews(reviews.filter(r => r.id !== reviewId));
+
+      try {
+          const { error } = await supabase
+              .from('venue_reviews')
+              .delete()
+              .match({ id: reviewId, user_id: user.id });
+
+          if (error) throw error;
+
+          // Remove from local storage
+          const localReviewsStr = localStorage.getItem(`venue_reviews_${venue.id}`);
+          if (localReviewsStr) {
+              const localReviews: VenueReview[] = JSON.parse(localReviewsStr);
+              const filtered = localReviews.filter(r => r.id !== reviewId);
+              localStorage.setItem(`venue_reviews_${venue.id}`, JSON.stringify(filtered));
+          }
+
+          toast.success(t('venue.review_deleted', { defaultValue: 'Avaliação excluída com sucesso.' }));
+      } catch (err) {
+          console.error("Failed to delete review", err);
+          // Fallback/rollback or local-only delete
+          const localReviewsStr = localStorage.getItem(`venue_reviews_${venue.id}`);
+          if (localReviewsStr) {
+              const localReviews: VenueReview[] = JSON.parse(localReviewsStr);
+              const filtered = localReviews.filter(r => r.id !== reviewId);
+              localStorage.setItem(`venue_reviews_${venue.id}`, JSON.stringify(filtered));
+              setReviews(filtered);
+              toast.success(t('venue.review_deleted', { defaultValue: 'Avaliação excluída com sucesso.' }));
+          } else {
+              setReviews(previousReviews);
+              toast.error(t('venue.review_delete_failed', { defaultValue: 'Erro ao excluir avaliação.' }));
+          }
+      }
+  };
+
+  const fetchReplies = async (reviewId: string) => {
+      try {
+          const { data, error } = await supabase
+              .from('venue_review_replies')
+              .select(`
+                  id,
+                  review_id,
+                  user_id,
+                  comment,
+                  created_at
+              `)
+              .eq('review_id', reviewId)
+              .order('created_at', { ascending: true });
+
+          const loadLocalReplies = () => {
+              const localRepliesStr = localStorage.getItem(`venue_replies_${reviewId}`);
+              if (localRepliesStr) {
+                  try {
+                      const localReplies = JSON.parse(localRepliesStr);
+                      setReplies(prev => ({ ...prev, [reviewId]: localReplies }));
+                  } catch (e) {
+                      console.error(e);
+                  }
+              } else {
+                  setReplies(prev => ({ ...prev, [reviewId]: [] }));
+              }
+          };
+
+          if (error) {
+              loadLocalReplies();
+              return;
+          }
+
+          if (data && data.length > 0) {
+              const userIds = Array.from(new Set(data.map((r: any) => r.user_id)));
+              const { data: profilesData } = await supabase
+                  .from('profiles')
+                  .select('id, username, avatar_url')
+                  .in('id', userIds);
+
+              const profilesMap = new Map();
+              if (profilesData) {
+                  profilesData.forEach(p => profilesMap.set(p.id, p));
+              }
+
+              const formattedReplies: VenueReviewReply[] = data.map((r: any) => {
+                  const profile = profilesMap.get(r.user_id);
+                  return {
+                      id: r.id,
+                      review_id: r.review_id,
+                      user_id: r.user_id,
+                      comment: r.comment,
+                      created_at: r.created_at,
+                      username: profile?.username || 'Usuário',
+                      avatar_url: profile?.avatar_url || ''
+                  };
+              });
+
+              const localRepliesStr = localStorage.getItem(`venue_replies_${reviewId}`);
+              const localReplies: VenueReviewReply[] = localRepliesStr ? JSON.parse(localRepliesStr) : [];
+              const dbReplyIds = new Set(formattedReplies.map(fr => fr.id));
+              const uniqueLocalReplies = localReplies.filter(lr => !dbReplyIds.has(lr.id));
+
+              setReplies(prev => ({
+                  ...prev,
+                  [reviewId]: [...uniqueLocalReplies, ...formattedReplies]
+              }));
+          } else {
+              loadLocalReplies();
+          }
+      } catch (err) {
+          console.error(err);
+      }
+  };
+
+  const handleToggleReplies = (reviewId: string) => {
+      setExpandedReviews(prev => {
+          const next = { ...prev, [reviewId]: !prev[reviewId] };
+          if (next[reviewId]) {
+              fetchReplies(reviewId);
+          }
+          return next;
+      });
+  };
+
+  const handleAddReply = async (reviewId: string) => {
+      if (!user) {
+          toast.error(t('venue.login_required', { defaultValue: 'Você precisa estar logado para responder.' }));
+          return;
+      }
+
+      const text = newReplyText[reviewId]?.trim();
+      if (!text) return;
+
+      const newReply: VenueReviewReply = {
+          id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 11),
+          review_id: reviewId,
+          user_id: user.id,
+          comment: text,
+          created_at: new Date().toISOString(),
+          username: user.display_name || user.username,
+          avatar_url: user.avatar_url,
+      };
+
+      setReplies(prev => ({
+          ...prev,
+          [reviewId]: [...(prev[reviewId] || []), newReply]
+      }));
+      setNewReplyText(prev => ({ ...prev, [reviewId]: '' }));
+
+      setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, replies_count: (r.replies_count || 0) + 1 } : r));
+
+      try {
+          const { error } = await supabase
+              .from('venue_review_replies')
+              .insert({
+                  review_id: newReply.review_id,
+                  user_id: newReply.user_id,
+                  comment: newReply.comment,
+                  created_at: newReply.created_at
+              });
+
+          if (error) throw error;
+          toast.success(t('venue.reply_published', { defaultValue: 'Resposta publicada!' }));
+      } catch (err) {
+          console.warn("Supabase reply insert failed, saving to local fallback...", err);
+          const localRepliesStr = localStorage.getItem(`venue_replies_${reviewId}`);
+          const localReplies: VenueReviewReply[] = localRepliesStr ? JSON.parse(localRepliesStr) : [];
+          const updatedLocalReplies = [...localReplies, newReply];
+          localStorage.setItem(`venue_replies_${reviewId}`, JSON.stringify(updatedLocalReplies));
+          toast.success(t('venue.reply_published_fallback', { defaultValue: 'Resposta salva localmente.' }));
+      }
+  };
+
+  const handleDeleteReply = async (reviewId: string, replyId: string) => {
+      if (!user) return;
+
+      const previousReplies = [...(replies[reviewId] || [])];
+      setReplies(prev => ({
+          ...prev,
+          [reviewId]: (prev[reviewId] || []).filter(r => r.id !== replyId)
+      }));
+
+      setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, replies_count: Math.max(0, (r.replies_count || 0) - 1) } : r));
+
+      try {
+          const { error } = await supabase
+              .from('venue_review_replies')
+              .delete()
+              .match({ id: replyId, user_id: user.id });
+
+          if (error) throw error;
+
+          const localRepliesStr = localStorage.getItem(`venue_replies_${reviewId}`);
+          if (localRepliesStr) {
+              const localReviews: VenueReviewReply[] = JSON.parse(localRepliesStr);
+              const filtered = localReviews.filter(r => r.id !== replyId);
+              localStorage.setItem(`venue_replies_${reviewId}`, JSON.stringify(filtered));
+          }
+
+          toast.success(t('venue.reply_deleted', { defaultValue: 'Resposta excluída.' }));
+      } catch (err) {
+          console.error("Failed to delete reply", err);
+          const localRepliesStr = localStorage.getItem(`venue_replies_${reviewId}`);
+          if (localRepliesStr) {
+              const localReplies: VenueReviewReply[] = JSON.parse(localRepliesStr);
+              const filtered = localReplies.filter(r => r.id !== replyId);
+              localStorage.setItem(`venue_replies_${reviewId}`, JSON.stringify(filtered));
+              setReplies(prev => ({ ...prev, [reviewId]: filtered }));
+              toast.success(t('venue.reply_deleted', { defaultValue: 'Resposta excluída.' }));
+          } else {
+              setReplies(prev => ({
+                  ...prev,
+                  [reviewId]: previousReplies
+              }));
+              setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, replies_count: (r.replies_count || 0) + 1 } : r));
+              toast.error(t('venue.reply_delete_failed', { defaultValue: 'Erro ao excluir resposta.' }));
+          }
       }
   };
 
@@ -810,15 +1036,29 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
                     <div className="space-y-3">
                         {reviews.length > 0 ? reviews.map(review => (
                             <div key={review.id} className="bg-slate-800/30 p-4 rounded-xl border border-white/5">
-                                <div className="flex items-center gap-2 mb-2 cursor-pointer" onClick={() => {
-                                    const mapUser = mapUsers.find(u => u.id === review.user_id);
-                                    if(mapUser) setSelectedUser(mapUser);
-                                }}>
-                                    <img src={review.avatar_url || 'https://via.placeholder.com/150'} alt={review.username} className="w-8 h-8 rounded-full object-cover border border-slate-600" />
-                                    <div>
-                                        <p className="text-xs font-bold text-white leading-none">{review.username}</p>
-                                        <p className="text-[10px] text-slate-500 mt-0.5">{new Date(review.created_at).toLocaleDateString()}</p>
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
+                                        const mapUser = mapUsers.find(u => u.id === review.user_id);
+                                        if(mapUser) setSelectedUser(mapUser);
+                                    }}>
+                                        <img src={review.avatar_url || 'https://via.placeholder.com/150'} alt={review.username} className="w-8 h-8 rounded-full object-cover border border-slate-600" />
+                                        <div>
+                                            <p className="text-xs font-bold text-white leading-none">{review.username}</p>
+                                            <p className="text-[10px] text-slate-500 mt-0.5">{new Date(review.created_at).toLocaleDateString()}</p>
+                                        </div>
                                     </div>
+                                    {user && user.id === review.user_id && (
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteReview(review.id);
+                                            }}
+                                            className="text-slate-500 hover:text-rose-500 transition-colors p-1"
+                                            title="Excluir avaliação"
+                                        >
+                                            <span className="material-symbols-rounded text-base">delete</span>
+                                        </button>
+                                    )}
                                 </div>
                                 <p className="text-sm text-slate-300 leading-snug mb-3">{review.comment}</p>
                                 
@@ -844,11 +1084,80 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
                                         <span className={`material-symbols-rounded text-[14px] ${review.user_has_liked ? 'filled' : ''}`}>thumb_up</span>
                                         {review.likes_count || 0} Útil
                                     </button>
-                                    <button className="flex items-center gap-1 hover:text-white transition-colors">
+                                    <button 
+                                        className={`flex items-center gap-1 hover:text-white transition-colors ${expandedReviews[review.id] ? 'text-primary-500 font-bold' : ''}`}
+                                        onClick={() => handleToggleReplies(review.id)}
+                                    >
                                         <span className="material-symbols-rounded text-[14px]">reply</span>
                                         {review.replies_count || 0} Respostas
                                     </button>
                                 </div>
+
+                                {/* Expanded Replies Block */}
+                                {expandedReviews[review.id] && (
+                                    <div className="mt-4 pl-4 border-l-2 border-slate-700 space-y-3 pt-2 animate-fade-in">
+                                        {/* List replies */}
+                                        {(replies[review.id] || []).length > 0 ? (
+                                            (replies[review.id] || []).map(reply => (
+                                                <div key={reply.id} className="bg-slate-900/40 p-2.5 rounded-lg border border-white/5 relative">
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => {
+                                                            const mapUser = mapUsers.find(u => u.id === reply.user_id);
+                                                            if(mapUser) setSelectedUser(mapUser);
+                                                        }}>
+                                                            <img src={reply.avatar_url || 'https://via.placeholder.com/150'} alt={reply.username} className="w-5 h-5 rounded-full object-cover border border-slate-700" />
+                                                            <div>
+                                                                <p className="text-[11px] font-bold text-white leading-none">{reply.username}</p>
+                                                                <p className="text-[9px] text-slate-500 mt-0.5">{new Date(reply.created_at).toLocaleDateString()}</p>
+                                                            </div>
+                                                        </div>
+                                                        {user && user.id === reply.user_id && (
+                                                            <button 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteReply(review.id, reply.id);
+                                                                }}
+                                                                className="text-slate-500 hover:text-rose-500 transition-colors p-1"
+                                                                title="Excluir resposta"
+                                                            >
+                                                                <span className="material-symbols-rounded text-[14px]">delete</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-slate-300 leading-normal">{reply.comment}</p>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-[11px] text-slate-500 italic py-1">{t('venue.no_replies', { defaultValue: 'Nenhuma resposta ainda.' })}</p>
+                                        )}
+
+                                        {/* Reply Input */}
+                                        {user ? (
+                                            <div className="flex gap-2 items-center pt-2">
+                                                <input 
+                                                    type="text"
+                                                    value={newReplyText[review.id] || ''}
+                                                    onChange={(e) => setNewReplyText(prev => ({ ...prev, [review.id]: e.target.value }))}
+                                                    placeholder="Escrever uma resposta..."
+                                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-primary-500"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            handleAddReply(review.id);
+                                                        }
+                                                    }}
+                                                />
+                                                <button 
+                                                    onClick={() => handleAddReply(review.id)}
+                                                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary-600 hover:bg-primary-500 text-white transition-colors flex-shrink-0"
+                                                >
+                                                    Responder
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <p className="text-[10px] text-slate-500 italic">{t('venue.login_to_reply', { defaultValue: 'Faça login para responder.' })}</p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )) : (
                             <p className="text-xs text-slate-500 italic text-center py-4">{t('venue.no_reviews', { defaultValue: 'Nenhuma avaliação ainda. Seja o primeiro!' })}</p>
