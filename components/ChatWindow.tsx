@@ -23,6 +23,8 @@ interface ChatUser {
   last_seen?: string | null;
   subscription_tier: 'free' | 'plus';
   is_verified?: boolean;
+  current_checkin_venue_id?: string;
+  current_checkin_venue_name?: string;
 }
 
 interface ChatWindowProps {
@@ -584,7 +586,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
       </header>
 
       <div className="flex-1 p-4 overflow-y-auto bg-dark-900 scroll-smooth pb-24">
-        
+        {currentUser.current_checkin_venue_id && user.current_checkin_venue_id && currentUser.current_checkin_venue_id === user.current_checkin_venue_id && (
+            <div className="mx-auto mb-4 bg-primary-900/30 border border-primary-500/30 rounded-xl p-3 flex items-center gap-3 animate-fade-in shadow-lg w-[90%]">
+                <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-rounded text-white">celebration</span>
+                </div>
+                <div>
+                    <p className="text-xs font-bold text-primary-300 uppercase">{t('chat.icebreaker', { defaultValue: 'Quebra-gelo' })}</p>
+                    <p className="text-sm text-white font-medium">Vocês dois estão no <strong>{user.current_checkin_venue_name}</strong> agora!</p>
+                </div>
+            </div>
+        )}
         <div className="flex flex-col space-y-2">
           {hasMoreMessages && (
               <div className="flex justify-center py-2">

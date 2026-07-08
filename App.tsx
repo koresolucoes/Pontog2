@@ -244,6 +244,8 @@ const App: React.FC = () => {
                                 last_seen: chatUser.last_seen,
                                 subscription_tier: chatUser.subscription_tier,
                                 is_verified: chatUser.is_verified,
+                                current_checkin_venue_id: chatUser.current_checkin_venue_id,
+                                current_checkin_venue_name: chatUser.current_checkin_venue_name,
                             }} 
                             onClose={() => setChatUser(null)}
                         />

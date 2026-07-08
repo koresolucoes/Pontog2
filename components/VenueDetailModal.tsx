@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Venue, VenueCheckin } from '../types';
+import { Venue, VenueCheckin, VenueReview, VenueReviewReply } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
+import { useMapStore } from '../stores/mapStore';
+import { useCommunityStore } from '../stores/communityStore';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -15,7 +17,12 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
   const { t } = useTranslation();
   const [checkins, setCheckins] = useState<VenueCheckin[]>([]);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [postToAgora, setPostToAgora] = useState(false);
   const user = useAuthStore(state => state.user);
+  const mapUsers = useMapStore(state => state.users);
+  const setSelectedUser = useMapStore(state => state.setSelectedUser);
+  const createPost = useCommunityStore(state => state.createPost);
+
 
   // Safety Evaluation State
   const [safetyStats, setSafetyStats] = useState<{
@@ -30,6 +37,25 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
   const [ratingBathrooms, setRatingBathrooms] = useState(false);
   const [ratingAssistance, setRatingAssistance] = useState(5);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // Experience Reviews State
+  const [reviews, setReviews] = useState<VenueReview[]>([
+    {
+        id: '1',
+        venue_id: venue.id,
+        user_id: 'mock-1',
+        comment: 'Lugar incrível! A música estava ótima hoje e os drinks são muito bons. Super recomendo a visita.',
+        photos: ['https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=300&q=80'],
+        created_at: new Date().toISOString(),
+        likes_count: 5,
+        replies_count: 1,
+        user_has_liked: false,
+        username: 'LucasM',
+        avatar_url: 'https://i.pravatar.cc/150?u=lucasm'
+    }
+  ]);
+  const [newReviewText, setNewReviewText] = useState('');
+  const [showReviewInput, setShowReviewInput] = useState(false);
 
   useEffect(() => {
     fetchCheckins();
@@ -114,6 +140,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
       return;
     }
     setIsSubmittingReview(true);
+
     
     const payload = {
       venue_id: venue.id,
@@ -152,6 +179,33 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
     } finally {
       setIsSubmittingReview(false);
     }
+  };
+
+  const handleAddExperienceReview = () => {
+      if (!user) {
+          toast.error(t('venue.login_required', { defaultValue: 'Você precisa estar logado para comentar.' }));
+          return;
+      }
+      if (!newReviewText.trim()) return;
+
+      const newReview: VenueReview = {
+          id: Date.now().toString(),
+          venue_id: venue.id,
+          user_id: user.id,
+          comment: newReviewText,
+          photos: [], // Upload functionality skipped for brevity here
+          created_at: new Date().toISOString(),
+          likes_count: 0,
+          replies_count: 0,
+          user_has_liked: false,
+          username: user.display_name || user.username,
+          avatar_url: user.avatar_url,
+      };
+
+      setReviews([newReview, ...reviews]);
+      setNewReviewText('');
+      setShowReviewInput(false);
+      toast.success(t('venue.review_published', { defaultValue: 'Avaliação publicada!' }));
   };
 
   const fetchCheckins = async () => {
@@ -218,6 +272,26 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
                 .upsert({ venue_id: venue.id, user_id: user.id }, { onConflict: 'venue_id, user_id' });
             
             if (error) throw error;
+
+            // Optional update user's profile checkin status
+            await supabase.from('profiles').update({
+                current_checkin_venue_id: venue.id,
+                current_checkin_venue_name: venue.name
+            }).eq('id', user.id);
+
+            // Update auth store user immediately
+            useAuthStore.setState({ user: { ...user, current_checkin_venue_id: venue.id, current_checkin_venue_name: venue.name } });
+
+            if (postToAgora) {
+                // Mock post creation in community store
+                const agoraPost = {
+                    photo_url: venue.image_url,
+                    status_text: `Acabou de chegar em ${venue.name} 📍`,
+                };
+                createPost(agoraPost);
+                toast.success('Publicado no feed Agora!');
+            }
+
             toast.success(t('venue.checkin_success', { defaultValue: 'Check-in realizado!' }));
             fetchCheckins(); 
         }
@@ -283,6 +357,17 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
                         </span>
                         {isCheckingIn ? t('common.processing', { defaultValue: 'Processando...' }) : (hasCheckedIn ? t('venue.checked_in', { defaultValue: 'Check-in Feito!' }) : t('venue.do_checkin', { defaultValue: 'Fazer Check-in' }))}
                     </button>
+                    {!hasCheckedIn && (
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer pl-1 mt-[-4px]">
+                            <input 
+                                type="checkbox" 
+                                checked={postToAgora}
+                                onChange={(e) => setPostToAgora(e.target.checked)}
+                                className="rounded border-slate-600 bg-slate-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-slate-900"
+                            />
+                            {t('venue.post_to_agora', { defaultValue: 'Publicar chegada no feed Agora' })}
+                        </label>
+                    )}
                     
                     <div className="flex gap-3">
                         <a 
@@ -320,14 +405,27 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
                             {t('venue.who_is_here', { defaultValue: 'Quem está aqui' })} ({checkins.length})
                         </h3>
                         <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar">
-                            {checkins.map((c) => (
-                                <div key={c.user_id} className="flex flex-col items-center flex-shrink-0 w-16">
-                                    <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 p-0.5 overflow-hidden shadow-lg mb-1">
+                            {checkins.map((c) => {
+                                const matchedUser = mapUsers.find(u => u.id === c.user_id);
+                                return (
+                                <div 
+                                    key={c.user_id} 
+                                    className="flex flex-col items-center flex-shrink-0 w-16 cursor-pointer hover:scale-105 transition-transform"
+                                    onClick={() => {
+                                        if (matchedUser) {
+                                            setSelectedUser(matchedUser);
+                                        } else {
+                                            // Fallback if not loaded in map store
+                                            toast(t('venue.user_not_loaded', { defaultValue: 'Usuário não disponível' }));
+                                        }
+                                    }}
+                                >
+                                    <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 p-0.5 overflow-hidden shadow-lg mb-1 relative">
                                         <img loading="lazy" src={c.avatar_url || 'https://via.placeholder.com/150'} alt={c.username} className="w-full h-full object-cover rounded-full" />
                                     </div>
                                     <span className="text-[10px] text-slate-400 truncate w-full text-center font-medium">{c.username}</span>
                                 </div>
-                            ))}
+                            )})}
                         </div>
                     </div>
                 )}
@@ -355,6 +453,25 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
                             </div>
                         </div>
                     )}
+                </div>
+
+                {/* Popular Times (Mock) */}
+                <div className="bg-slate-800/30 p-4 rounded-xl border border-white/5">
+                    <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                        <span className="material-symbols-rounded text-yellow-500">bar_chart</span> 
+                        {t('venue.popular_times', { defaultValue: 'Horários de Pico (Estimativa)' })}
+                    </h3>
+                    <div className="flex items-end gap-1 h-16 w-full px-2">
+                        {[2, 1, 3, 5, 8, 10, 7, 4].map((val, i) => (
+                            <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                                <div 
+                                    className={`w-full rounded-t-sm transition-all duration-500 ${val > 7 ? 'bg-primary-500 shadow-[0_0_8px_rgba(245,12,105,0.5)]' : 'bg-slate-600'}`}
+                                    style={{ height: `${val * 10}%` }}
+                                ></div>
+                                <span className="text-[9px] text-slate-500 font-bold">{18 + i}h</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Description */}
@@ -546,6 +663,98 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
                         </div>
                     </div>
                 )}
+
+                {/* Community Reviews / Vivências */}
+                <div className="mt-6 pt-6 border-t border-white/10">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <span className="material-symbols-rounded text-primary-400">forum</span>
+                            {t('venue.community_reviews', { defaultValue: 'Avaliações da Comunidade' })}
+                        </h3>
+                        {!showReviewInput && (
+                            <button 
+                                onClick={() => setShowReviewInput(true)}
+                                className="text-[11px] font-bold text-primary-400 hover:text-primary-300 uppercase tracking-wider"
+                            >
+                                + {t('venue.add_review', { defaultValue: 'Deixar Avaliação' })}
+                            </button>
+                        )}
+                    </div>
+
+                    {showReviewInput && (
+                        <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 mb-4 animate-fade-in">
+                            <textarea 
+                                value={newReviewText}
+                                onChange={(e) => setNewReviewText(e.target.value)}
+                                placeholder={t('venue.review_placeholder', { defaultValue: 'Como foi sua experiência aqui? A música estava boa?' })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-500 mb-2 resize-none"
+                                rows={3}
+                            />
+                            <div className="flex gap-2 justify-end">
+                                <button 
+                                    onClick={() => setShowReviewInput(false)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                                >
+                                    {t('common.cancel', { defaultValue: 'Cancelar' })}
+                                </button>
+                                <button 
+                                    onClick={handleAddExperienceReview}
+                                    className="px-4 py-1.5 rounded-lg text-xs font-bold bg-primary-600 text-white hover:bg-primary-500 transition-colors"
+                                >
+                                    {t('common.publish', { defaultValue: 'Publicar' })}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-3">
+                        {reviews.length > 0 ? reviews.map(review => (
+                            <div key={review.id} className="bg-slate-800/30 p-4 rounded-xl border border-white/5">
+                                <div className="flex items-center gap-2 mb-2 cursor-pointer" onClick={() => {
+                                    const mapUser = mapUsers.find(u => u.id === review.user_id);
+                                    if(mapUser) setSelectedUser(mapUser);
+                                }}>
+                                    <img src={review.avatar_url || 'https://via.placeholder.com/150'} alt={review.username} className="w-8 h-8 rounded-full object-cover border border-slate-600" />
+                                    <div>
+                                        <p className="text-xs font-bold text-white leading-none">{review.username}</p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">{new Date(review.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-slate-300 leading-snug mb-3">{review.comment}</p>
+                                
+                                {review.photos && review.photos.length > 0 && (
+                                    <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
+                                        {review.photos.map((photo, i) => (
+                                            <img key={i} src={photo} alt="Review" className="w-20 h-20 object-cover rounded-lg flex-shrink-0" />
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-4 text-slate-400 text-xs font-medium">
+                                    <button 
+                                        className={`flex items-center gap-1 transition-colors ${review.user_has_liked ? 'text-primary-500' : 'hover:text-white'}`}
+                                        onClick={() => {
+                                            setReviews(reviews.map(r => r.id === review.id ? {
+                                                ...r, 
+                                                user_has_liked: !r.user_has_liked, 
+                                                likes_count: r.user_has_liked ? (r.likes_count || 0) - 1 : (r.likes_count || 0) + 1
+                                            } : r));
+                                        }}
+                                    >
+                                        <span className={`material-symbols-rounded text-[14px] ${review.user_has_liked ? 'filled' : ''}`}>thumb_up</span>
+                                        {review.likes_count || 0} Útil
+                                    </button>
+                                    <button className="flex items-center gap-1 hover:text-white transition-colors">
+                                        <span className="material-symbols-rounded text-[14px]">reply</span>
+                                        {review.replies_count || 0} Respostas
+                                    </button>
+                                </div>
+                            </div>
+                        )) : (
+                            <p className="text-xs text-slate-500 italic text-center py-4">{t('venue.no_reviews', { defaultValue: 'Nenhuma avaliação ainda. Seja o primeiro!' })}</p>
+                        )}
+                    </div>
+                </div>
                 
                 {/* Footer Brand */}
                 <div className="pt-4 border-t border-white/5 text-center">

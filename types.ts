@@ -65,6 +65,8 @@ export interface Profile {
     telegram?: string;
     onlyfans?: string;
   } | null;
+  current_checkin_venue_id?: string;
+  current_checkin_venue_name?: string;
 }
 
 // O tipo User estende Profile com campos calculados como 'idade'
@@ -233,6 +235,32 @@ export interface VenueCheckin {
     username: string;
     avatar_url: string;
     checked_in_at: string;
+}
+
+export interface VenueReview {
+    id: string;
+    venue_id: string;
+    user_id: string;
+    comment: string;
+    photos: string[];
+    created_at: string;
+    likes_count?: number;
+    replies_count?: number;
+    user_has_liked?: boolean;
+    // user profile fields fetched from join
+    username?: string;
+    avatar_url?: string;
+}
+
+export interface VenueReviewReply {
+    id: string;
+    review_id: string;
+    user_id: string;
+    comment: string;
+    created_at: string;
+    // user profile fields fetched from join
+    username?: string;
+    avatar_url?: string;
 }
 
 // Novo tipo para Artigos do Blog/Notícias

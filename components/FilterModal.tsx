@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useMapStore } from '../stores/mapStore';
 import { useDataStore } from '../stores/dataStore';
-import { POSITIONS } from '../lib/constants';
+import { POSITIONS, LOOKING_FOR } from '../lib/constants';
 import { useTranslation } from 'react-i18next';
 
 interface FilterModalProps {
@@ -37,6 +37,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({ onClose }) => {
         maxAge: filters.maxAge || 99,
         positions: filters.positions || [],
         tribes: filters.tribes || [],
+        lookingFor: filters.lookingFor || [],
     });
 
     useEffect(() => {
@@ -61,13 +62,22 @@ export const FilterModal: React.FC<FilterModalProps> = ({ onClose }) => {
         setLocalFilters(prev => ({ ...prev, tribes: newTribes }));
     };
 
+    const handleLookingForToggle = (intent: string) => {
+        const currentIntents = localFilters.lookingFor;
+        const newIntents = currentIntents.includes(intent)
+          ? currentIntents.filter(i => i !== intent)
+          : [...currentIntents, intent];
+        setLocalFilters(prev => ({ ...prev, lookingFor: newIntents }));
+    };
+
     const handleApply = () => {
         setFilters({
             ...filters,
             minAge: localFilters.minAge,
             maxAge: localFilters.maxAge,
             positions: localFilters.positions,
-            tribes: localFilters.tribes
+            tribes: localFilters.tribes,
+            lookingFor: localFilters.lookingFor
         });
         onClose();
     };
@@ -78,6 +88,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({ onClose }) => {
             maxAge: 99,
             positions: [],
             tribes: [],
+            lookingFor: [],
         };
         setLocalFilters(defaultFilters);
         setFilters({ ...filters, ...defaultFilters });
@@ -133,6 +144,15 @@ export const FilterModal: React.FC<FilterModalProps> = ({ onClose }) => {
                         <div className="flex flex-wrap gap-2">
                             {POSITIONS.map(p => (
                                 <ChipButton key={p} label={t(`constants.positions.${p}`, { defaultValue: p })} isSelected={localFilters.positions.includes(p)} onClick={() => handlePositionToggle(p)} />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">{t('profile.looking_for', { defaultValue: 'Buscando' })}</h3>
+                        <div className="flex flex-wrap gap-2">
+                            {LOOKING_FOR.map(intent => (
+                                <ChipButton key={intent} label={t(`constants.looking_for.${intent}`, { defaultValue: intent })} isSelected={localFilters.lookingFor.includes(intent)} onClick={() => handleLookingForToggle(intent)} />
                             ))}
                         </div>
                     </div>

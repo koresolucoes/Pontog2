@@ -26,6 +26,7 @@ interface MapState {
     maxAge: number | null;
     positions: string[];
     tribes: string[];
+    lookingFor: string[];
   };
   setUsers: (users: User[]) => void;
   setMyLocation: (coords: Coordinates) => void;
@@ -64,6 +65,7 @@ export const useMapStore = create<MapState>((set, get) => ({
     maxAge: 99,
     positions: [],
     tribes: [],
+    lookingFor: [],
   },
   setUsers: (users) => set({ users }),
   setMyLocation: (coords) => set({ myLocation: coords }),

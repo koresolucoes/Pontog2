@@ -70,6 +70,11 @@ const UserCard = memo(({
                         <span className="material-symbols-rounded filled block" style={{ fontSize: '14px' }}>auto_awesome</span>
                     </div>
                 )}
+                {user.looking_for && user.looking_for.length > 0 && (
+                    <div className="bg-emerald-500/90 backdrop-blur-md text-white rounded-full p-1.5 shadow-lg border border-emerald-400/50" title={t('profile.looking_for', { defaultValue: 'Buscando' })}>
+                        <span className="material-symbols-rounded filled block" style={{ fontSize: '14px' }}>search</span>
+                    </div>
+                )}
                 {user.can_host && (
                     <div className="bg-tertiary-500/90 backdrop-blur-md text-white rounded-full p-1.5 shadow-lg border border-tertiary-400/50" title={t('edit_profile.can_host', { defaultValue: 'Tem Local' })}>
                         <span className="material-symbols-rounded filled block" style={{ fontSize: '14px' }}>home</span>
@@ -89,6 +94,12 @@ const UserCard = memo(({
 
             {/* User Info - Bottom */}
             <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-1 group-hover:translate-y-0 transition-transform duration-300">
+                {user.current_checkin_venue_name && (
+                    <div className="mb-2 inline-flex items-center gap-1 bg-primary-600/80 backdrop-blur-md px-2 py-1 rounded-md border border-primary-500/50 shadow-lg text-[10px] font-bold uppercase tracking-wider">
+                        <span className="material-symbols-rounded" style={{ fontSize: '12px' }}>pin_drop</span>
+                        <span className="truncate max-w-[120px]">{t('venue.now_at', { defaultValue: 'Agora no' })} {user.current_checkin_venue_name}</span>
+                    </div>
+                )}
                 <div className="flex items-center gap-1">
                     <h3 className="font-extrabold text-lg truncate leading-none drop-shadow-lg tracking-tight">{user.display_name || user.username}</h3>
                     {user.is_verified && (
@@ -146,6 +157,10 @@ export const UserGrid: React.FC = () => {
         setFilters({ tribes: filters.tribes.filter(t => t !== tribe) });
     };
 
+    const removeLookingFor = (intent: string) => {
+        setFilters({ lookingFor: filters.lookingFor.filter(l => l !== intent) });
+    };
+
     const resetAge = () => {
         setFilters({ minAge: 18, maxAge: 99 });
     };
@@ -169,7 +184,7 @@ export const UserGrid: React.FC = () => {
             return 0;
         });
 
-        const { onlineOnly, favoritesOnly, minAge, maxAge, positions, tribes } = filters;
+        const { onlineOnly, favoritesOnly, minAge, maxAge, positions, tribes, lookingFor } = filters;
 
         // Apply filters
         let finalUsers = sortedUsers;
@@ -193,6 +208,11 @@ export const UserGrid: React.FC = () => {
                 user.tribes && user.tribes.some(t => tribes.includes(t))
             );
         }
+        if (lookingFor.length > 0) {
+            finalUsers = finalUsers.filter(user =>
+                user.looking_for && user.looking_for.some(l => lookingFor.includes(l))
+            );
+        }
         
         const totalCount = finalUsers.length;
         const slicedUsers = finalUsers.slice(0, visibleCount);
@@ -212,7 +232,8 @@ export const UserGrid: React.FC = () => {
     const isAgeFilterActive = filters.minAge !== 18 || filters.maxAge !== 99;
     const arePositionsFiltered = filters.positions.length > 0;
     const areTribesFiltered = filters.tribes.length > 0;
-    const areAnyFiltersActive = isAgeFilterActive || arePositionsFiltered || areTribesFiltered;
+    const areIntentsFiltered = filters.lookingFor.length > 0;
+    const areAnyFiltersActive = isAgeFilterActive || arePositionsFiltered || areTribesFiltered || areIntentsFiltered;
 
     const FilterButton = ({ label, isActive }: { label: string, isActive: boolean }) => (
         <button 
@@ -265,6 +286,13 @@ export const UserGrid: React.FC = () => {
                 {filters.tribes.map(tribe => (
                     <button key={tribe} onClick={() => removeTribe(tribe)} className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-dark-800 border border-white/10 rounded-full text-xs font-bold text-slate-300 whitespace-nowrap hover:bg-dark-700 transition-colors animate-fade-in">
                         <span>{t(`constants.tribes.${tribe}`, { defaultValue: tribe })}</span>
+                        <span className="material-symbols-rounded text-[14px]">close</span>
+                    </button>
+                ))}
+
+                {filters.lookingFor.map(intent => (
+                    <button key={intent} onClick={() => removeLookingFor(intent)} className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-emerald-900/30 border border-emerald-500/30 rounded-full text-xs font-bold text-emerald-200 whitespace-nowrap hover:bg-emerald-900/50 transition-colors animate-fade-in">
+                        <span>{t(`constants.looking_for.${intent}`, { defaultValue: intent })}</span>
                         <span className="material-symbols-rounded text-[14px]">close</span>
                     </button>
                 ))}
