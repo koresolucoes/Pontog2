@@ -58,11 +58,20 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
 
     // Try using paginated RPC first if supported
     if (isPaginatedRpcSupported) {
+        // Try with prefixed parameters first (p_page, p_limit)
         response = await supabase.rpc('get_active_agora_posts_paginated', { p_page: currentPage, p_limit: 10 });
+        
+        // If that fails, try with non-prefixed parameters (page, limit)
         if (response?.error) {
-            if (response.error.code === 'PGRST202') {
-                isPaginatedRpcSupported = false;
+            const secondResponse = await supabase.rpc('get_active_agora_posts_paginated', { page: currentPage, limit: 10 });
+            if (!secondResponse.error) {
+                response = secondResponse;
             }
+        }
+        
+        // If still failing, this RPC is not supported or is broken; set to false to avoid future attempts in this session
+        if (response?.error) {
+            isPaginatedRpcSupported = false;
         }
     }
 
@@ -71,9 +80,7 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
         if (isWithDetailsRpcSupported) {
             response = await supabase.rpc('get_active_agora_posts_with_details');
             if (response?.error) {
-                if (response.error.code === 'PGRST202') {
-                    isWithDetailsRpcSupported = false;
-                }
+                isWithDetailsRpcSupported = false;
             }
         }
     }
