@@ -39,27 +39,94 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   // Experience Reviews State
-  const [reviews, setReviews] = useState<VenueReview[]>([
-    {
-        id: '1',
-        venue_id: venue.id,
-        user_id: 'mock-1',
-        comment: 'Lugar incrível! A música estava ótima hoje e os drinks são muito bons. Super recomendo a visita.',
-        photos: ['https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=300&q=80'],
-        created_at: new Date().toISOString(),
-        likes_count: 5,
-        replies_count: 1,
-        user_has_liked: false,
-        username: 'LucasM',
-        avatar_url: 'https://i.pravatar.cc/150?u=lucasm'
-    }
-  ]);
+  const [reviews, setReviews] = useState<VenueReview[]>([]);
   const [newReviewText, setNewReviewText] = useState('');
   const [showReviewInput, setShowReviewInput] = useState(false);
+
+  const loadFallbackReviews = () => {
+    const localReviewsStr = localStorage.getItem(`venue_reviews_${venue.id}`);
+    if (localReviewsStr) {
+      try {
+        const localReviews = JSON.parse(localReviewsStr);
+        setReviews(localReviews);
+      } catch (e) {
+        console.error("Failed to parse local reviews", e);
+      }
+    } else {
+      setReviews([
+        {
+          id: '1',
+          venue_id: venue.id,
+          user_id: 'mock-1',
+          comment: 'Lugar incrível! A música estava ótima hoje e os drinks são muito bons. Super recomendo a visita.',
+          photos: ['https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=300&q=80'],
+          created_at: new Date().toISOString(),
+          likes_count: 5,
+          replies_count: 1,
+          user_has_liked: false,
+          username: 'LucasM',
+          avatar_url: 'https://i.pravatar.cc/150?u=lucasm'
+        }
+      ]);
+    }
+  };
+
+  const fetchExperienceReviews = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('venue_reviews')
+        .select(`
+          id,
+          venue_id,
+          user_id,
+          comment,
+          photos,
+          created_at,
+          likes_count,
+          replies_count,
+          profiles ( username, avatar_url )
+        `)
+        .eq('venue_id', venue.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        loadFallbackReviews();
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const formattedReviews: VenueReview[] = data.map((r: any) => ({
+          id: r.id,
+          venue_id: r.venue_id,
+          user_id: r.user_id,
+          comment: r.comment,
+          photos: r.photos || [],
+          created_at: r.created_at,
+          likes_count: r.likes_count || 0,
+          replies_count: r.replies_count || 0,
+          user_has_liked: false,
+          username: r.profiles?.username || 'Usuário',
+          avatar_url: r.profiles?.avatar_url || ''
+        }));
+
+        const localReviewsStr = localStorage.getItem(`venue_reviews_${venue.id}`);
+        const localReviews: VenueReview[] = localReviewsStr ? JSON.parse(localReviewsStr) : [];
+        const dbReviewIds = new Set(formattedReviews.map(fr => fr.id));
+        const uniqueLocalReviews = localReviews.filter(lr => !dbReviewIds.has(lr.id));
+
+        setReviews([...uniqueLocalReviews, ...formattedReviews]);
+      } else {
+        loadFallbackReviews();
+      }
+    } catch (err) {
+      loadFallbackReviews();
+    }
+  };
 
   useEffect(() => {
     fetchCheckins();
     fetchSafetyStats();
+    fetchExperienceReviews();
   }, [venue.id]);
 
   const loadFallbackStats = () => {
@@ -181,7 +248,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
     }
   };
 
-  const handleAddExperienceReview = () => {
+  const handleAddExperienceReview = async () => {
       if (!user) {
           toast.error(t('venue.login_required', { defaultValue: 'Você precisa estar logado para comentar.' }));
           return;
@@ -202,10 +269,34 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
           avatar_url: user.avatar_url,
       };
 
-      setReviews([newReview, ...reviews]);
+      setReviews(prev => [newReview, ...prev]);
       setNewReviewText('');
       setShowReviewInput(false);
-      toast.success(t('venue.review_published', { defaultValue: 'Avaliação publicada!' }));
+
+      try {
+          const { error } = await supabase
+              .from('venue_reviews')
+              .insert({
+                  venue_id: newReview.venue_id,
+                  user_id: newReview.user_id,
+                  comment: newReview.comment,
+                  photos: newReview.photos,
+                  created_at: newReview.created_at
+              });
+
+          if (error) throw error;
+          toast.success(t('venue.review_published', { defaultValue: 'Avaliação publicada!' }));
+          fetchExperienceReviews();
+      } catch (err) {
+          console.warn("Supabase insert for venue_reviews failed, saving to local fallback...", err);
+          
+          const localReviewsStr = localStorage.getItem(`venue_reviews_${venue.id}`);
+          const localReviews: VenueReview[] = localReviewsStr ? JSON.parse(localReviewsStr) : [];
+          const updatedLocalReviews = [newReview, ...localReviews];
+          localStorage.setItem(`venue_reviews_${venue.id}`, JSON.stringify(updatedLocalReviews));
+          
+          toast.success(t('venue.review_published_fallback', { defaultValue: 'Avaliação salva localmente (banco de dados pendente).' }));
+      }
   };
 
   const fetchCheckins = async () => {

@@ -48,3 +48,47 @@ CREATE POLICY "Permitir aos usuários autenticados excluir suas próprias avalia
 ON public.venue_safety_reviews FOR DELETE 
 TO authenticated 
 USING (auth.uid() = user_id);
+
+-- =====================================================================
+-- SEÇÃO ADICIONAL: TABELA DE AVALIAÇÕES DE EXPERIÊNCIA COM COMENTÁRIOS
+-- =====================================================================
+
+-- 8. Criação da tabela de avaliações de experiência
+CREATE TABLE IF NOT EXISTS public.venue_reviews (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    venue_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    comment TEXT NOT NULL,
+    photos TEXT[] DEFAULT '{}'::TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    likes_count INT DEFAULT 0,
+    replies_count INT DEFAULT 0
+);
+
+-- 9. Índices de performance para busca rápida de avaliações por local
+CREATE INDEX IF NOT EXISTS idx_venue_reviews_venue_id 
+ON public.venue_reviews(venue_id);
+
+-- 10. Habilita o Row Level Security (RLS) para as avaliações de experiência
+ALTER TABLE public.venue_reviews ENABLE ROW LEVEL SECURITY;
+
+-- 11. Políticas de RLS para public.venue_reviews
+CREATE POLICY "Permitir leitura pública das avaliações" 
+ON public.venue_reviews FOR SELECT 
+USING (true);
+
+CREATE POLICY "Permitir aos usuários autenticados criar suas próprias avaliações" 
+ON public.venue_reviews FOR INSERT 
+TO authenticated 
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Permitir aos usuários autenticados atualizar suas próprias avaliações" 
+ON public.venue_reviews FOR UPDATE 
+TO authenticated 
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Permitir aos usuários autenticados excluir suas próprias avaliações" 
+ON public.venue_reviews FOR DELETE 
+TO authenticated 
+USING (auth.uid() = user_id);
