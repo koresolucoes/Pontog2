@@ -8,6 +8,7 @@ import { useAdStore } from '../stores/adStore';
 import { User, Ad } from '../types';
 import { AdSenseUnit } from './AdSenseUnit';
 import { useTranslation } from 'react-i18next';
+import { AdDetailModal } from './AdDetailModal';
 
 import { useUserActionsStore } from '../stores/userActionsStore';
 
@@ -45,6 +46,8 @@ export const HomeView: React.FC = () => {
     const { onlineUsers, setSelectedUser, myLocation, filters, venues, setSelectedVenue } = useMapStore();
     const { agoraUserIds } = useAgoraStore();
     const { favoriteIds } = useUserActionsStore();
+    
+    const [selectedAd, setSelectedAd] = React.useState<Ad | null>(null);
 
     const initialFetchDone = useRef(false);
 
@@ -212,7 +215,7 @@ export const HomeView: React.FC = () => {
                                             layout
                                             key={`custom-ad-${item.id}-${index}`} 
                                             className="relative aspect-[3/4] bg-dark-800 rounded-3xl overflow-hidden cursor-pointer group shadow-lg ring-1 ring-primary-500/50"
-                                            onClick={() => { if(item.cta_url !== '#') window.open(item.cta_url, '_blank') }}
+                                            onClick={() => setSelectedAd(item)}
                                         >
                                             <img 
                                                 src={item.image_url} 
@@ -324,6 +327,7 @@ export const HomeView: React.FC = () => {
                     </motion.div>
                 )}
             </div>
+            {selectedAd && <AdDetailModal ad={selectedAd} onClose={() => setSelectedAd(null)} />}
         </div>
     );
 };

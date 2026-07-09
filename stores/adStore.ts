@@ -61,27 +61,35 @@ export const useAdStore = create<AdState>((set, get) => ({
                 const dynamicInboxAds: Ad[] = [];
 
                 data.forEach((camp: any) => {
-                    if (camp.title === 'Destaque: Pino Dourado') {
+                    const isExpired = camp.duration_hours && camp.created_at ? new Date(camp.created_at).getTime() + (camp.duration_hours * 60 * 60 * 1000) < Date.now() : false;
+                    
+                    if (isExpired) return;
+
+                    if (camp.placement === 'map' || camp.title === 'Destaque: Pino Dourado') {
                         pinoVenueIds.push(camp.venue_id);
-                    } else if (camp.title === 'Destaque: Banner no Feed' || camp.range_meters === 0) {
-                        // Include feed banner
+                    } 
+                    if (camp.placement === 'feed' || camp.title === 'Destaque: Banner no Feed') {
                         dynamicFeedAds.push({
                             id: camp.id,
                             ad_type: 'feed',
-                            title: '🌟 Patrocinado',
+                            title: camp.title || '🌟 Patrocinado',
                             description: camp.message,
                             image_url: camp.image_url || 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600',
                             cta_text: 'Saiba Mais',
-                            cta_url: '#',
+                            cta_url: camp.venue_id ? `/venue/${camp.venue_id}` : '#',
+                            venue_id: camp.venue_id
                         });
+                    }
+                    if (camp.placement === 'messages' || camp.range_meters === 0) {
                         dynamicInboxAds.push({
                             id: camp.id,
                             ad_type: 'inbox',
-                            title: 'Destaque Local',
+                            title: camp.title || 'Destaque Local',
                             description: camp.message,
                             image_url: camp.image_url || 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600',
                             cta_text: 'Ver Agora',
-                            cta_url: '#',
+                            cta_url: camp.venue_id ? `/venue/${camp.venue_id}` : '#',
+                            venue_id: camp.venue_id
                         });
                     }
                 });

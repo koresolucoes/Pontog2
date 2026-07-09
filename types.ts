@@ -196,6 +196,7 @@ export interface Ad {
     image_url: string;
     cta_text: string;
     cta_url: string;
+    venue_id?: string;
 }
 
 // Novo tipo para benefícios temporários (ads recompensados)

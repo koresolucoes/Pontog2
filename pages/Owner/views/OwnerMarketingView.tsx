@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../../stores/authStore';
 import { useOwnerStore } from '../../../stores/ownerStore';
 import { useAdStore } from '../../../stores/adStore';
@@ -18,7 +18,9 @@ import {
     HelpCircle, 
     Maximize,
     ChevronRight,
-    Map
+    Map,
+    Upload,
+    X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -127,6 +129,44 @@ export const OwnerMarketingView: React.FC = () => {
     const [campaignPlacement, setCampaignPlacement] = useState<'feed' | 'map' | 'messages' | 'push'>('push');
     const [campaignDuration, setCampaignDuration] = useState<number>(24);
     const [isSendingCampaign, setIsSendingCampaign] = useState<boolean>(false);
+    const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploadingImage(true);
+        const toastId = toast.loading("Enviando imagem...");
+
+        try {
+            const user = useAuthStore.getState().user;
+            if (!user) throw new Error("Usuário não autenticado");
+
+            const fileExt = file.name.split('.').pop();
+            const fileName = `campaign_${Date.now()}.${fileExt}`;
+            const filePath = `${user.id}/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('user_uploads')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage
+                .from('user_uploads')
+                .getPublicUrl(filePath);
+
+            setCampaignImageUrl(data.publicUrl);
+            toast.success("Imagem anexada com sucesso!", { id: toastId });
+        } catch (error: any) {
+            console.error('Error uploading campaign image:', error);
+            toast.error("Erro ao enviar a imagem.", { id: toastId });
+        } finally {
+            setIsUploadingImage(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     // Copywriting State
     const [copyGoal, setCopyGoal] = useState<string>('happy_hour');
@@ -788,14 +828,43 @@ export const OwnerMarketingView: React.FC = () => {
                                             </div>
 
                                             <div className="space-y-2">
-                                                <label className="text-sm font-bold text-slate-300">URL da Imagem Ilustrativa (Opcional)</label>
-                                                <input 
-                                                    type="text"
-                                                    value={campaignImageUrl}
-                                                    onChange={(e) => setCampaignImageUrl(e.target.value)}
-                                                    placeholder="https://exemplo.com/imagem-promo.jpg"
-                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary-500 text-white"
-                                                />
+                                                <label className="text-sm font-bold text-slate-300">Imagem Ilustrativa (Opcional)</label>
+                                                
+                                                {campaignImageUrl ? (
+                                                    <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-white/10 bg-slate-900 group">
+                                                        <img src={campaignImageUrl} alt="Campaign Image" className="w-full h-full object-cover" />
+                                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCampaignImageUrl('')}
+                                                                className="bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-full"
+                                                            >
+                                                                <X size={20} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div 
+                                                        className="w-full border-2 border-dashed border-white/10 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:text-white hover:border-primary-500/50 hover:bg-primary-500/5 transition-all cursor-pointer"
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                    >
+                                                        {isUploadingImage ? (
+                                                            <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                                        ) : (
+                                                            <Upload size={32} className="mb-2 opacity-50" />
+                                                        )}
+                                                        <span className="text-sm font-medium">
+                                                            {isUploadingImage ? "Enviando..." : "Clique para anexar uma imagem"}
+                                                        </span>
+                                                        <input 
+                                                            type="file"
+                                                            accept="image/*"
+                                                            ref={fileInputRef}
+                                                            onChange={handleImageUpload}
+                                                            className="hidden"
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
