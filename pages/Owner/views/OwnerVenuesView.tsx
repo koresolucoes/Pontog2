@@ -3,6 +3,7 @@ import { useOwnerStore } from '../../../stores/ownerStore';
 import { useAuthStore } from '../../../stores/authStore';
 import { Venue } from '../../../types';
 import { supabase } from '../../../lib/supabase';
+import { toast } from 'react-hot-toast';
 
 export const OwnerVenuesView: React.FC = () => {
     const { user } = useAuthStore();
@@ -16,6 +17,11 @@ export const OwnerVenuesView: React.FC = () => {
     const [promoTitle, setPromoTitle] = useState('');
     const [promoMessage, setPromoMessage] = useState('');
     const [isSendingPromo, setIsSendingPromo] = useState(false);
+    
+    // Promo image states
+    const [promoImage, setPromoImage] = useState('');
+    const [promoImageFile, setPromoImageFile] = useState<File | null>(null);
+    const [uploadingPromoImage, setUploadingPromoImage] = useState(false);
     
     // Safety feedback state
     const [venueSafetyReviews, setVenueSafetyReviews] = useState<any[]>([]);
@@ -140,11 +146,45 @@ export const OwnerVenuesView: React.FC = () => {
     const handleSendPromo = async () => {
         if (!selectedVenue || !promoTitle || !promoMessage) return;
         setIsSendingPromo(true);
-        const success = await useOwnerStore.getState().sendPromotion(selectedVenue.id, promoTitle, promoMessage);
-        setIsSendingPromo(false);
-        if (success) {
-            setPromoTitle('');
-            setPromoMessage('');
+        setUploadingPromoImage(true);
+        try {
+            let finalImageUrl = promoImage;
+            
+            if (promoImageFile) {
+                const fileExt = promoImageFile.name.split('.').pop();
+                const fileName = `venues/promos/${selectedVenue.id}_${Date.now()}.${fileExt}`;
+                
+                const { error: uploadError } = await supabase.storage
+                    .from('user_uploads')
+                    .upload(fileName, promoImageFile);
+                
+                if (uploadError) throw new Error('Falha no upload da imagem: ' + uploadError.message);
+                
+                const { data: urlData } = supabase.storage
+                    .from('user_uploads')
+                    .getPublicUrl(fileName);
+                    
+                finalImageUrl = urlData.publicUrl;
+            }
+
+            const success = await useOwnerStore.getState().sendPromotion(
+                selectedVenue.id, 
+                promoTitle, 
+                promoMessage, 
+                finalImageUrl || undefined
+            );
+            
+            if (success) {
+                setPromoTitle('');
+                setPromoMessage('');
+                setPromoImage('');
+                setPromoImageFile(null);
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao enviar promoção.');
+        } finally {
+            setIsSendingPromo(false);
+            setUploadingPromoImage(false);
         }
     };
 
@@ -288,13 +328,56 @@ export const OwnerVenuesView: React.FC = () => {
                                 value={promoMessage}
                                 onChange={(e) => setPromoMessage(e.target.value)}
                                 rows={4}
-                                className="w-full bg-dark-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-500 mb-6 resize-none"
+                                className="w-full bg-dark-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-500 mb-4 resize-none"
                                 placeholder="Descreva a promoção..."
                             />
 
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Imagem da Promoção (Opcional)</label>
+                            <div className="space-y-3 mb-6">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="flex-1">
+                                        <input 
+                                            type="text"
+                                            value={promoImage}
+                                            onChange={(e) => setPromoImage(e.target.value)}
+                                            className="w-full bg-dark-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-500"
+                                            placeholder="Cole a URL de uma foto ou selecione um arquivo..."
+                                        />
+                                    </div>
+                                    <label className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer border border-white/10 shrink-0">
+                                        <span className="material-symbols-rounded text-xl">upload_file</span>
+                                        <span>Fazer Upload</span>
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setPromoImageFile(file);
+                                                    setPromoImage(file.name); // Show filename
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                                {promoImageFile && (
+                                    <div className="flex items-center gap-2 bg-slate-800/50 p-2.5 rounded-xl border border-white/5">
+                                        <span className="material-symbols-rounded text-primary-400">image</span>
+                                        <span className="text-xs text-slate-300 flex-1 truncate">{promoImageFile.name}</span>
+                                        <button 
+                                            onClick={() => { setPromoImageFile(null); setPromoImage(''); }}
+                                            className="text-slate-400 hover:text-white transition-colors"
+                                        >
+                                            <span className="material-symbols-rounded text-sm">close</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
                             <button 
                                 onClick={handleSendPromo}
-                                disabled={!promoTitle || !promoMessage || isSendingPromo}
+                                disabled={!promoTitle || !promoMessage || isSendingPromo || uploadingPromoImage}
                                 className="px-6 py-3 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white rounded-xl font-bold transition-colors w-full sm:w-auto flex items-center gap-2 justify-center"
                             >
                                 {isSendingPromo ? (

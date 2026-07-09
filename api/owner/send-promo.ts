@@ -11,7 +11,7 @@ export default async function handler(
   }
 
   try {
-    const { venueId, title, message } = req.body;
+    const { venueId, title, message, imageUrl } = req.body || {};
     if (!venueId || !title || !message) {
       return res.status(400).json({ error: 'Missing parameters' });
     }
@@ -52,7 +52,7 @@ export default async function handler(
         venue_id: venueId,
         title: title,
         content: message,
-        image_url: venue.image_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
+        image_url: imageUrl || venue.image_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
         is_active: true,
         starts_at: new Date().toISOString(),
         ends_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24-hour lifetime

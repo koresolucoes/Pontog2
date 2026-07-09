@@ -14,7 +14,7 @@ interface OwnerState {
     banUser: (venueId: string, userId: string, reason: string) => Promise<boolean>;
     unbanUser: (venueId: string, userId: string) => Promise<boolean>;
     updateVenue: (venueId: string, updates: Partial<Venue>) => Promise<boolean>;
-    sendPromotion: (venueId: string, title: string, message: string) => Promise<boolean>;
+    sendPromotion: (venueId: string, title: string, message: string, imageUrl?: string) => Promise<boolean>;
 }
 
 export const useOwnerStore = create<OwnerState>((set, get) => ({
@@ -150,7 +150,7 @@ export const useOwnerStore = create<OwnerState>((set, get) => ({
             return false;
         }
     },
-    sendPromotion: async (venueId: string, title: string, message: string) => {
+    sendPromotion: async (venueId: string, title: string, message: string, imageUrl?: string) => {
         try {
             const user = useAuthStore.getState().user;
             if (!user) return false;
@@ -163,17 +163,18 @@ export const useOwnerStore = create<OwnerState>((set, get) => ({
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session?.access_token}`
                 },
-                body: JSON.stringify({ venueId, title, message })
+                body: JSON.stringify({ venueId, title, message, imageUrl })
             });
             
             if (!response.ok) {
-                throw new Error('Falha ao enviar');
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || 'Falha ao enviar');
             }
             
             toast.success('Promoção enviada aos clientes!');
             return true;
-        } catch (err) {
-            toast.error('Erro ao enviar promoção.');
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao enviar promoção.');
             return false;
         }
     }
