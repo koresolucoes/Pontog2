@@ -11,8 +11,9 @@ import { AdminNewsView } from './views/AdminNewsView';
 import { AuditLogsView } from './views/AuditLogsView';
 import { SettingsView } from './views/SettingsView';
 import { VenueClaimsView } from './views/VenueClaimsView';
+import { B2BManagerView } from './views/B2BManagerView';
 
-type AdminView = 'dashboard' | 'users' | 'plans' | 'payments' | 'reports' | 'venues' | 'venue-claims' | 'news' | 'audit-logs' | 'settings';
+type AdminView = 'dashboard' | 'users' | 'plans' | 'payments' | 'reports' | 'venues' | 'venue-claims' | 'b2b-manager' | 'news' | 'audit-logs' | 'settings';
 
 interface NavItem {
     view: AdminView;
@@ -27,6 +28,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
     { view: 'news', label: 'Notícias', icon: 'newspaper', roles: ['owner', 'moderator'] },
     { view: 'venues', label: 'Locais (Guia)', icon: 'map', roles: ['owner', 'moderator'] },
     { view: 'venue-claims', label: 'Reivindicações', icon: 'verified', roles: ['owner', 'moderator'] },
+    { view: 'b2b-manager', label: 'Gestão B2B', icon: 'business_center', roles: ['owner', 'moderator', 'financial'] },
     { view: 'plans', label: 'Planos', icon: 'sell', roles: ['owner', 'financial'] },
     { view: 'payments', label: 'Pagamentos', icon: 'receipt_long', roles: ['owner', 'financial'] },
     { view: 'reports', label: 'Denúncias', icon: 'flag', roles: ['owner', 'moderator', 'support'] },
@@ -73,6 +75,7 @@ export const AdminLayout: React.FC = () => {
             case 'reports': return <ReportsView />;
             case 'venues': return <VenuesView />;
             case 'venue-claims': return <VenueClaimsView />;
+            case 'b2b-manager': return <B2BManagerView />;
             case 'news': return <AdminNewsView />;
             case 'audit-logs': return <AuditLogsView />;
             case 'settings': return <SettingsView />;
