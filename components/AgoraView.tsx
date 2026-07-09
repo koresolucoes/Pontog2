@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAgoraStore } from '../stores/agoraStore';
 import { useAuthStore } from '../stores/authStore';
+import { useMapStore } from '../stores/mapStore';
 import { AgoraPost } from '../types';
 import { ActivateAgoraModal } from './ActivateAgoraModal';
 import { AgoraPostDetailModal } from './AgoraPostDetailModal';
@@ -27,6 +28,7 @@ export const AgoraView: React.FC = () => {
     const { t } = useTranslation();
     const { posts, isLoading, agoraUserIds, deactivateAgoraMode, toggleLikePost, loadMorePosts, hasMore, fetchAgoraPosts } = useAgoraStore();
     const user = useAuthStore(state => state.user);
+    const setSelectedVenue = useMapStore(state => state.setSelectedVenue);
     const [isActivateModalOpen, setIsActivateModalOpen] = useState(false);
     const [selectedPost, setSelectedPost] = useState<AgoraPost | null>(null);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -159,18 +161,31 @@ export const AgoraView: React.FC = () => {
                                         className="flex items-center space-x-3 cursor-pointer hover:opacity-90 transition-opacity"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            handleUserClick({ id: post.user_id, username: post.username, avatar_url: post.avatar_url });
+                                            if (post.is_venue && post.venue) {
+                                                setSelectedVenue(post.venue);
+                                            } else {
+                                                handleUserClick({ id: post.user_id, username: post.username, avatar_url: post.avatar_url });
+                                            }
                                         }}
                                     >
                                         <div className="relative">
                                             <img loading="lazy" src={post.avatar_url} alt={post.username} className="w-10 h-10 rounded-full object-cover ring-2 ring-primary-500/50" />
                                             <div className="absolute -bottom-1 -right-1 bg-primary-600 rounded-full p-0.5 border border-black">
-                                                <span className="material-symbols-rounded filled text-[10px] text-white block">local_fire_department</span>
+                                                <span className="material-symbols-rounded filled text-[10px] text-white block">
+                                                    {post.is_venue ? 'store' : 'local_fire_department'}
+                                                </span>
                                             </div>
                                         </div>
                                         <div className="drop-shadow-md">
                                             <h3 className="font-bold text-white text-sm leading-none flex items-center gap-2">
-                                                <span>{post.username}, {post.age}</span>
+                                                {post.is_venue ? (
+                                                    <span className="flex items-center gap-1">
+                                                        <span>{post.username}</span>
+                                                        <span className="material-symbols-rounded text-yellow-400 text-[14px] filled">verified</span>
+                                                    </span>
+                                                ) : (
+                                                    <span>{post.username}{post.age ? `, ${post.age}` : ''}</span>
+                                                )}
                                                 {post.status_text?.includes('📍') && (
                                                     <span className="flex items-center gap-0.5 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow border border-white/10 animate-pulse">
                                                         <span className="material-symbols-rounded text-[10px] filled">location_on</span>
@@ -178,7 +193,9 @@ export const AgoraView: React.FC = () => {
                                                     </span>
                                                 )}
                                             </h3>
-                                            <p className="text-[10px] text-primary-300 font-bold uppercase tracking-wider mt-0.5">{t('agora.online_now', { defaultValue: 'Online Agora' })}</p>
+                                            <p className="text-[10px] text-primary-300 font-bold uppercase tracking-wider mt-0.5">
+                                                {post.is_venue ? 'Espaço Parceiro 🏢' : t('agora.online_now', { defaultValue: 'Online Agora' })}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -186,7 +203,13 @@ export const AgoraView: React.FC = () => {
                                 {/* Imagem Principal Full Bleed */}
                                 <div 
                                     className="relative w-full aspect-[4/5] cursor-pointer overflow-hidden"
-                                    onClick={() => setSelectedPost(post)}
+                                    onClick={() => {
+                                        if (post.is_venue && post.venue) {
+                                            setSelectedVenue(post.venue);
+                                        } else {
+                                            setSelectedPost(post);
+                                        }
+                                    }}
                                 >
                                     <motion.img 
                                         whileHover={{ scale: 1.05 }}
@@ -221,32 +244,52 @@ export const AgoraView: React.FC = () => {
     
                                 {/* Actions Bar */}
                                 <div className="p-3 bg-slate-900/50 backdrop-blur-md border-t border-white/5 flex items-center justify-between">
-                                    <div className="flex gap-4">
+                                    {post.is_venue ? (
+                                        <div className="flex items-center gap-2 text-slate-400 text-xs">
+                                            <span className="material-symbols-rounded text-sm">campaign</span>
+                                            <span className="font-medium">Publicação Oficial do Local</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-4">
+                                            <motion.button 
+                                                whileTap={{ scale: 0.8 }}
+                                                onClick={() => toggleLikePost(post.id)} 
+                                                className={`flex items-center gap-1.5 transition-colors ${post.user_has_liked ? 'text-primary-500' : 'text-slate-400 hover:text-white'}`}
+                                            >
+                                                <span className={`material-symbols-rounded text-2xl ${post.user_has_liked ? 'filled' : ''}`}>favorite</span>
+                                                <span className="text-xs font-bold">{post.likes_count}</span>
+                                            </motion.button>
+                                            <motion.button 
+                                                whileTap={{ scale: 0.8 }}
+                                                onClick={() => setSelectedPost(post)} 
+                                                className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors"
+                                            >
+                                                <span className="material-symbols-rounded text-2xl">chat_bubble</span>
+                                                <span className="text-xs font-bold">{post.comments_count}</span>
+                                            </motion.button>
+                                        </div>
+                                    )}
+                                    
+                                    {post.is_venue ? (
                                         <motion.button 
-                                            whileTap={{ scale: 0.8 }}
-                                            onClick={() => toggleLikePost(post.id)} 
-                                            className={`flex items-center gap-1.5 transition-colors ${post.user_has_liked ? 'text-primary-500' : 'text-slate-400 hover:text-white'}`}
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => post.venue && setSelectedVenue(post.venue)}
+                                            className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all shadow-lg hover:shadow-primary-500/20 uppercase tracking-wide flex items-center gap-1"
                                         >
-                                            <span className={`material-symbols-rounded text-2xl ${post.user_has_liked ? 'filled' : ''}`}>favorite</span>
-                                            <span className="text-xs font-bold">{post.likes_count}</span>
+                                            <span>Ver Espaço</span>
+                                            <span className="material-symbols-rounded text-sm">store</span>
                                         </motion.button>
+                                    ) : (
                                         <motion.button 
-                                            whileTap={{ scale: 0.8 }}
-                                            onClick={() => setSelectedPost(post)} 
-                                            className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors"
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            className="bg-white text-black text-xs font-black py-2 px-4 rounded-lg hover:bg-slate-200 transition-colors uppercase tracking-wide flex items-center gap-1"
                                         >
-                                            <span className="material-symbols-rounded text-2xl">chat_bubble</span>
-                                            <span className="text-xs font-bold">{post.comments_count}</span>
+                                            {t('agora.call', { defaultValue: 'Chamar' })}
+                                            <span className="material-symbols-rounded filled text-sm text-primary-600">favorite</span>
                                         </motion.button>
-                                    </div>
-                                    <motion.button 
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        className="bg-white text-black text-xs font-black py-2 px-4 rounded-lg hover:bg-slate-200 transition-colors uppercase tracking-wide flex items-center gap-1"
-                                    >
-                                        {t('agora.call', { defaultValue: 'Chamar' })}
-                                        <span className="material-symbols-rounded filled text-sm text-primary-600">favorite</span>
-                                    </motion.button>
+                                    )}
                                 </div>
                             </motion.div>
                         ))}

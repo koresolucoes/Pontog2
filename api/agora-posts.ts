@@ -41,65 +41,146 @@ export default async function handler(
       }
     }
 
-    // Fetch active agora posts (expires_at > now)
-    const { data: posts, error: postsError } = await supabaseAdmin
-      .from('agora_posts')
-      .select(`
-        *,
-        profiles:user_id (
-          username,
-          avatar_url,
-          date_of_birth
-        )
-      `)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Helper function to generate unique integer hashes from UUID strings to prevent breaking types
+    const stringToHash = (str: string): number => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash);
+    };
+
+    const nowIso = new Date().toISOString();
+
+    // Fetch active user agora posts and active venue posts in parallel
+    const [userPostsRes, venuePostsRes] = await Promise.all([
+      supabaseAdmin
+        .from('agora_posts')
+        .select(`
+          *,
+          profiles:user_id (
+            username,
+            avatar_url,
+            date_of_birth
+          )
+        `)
+        .gt('expires_at', nowIso),
+      supabaseAdmin
+        .from('venue_posts')
+        .select(`
+          *,
+          venue:venue_id (
+            id,
+            name,
+            type,
+            description,
+            address,
+            lat,
+            lng,
+            image_url,
+            is_partner,
+            is_verified,
+            tags
+          )
+        `)
+        .eq('is_active', true)
+        .or(`ends_at.gt.${nowIso},ends_at.is.null`)
+    ]);
+
+    const { data: posts, error: postsError } = userPostsRes;
+    const { data: venuePosts, error: venuePostsError } = venuePostsRes;
 
     if (postsError) {
-      console.error('Error fetching agora posts via Admin client:', postsError);
-      return res.status(500).json({ error: postsError.message });
+      console.error('Error fetching user agora posts:', postsError);
+    }
+    if (venuePostsError) {
+      console.error('Error fetching venue posts:', venuePostsError);
     }
 
-    if (!posts || posts.length === 0) {
+    // Format user posts
+    const formattedUserPosts = (posts || []).map((p: any) => ({
+      id: p.id,
+      user_id: p.user_id,
+      photo_url: p.photo_url,
+      status_text: p.status_text,
+      created_at: p.created_at,
+      expires_at: p.expires_at,
+      username: p.profiles?.username || 'Usuário',
+      avatar_url: p.profiles?.avatar_url || '',
+      date_of_birth: p.profiles?.date_of_birth || null,
+      is_venue: false,
+      likes_count: 0,
+      comments_count: 0,
+      user_has_liked: false
+    }));
+
+    // Format venue posts to mimic AgoraPost with stable numeric hash ID
+    const formattedVenuePosts = (venuePosts || []).map((vp: any) => ({
+      id: stringToHash(vp.id),
+      user_id: vp.venue_id,
+      photo_url: vp.image_url || vp.venue?.image_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
+      status_text: vp.content ? `📢 ${vp.title}: ${vp.content}` : `📢 ${vp.title}`,
+      created_at: vp.created_at,
+      expires_at: vp.ends_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      username: vp.venue?.name || 'Espaço Parceiro',
+      avatar_url: vp.venue?.image_url || '',
+      date_of_birth: null,
+      is_venue: true,
+      venue: vp.venue,
+      likes_count: 0,
+      comments_count: 0,
+      user_has_liked: false
+    }));
+
+    // Merge and sort by created_at DESC
+    const allPosts = [...formattedUserPosts, ...formattedVenuePosts];
+    allPosts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // Slice for current page pagination
+    const paginatedPosts = allPosts.slice(offset, offset + limit);
+
+    if (paginatedPosts.length === 0) {
       return res.status(200).json({ data: [] });
     }
 
-    const postIds = posts.map((p: any) => p.id);
+    const userPostIds = paginatedPosts.filter((p: any) => !p.is_venue).map((p: any) => p.id);
 
-    // Fetch likes count and if current user liked
-    const { data: likesData, error: likesError } = await supabaseAdmin
-      .from('agora_post_likes')
-      .select('post_id, user_id')
-      .in('post_id', postIds);
-
-    // Fetch comments count
-    const { data: commentsData, error: commentsError } = await supabaseAdmin
-      .from('agora_post_comments')
-      .select('post_id')
-      .in('post_id', postIds);
-
-    // Map likes and comments counts
+    // Fetch likes and comments for user posts only
     const likesMap: Record<number, number> = {};
     const commentsMap: Record<number, number> = {};
     const userLikesSet = new Set<number>();
 
-    if (!likesError && likesData) {
-      likesData.forEach((l: any) => {
-        likesMap[l.post_id] = (likesMap[l.post_id] || 0) + 1;
-        if (currentUserId && l.user_id === currentUserId) {
-          userLikesSet.add(l.post_id);
-        }
-      });
+    if (userPostIds.length > 0) {
+      const [likesRes, commentsRes] = await Promise.all([
+        supabaseAdmin
+          .from('agora_post_likes')
+          .select('post_id, user_id')
+          .in('post_id', userPostIds),
+        supabaseAdmin
+          .from('agora_post_comments')
+          .select('post_id')
+          .in('post_id', userPostIds)
+      ]);
+
+      if (!likesRes.error && likesRes.data) {
+        likesRes.data.forEach((l: any) => {
+          likesMap[l.post_id] = (likesMap[l.post_id] || 0) + 1;
+          if (currentUserId && l.user_id === currentUserId) {
+            userLikesSet.add(l.post_id);
+          }
+        });
+      }
+
+      if (!commentsRes.error && commentsRes.data) {
+        commentsRes.data.forEach((c: any) => {
+          commentsMap[c.post_id] = (commentsMap[c.post_id] || 0) + 1;
+        });
+      }
     }
 
-    if (!commentsError && commentsData) {
-      commentsData.forEach((c: any) => {
-        commentsMap[c.post_id] = (commentsMap[c.post_id] || 0) + 1;
-      });
-    }
-
-    const formattedPosts = posts.map((p: any) => {
+    const formattedPosts = paginatedPosts.map((p: any) => {
+      if (p.is_venue) return p;
       return {
         ...p,
         likes_count: likesMap[p.id] || 0,

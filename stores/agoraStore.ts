@@ -141,9 +141,11 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
 
     const expires_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-    // FIX: Handle 409 Conflict (Unique Violation) robustly.
-    // Instead of Delete+Insert (which can fail if delete is blocked) or Upsert (which can fail permissions),
-    // we try INSERT first. If it fails with code 23505 (Unique Violation), we explicitly UPDATE.
+    // Proactively delete any previous posts by this user to bypass and avoid unique constraint conflicts
+    await supabase
+      .from('agora_posts')
+      .delete()
+      .eq('user_id', user.id);
     
     const payload = {
         user_id: user.id,
@@ -157,30 +159,10 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
       .insert(payload);
 
     if (insertError) {
-        if (insertError.code === '23505') {
-            // Conflict detected: The user already has a post. Update it instead.
-            console.log("Agora post exists, updating...");
-            const { error: updateError } = await supabase
-                .from('agora_posts')
-                .update({
-                    photo_url: filePath,
-                    status_text: statusText,
-                    expires_at: expires_at
-                })
-                .eq('user_id', user.id);
-            
-            if (updateError) {
-                console.error("Error updating Agora post:", updateError);
-                toast.error('Erro ao atualizar seu post.', { id: toastId });
-                set({ isActivating: false });
-                return;
-            }
-        } else {
-            console.error("Error inserting Agora post:", insertError);
-            toast.error('Erro ao ativar o modo Agora.', { id: toastId });
-            set({ isActivating: false });
-            return;
-        }
+        console.error("Error inserting Agora post:", insertError);
+        toast.error('Erro ao ativar o modo Agora.', { id: toastId });
+        set({ isActivating: false });
+        return;
     }
 
     toast.success('Modo Agora ativado por 1 hora!', { id: toastId });
@@ -323,6 +305,12 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
 
     const finalPhotoUrl = venueImageUrl || fallbackImage;
     
+    // Proactively delete any previous posts by this user to bypass and avoid unique constraint conflicts
+    await supabase
+      .from('agora_posts')
+      .delete()
+      .eq('user_id', user.id);
+
     // We create a post directly with the venue image url
     const payload = {
         user_id: user.id,
@@ -336,27 +324,8 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
       .insert(payload);
 
     if (insertError) {
-        if (insertError.code === '23505') {
-            // Update existing post
-            const { error: updateError } = await supabase
-                .from('agora_posts')
-                .update({
-                    photo_url: finalPhotoUrl,
-                    status_text: payload.status_text,
-                    expires_at: payload.expires_at
-                })
-                .eq('user_id', user.id);
-            
-            if (updateError) {
-                console.error("Error updating Agora post:", updateError);
-                toast.error("Erro ao atualizar post no feed.");
-            } else {
-                toast.success('Check-in atualizado no feed Agora!');
-            }
-        } else {
-            console.error("Error inserting Agora post:", insertError);
-            toast.error("Erro ao publicar no feed Agora.");
-        }
+        console.error("Error inserting Agora post:", insertError);
+        toast.error("Erro ao publicar no feed Agora.");
     } else {
         toast.success('Publicado no feed Agora!');
     }

@@ -44,12 +44,29 @@ export default async function handler(
     // Verify owner
     const { data: venue } = await supabaseAdmin
       .from('venues')
-      .select('owner_id, name')
+      .select('owner_id, name, image_url, type, description, address, lat, lng, is_partner, is_verified, tags')
       .eq('id', venueId)
       .single();
 
     if (!venue || venue.owner_id !== user.id) {
         return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Insert into venue_posts to publish to the Agora social feed!
+    const { error: postError } = await supabaseAdmin
+      .from('venue_posts')
+      .insert({
+        venue_id: venueId,
+        title: title,
+        content: message,
+        image_url: venue.image_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
+        is_active: true,
+        starts_at: new Date().toISOString(),
+        ends_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24-hour lifetime
+      });
+
+    if (postError) {
+      console.error('Error inserting venue post:', postError);
     }
 
     // Get users who checked in (recent ones, or all unique)
