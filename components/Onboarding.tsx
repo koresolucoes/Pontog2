@@ -385,23 +385,33 @@ const DetailsStep: React.FC<DetailsStepProps> = ({ formData, onChange, loading, 
 );
 
 const GuideStep: React.FC<{onFinish: () => void, t: any}> = ({ onFinish, t }) => (
-    <div className="space-y-8 h-full flex flex-col">
+    <div className="space-y-6 h-full flex flex-col">
         <div className="text-center">
             <h2 className="text-3xl font-black text-white font-outfit mb-2">{t('onboarding.step_guide_title', { defaultValue: 'Tudo pronto!' })}</h2>
             <p className="text-slate-400">{t('onboarding.step_guide_desc', { defaultValue: 'Veja o que você pode fazer:' })}</p>
         </div>
 
-        <div className="space-y-3 flex-1">
+        <div className="space-y-3 flex-1 overflow-y-auto pr-1 scrollbar-none">
             <div className="flex items-center gap-4 p-4 bg-slate-800/50 border border-white/5 rounded-2xl">
                 <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center text-primary-400 flex-shrink-0">
-                    <span className="material-symbols-rounded filled">location_on</span>
+                    <span className="material-symbols-rounded filled">groups</span>
                 </div>
                 <div>
-                    <h3 className="font-bold text-white">{t('onboarding.feature_radar', { defaultValue: 'Radar' })}</h3>
-                    <p className="text-xs text-slate-400 leading-snug">{t('onboarding.feature_radar_desc', { defaultValue: 'Encontre caras próximos no mapa ou na grade.' })}</p>
+                    <h3 className="font-bold text-white">{t('onboarding.feature_communities', { defaultValue: 'Comunidades & Conexões' })}</h3>
+                    <p className="text-xs text-slate-400 leading-snug">{t('onboarding.feature_communities_desc', { defaultValue: 'Junte-se a grupos por interesses e conecte-se com a sua tribo.' })}</p>
                 </div>
             </div>
             
+            <div className="flex items-center gap-4 p-4 bg-slate-800/50 border border-white/5 rounded-2xl">
+                <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center text-green-400 flex-shrink-0">
+                    <span className="material-symbols-rounded filled">where_to_vote</span>
+                </div>
+                <div>
+                    <h3 className="font-bold text-white">{t('onboarding.feature_checkin', { defaultValue: 'Check-in & Eventos' })}</h3>
+                    <p className="text-xs text-slate-400 leading-snug">{t('onboarding.feature_checkin_desc', { defaultValue: 'Faça check-in nos points da cidade e veja quem está por perto.' })}</p>
+                </div>
+            </div>
+
             <div className="flex items-center gap-4 p-4 bg-slate-800/50 border border-white/5 rounded-2xl">
                 <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center text-red-500 flex-shrink-0">
                     <span className="material-symbols-rounded filled">local_fire_department</span>
@@ -411,19 +421,9 @@ const GuideStep: React.FC<{onFinish: () => void, t: any}> = ({ onFinish, t }) =>
                     <p className="text-xs text-slate-400 leading-snug">{t('onboarding.feature_agora_desc', { defaultValue: 'Ative para mostrar que está buscando algo pra já.' })}</p>
                 </div>
             </div>
-
-            <div className="flex items-center gap-4 p-4 bg-slate-800/50 border border-white/5 rounded-2xl">
-                <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center text-yellow-400 flex-shrink-0">
-                    <span className="material-symbols-rounded filled">auto_awesome</span>
-                </div>
-                <div>
-                    <h3 className="font-bold text-white">{t('onboarding.feature_plus', { defaultValue: 'Seja Plus' })}</h3>
-                    <p className="text-xs text-slate-400 leading-snug">{t('onboarding.feature_plus_desc', { defaultValue: 'Descubra quem te viu e navegue invisível.' })}</p>
-                </div>
-            </div>
         </div>
 
-        <button onClick={onFinish} className="w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary-900/30 hover:scale-105 transition-transform active:scale-95 text-lg">
+        <button onClick={onFinish} className="w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary-900/30 hover:scale-105 transition-transform active:scale-95 text-lg mt-4 shrink-0">
             {t('onboarding.enter_app', { defaultValue: 'Entrar no Ponto G' })}
         </button>
     </div>
