@@ -120,7 +120,7 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
     if (!user) {
       toast.error('Você precisa estar logado.');
       set({ isActivating: false });
-      return;
+      return false;
     }
 
     const toastId = toast.loading('Ativando modo Agora...');
@@ -134,9 +134,9 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
       .upload(filePath, photoFile);
 
     if (uploadError) {
-      toast.error('Falha ao enviar a foto.', { id: toastId });
+      toast.error(`Falha ao enviar a foto: ${uploadError.message}`, { id: toastId });
       set({ isActivating: false });
-      return;
+      return false;
     }
 
     const expires_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -160,14 +160,15 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
 
     if (insertError) {
         console.error("Error inserting Agora post:", insertError);
-        toast.error('Erro ao ativar o modo Agora.', { id: toastId });
+        toast.error(`Erro ao ativar o modo Agora: ${insertError.message} (${insertError.details || 'Sem permissão / RLS'})`, { id: toastId, duration: 6000 });
         set({ isActivating: false });
-        return;
+        return false;
     }
 
     toast.success('Modo Agora ativado por 1 hora!', { id: toastId });
     await get().fetchAgoraPosts();
     set({ isActivating: false });
+    return true;
   },
 
   deactivateAgoraMode: async () => {
@@ -325,7 +326,7 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
 
     if (insertError) {
         console.error("Error inserting Agora post:", insertError);
-        toast.error("Erro ao publicar no feed Agora.");
+        toast.error(`Erro ao publicar no feed Agora: ${insertError.message} (${insertError.details || 'Sem permissão / RLS'})`, { duration: 6000 });
     } else {
         toast.success('Publicado no feed Agora!');
     }

@@ -778,19 +778,24 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                                         const fileName = `post_${Math.random()}.${fileExt}`;
                                         const filePath = `${user.id}/posts/${fileName}`;
                                         const { error } = await supabase.storage.from('user_uploads').upload(filePath, image);
-                                        if (!error) {
-                                            const { data } = supabase.storage.from('user_uploads').getPublicUrl(filePath);
-                                            imageUrl = data.publicUrl;
-                                        }
+                                        if (error) throw error;
+                                        const { data } = supabase.storage.from('user_uploads').getPublicUrl(filePath);
+                                        imageUrl = data.publicUrl;
                                     }
-                                } catch (e) {
+                                } catch (e: any) {
                                     console.error('Upload error', e);
-                                    toast.error('Erro ao fazer upload de mídia');
+                                    toast.error('Erro ao fazer upload de mídia: ' + (e.message || ''));
+                                    return; // Stop execution on upload failure so the modal stays open
                                 }
                             }
-                            await createPost(activeCommunity.id, content, imageUrl, tags);
-                            setIsCreatePostOpen(false);
-                            toast.success('Post enviado!');
+                            try {
+                                await createPost(activeCommunity.id, content, imageUrl, tags);
+                                setIsCreatePostOpen(false);
+                                toast.success('Post enviado!');
+                            } catch (e: any) {
+                                console.error('Create post error', e);
+                                toast.error('Erro ao salvar post: ' + (e.message || e.details || 'Verifique RLS ou políticas'));
+                            }
                         }}
                     />
                 )}

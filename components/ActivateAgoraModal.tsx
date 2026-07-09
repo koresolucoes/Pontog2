@@ -35,8 +35,10 @@ export const ActivateAgoraModal: React.FC<ActivateAgoraModalProps> = ({ onClose 
       toast.error(t('agora.select_photo', { defaultValue: 'Por favor, selecione uma foto.' }));
       return;
     }
-    await activateAgoraMode(photoFile, statusText);
-    onClose();
+    const success = await activateAgoraMode(photoFile, statusText);
+    if (success) {
+      onClose();
+    }
   };
 
   return typeof document !== 'undefined' ? createPortal(

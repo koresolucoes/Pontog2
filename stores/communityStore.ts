@@ -339,6 +339,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             get().fetchMyCommunities();
         } catch (error: any) {
             console.error('Error joining community:', error);
+            throw error;
         }
     },
 
@@ -355,6 +356,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             get().fetchMyCommunities();
         } catch (error: any) {
             console.error('Error leaving community:', error);
+            throw error;
         }
     },
 
@@ -378,16 +380,17 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
     createPost: async (communityId: string, content: string, imageUrl?: string, tags?: string[]) => {
         const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) return;
+        if (!userData.user) throw new Error('Usuário não autenticado.');
         
         try {
             const { error } = await supabase
                 .from('community_posts')
                 .insert({ community_id: communityId, author_id: userData.user.id, content, image_url: imageUrl, tags: tags || [] });
             if (error) throw error;
-            get().fetchCommunityPosts(communityId);
+            await get().fetchCommunityPosts(communityId);
         } catch (error: any) {
-            console.error('Error creating post:', error);
+            console.error('Error creating post in communityStore:', error);
+            throw error;
         }
     },
 
