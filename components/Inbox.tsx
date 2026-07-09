@@ -119,9 +119,10 @@ const EmptyState = ({ icon, title, message, actionLabel, onAction }: { icon: str
 export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
     const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
     const { 
-        conversations, winks, accessRequests, profileViews,
+        conversations, winks, accessRequests, profileViews, messageRequests,
         loadingConversations, loadingWinks, loadingRequests, loadingProfileViews,
-        fetchWinks, fetchProfileViews, fetchAccessRequests,
+        fetchWinks, fetchProfileViews, fetchAccessRequests, fetchMessageRequests,
+        acceptMessageRequest, rejectMessageRequest,
         respondToRequest, deleteConversation, clearWinks, clearAccessRequests
     } = useInboxStore();
     const { setChatUser, setSubscriptionModalOpen, setActiveView } = useUiStore();
@@ -133,6 +134,7 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
     const [confirmDelete, setConfirmDelete] = useState<ConversationPreview | null>(null);
     const [unlockModal, setUnlockModal] = useState<'winks' | 'views' | null>(null);
     const [rewardModal, setRewardModal] = useState<'winks' | 'views' | null>(null);
+    const [viewingRequestsList, setViewingRequestsList] = useState(false);
     const { t, i18n } = useTranslation();
 
     const getLocale = () => {
@@ -142,11 +144,16 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
     };
 
     useEffect(() => {
+        if (activeTab === 'messages') fetchMessageRequests();
         if (activeTab === 'winks') fetchWinks();
         if (activeTab === 'requests') fetchAccessRequests();
         if (activeTab === 'views') fetchProfileViews();
         if (activeTab === 'favorites') fetchFavorites();
-    }, [activeTab, fetchWinks, fetchAccessRequests, fetchProfileViews, fetchFavorites]);
+    }, [activeTab, fetchMessageRequests, fetchWinks, fetchAccessRequests, fetchProfileViews, fetchFavorites]);
+
+    useEffect(() => {
+        setViewingRequestsList(false);
+    }, [activeTab]);
     
     useEffect(() => {
         if (activeTab === 'winks' && winks.length > 0) clearWinks();
@@ -237,16 +244,119 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
 
             <div className="flex-1 overflow-y-auto px-4 pb-24 pt-2 space-y-4">
                 {activeTab === 'messages' && (
-                    <ConversationList 
-                        conversations={conversations} 
-                        loading={loadingConversations}
-                        onConversationClick={handleConversationClick}
-                        onDeleteClick={(convo) => setConfirmDelete(convo)}
-                        currentUserId={currentUser?.id}
-                        onEmptyAction={goToGrid}
-                        t={t}
-                        getLocale={getLocale}
-                    />
+                    <>
+                        {messageRequests.length > 0 && !viewingRequestsList && (
+                            <div 
+                                onClick={() => setViewingRequestsList(true)}
+                                className="bg-gradient-to-r from-primary-500/20 to-secondary-500/20 border border-white/10 rounded-2xl p-4 mb-2 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all shadow-md animate-fade-in"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <span className="material-symbols-rounded text-primary-400 text-2xl">chat_bubble_outline</span>
+                                        <span className="absolute -top-1 -right-1 bg-primary-500 text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-bounce">
+                                            {messageRequests.length}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-white text-sm">Solicitações de Mensagens</h4>
+                                        <p className="text-xs text-slate-400 font-sans">Você tem {messageRequests.length} novos pedidos de conversa</p>
+                                    </div>
+                                </div>
+                                <span className="material-symbols-rounded text-slate-400">chevron_right</span>
+                            </div>
+                        )}
+
+                        {viewingRequestsList ? (
+                            <div className="space-y-4 animate-fade-in">
+                                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                    <button 
+                                        onClick={() => setViewingRequestsList(false)}
+                                        className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors font-medium"
+                                    >
+                                        <span className="material-symbols-rounded text-lg">arrow_back</span>
+                                        Voltar para Conversas
+                                    </button>
+                                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                        Solicitações ({messageRequests.length})
+                                    </span>
+                                </div>
+
+                                {messageRequests.length === 0 ? (
+                                    <div className="text-center py-10 text-slate-500">
+                                        <p className="text-sm font-sans">Nenhuma solicitação de mensagem.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {messageRequests.map((req) => (
+                                            <div 
+                                                key={req.id} 
+                                                className="p-4 flex items-center justify-between bg-slate-800/40 rounded-2xl border border-white/5 hover:bg-slate-800/60 transition-all cursor-pointer shadow-sm"
+                                                onClick={() => {
+                                                    const chatPartner: User = {
+                                                        id: req.follower_id, username: req.username,
+                                                        avatar_url: req.avatar_url, last_seen: null,
+                                                        display_name: null, public_photos: [], status_text: null, date_of_birth: null,
+                                                        height_cm: null, weight_kg: null, tribes: [], position: null, hiv_status: null,
+                                                        updated_at: '', lat: 0, lng: 0, age: req.age, distance_km: null, 
+                                                        subscription_tier: 'free',
+                                                        subscription_expires_at: null, is_incognito: false,
+                                                        has_completed_onboarding: true,
+                                                        has_private_albums: false,
+                                                        email: '',
+                                                        created_at: '',
+                                                        status: 'active',
+                                                        suspended_until: null,
+                                                        kinks: [],
+                                                        can_host: false,
+                                                        video_url: null,
+                                                        is_traveling: false,
+                                                        is_verified: false,
+                                                        has_seen_tour: false
+                                                    };
+                                                    setChatUser(chatPartner);
+                                                }}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <img src={req.avatar_url} alt={req.username} className="w-12 h-12 rounded-full object-cover border-2 border-slate-700" />
+                                                    <div>
+                                                        <h4 className="font-bold text-white text-sm">{req.username}, {req.age}</h4>
+                                                        <p className="text-xs text-slate-400 mt-0.5 font-sans">Enviou uma solicitação de conexão</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                                    <button 
+                                                        onClick={() => rejectMessageRequest(req.id)} 
+                                                        className="w-9 h-9 flex items-center justify-center bg-red-500/10 text-red-400 rounded-full hover:bg-red-500/20 transition-colors border border-white/5"
+                                                        title="Recusar"
+                                                    >
+                                                        <span className="material-symbols-rounded text-lg">close</span>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => acceptMessageRequest(req.id, req.follower_id)} 
+                                                        className="w-9 h-9 flex items-center justify-center bg-green-500/10 text-green-400 rounded-full hover:bg-green-500/20 transition-colors border border-white/5"
+                                                        title="Aceitar"
+                                                    >
+                                                        <span className="material-symbols-rounded text-lg">check</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <ConversationList 
+                                conversations={conversations} 
+                                loading={loadingConversations}
+                                onConversationClick={handleConversationClick}
+                                onDeleteClick={(convo) => setConfirmDelete(convo)}
+                                currentUserId={currentUser?.id}
+                                onEmptyAction={goToGrid}
+                                t={t}
+                                getLocale={getLocale}
+                            />
+                        )}
+                    </>
                 )}
                 {activeTab === 'favorites' && (
                     <FavoriteList 

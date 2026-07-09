@@ -24,11 +24,13 @@ interface InboxState {
   winks: WinkWithProfile[];
   accessRequests: AlbumAccessRequest[];
   profileViews: ProfileViewWithProfile[];
+  messageRequests: any[];
   totalUnreadCount: number;
   loadingConversations: boolean;
   loadingWinks: boolean;
   loadingRequests: boolean;
   loadingProfileViews: boolean;
+  loadingMessageRequests: boolean;
   realtimeChannel: any | null;
   lastConversationUpdate: number;
   
@@ -39,11 +41,15 @@ interface InboxState {
   lastWinksFetch: number;
   lastRequestsFetch: number;
   lastViewsFetch: number;
+  lastMessageRequestsFetch: number;
   
   fetchConversations: (force?: boolean) => Promise<void>;
   fetchWinks: (force?: boolean) => Promise<void>;
   fetchAccessRequests: (force?: boolean) => Promise<void>;
   fetchProfileViews: (force?: boolean) => Promise<void>;
+  fetchMessageRequests: (force?: boolean) => Promise<void>;
+  acceptMessageRequest: (connectionId: string, followerId: string) => Promise<void>;
+  rejectMessageRequest: (connectionId: string) => Promise<void>;
   respondToRequest: (requestId: number, status: 'granted' | 'denied') => Promise<void>;
   deleteConversation: (conversationId: number) => Promise<void>;
   clearWinks: () => void;
@@ -56,14 +62,15 @@ interface InboxState {
 export const useInboxStore = create<InboxState>((set, get) => {
     
     const updateTotalUnreadCount = () => {
-        const { conversations, winks, accessRequests, winksHaveBeenSeen, requestsHaveBeenSeen } = get();
+        const { conversations, winks, accessRequests, winksHaveBeenSeen, requestsHaveBeenSeen, messageRequests } = get();
         const unreadMessages = conversations.reduce((sum, convo) => sum + (convo.unread_count || 0), 0);
         
         // A contagem depende da flag 'seen'
         const newWinksCount = winksHaveBeenSeen ? 0 : winks.length;
         const newRequestsCount = requestsHaveBeenSeen ? 0 : accessRequests.length;
+        const pendingMessageRequestsCount = messageRequests ? messageRequests.length : 0;
 
-        set({ totalUnreadCount: unreadMessages + newWinksCount + newRequestsCount });
+        set({ totalUnreadCount: unreadMessages + newWinksCount + newRequestsCount + pendingMessageRequestsCount });
     };
 
     return {
@@ -71,11 +78,13 @@ export const useInboxStore = create<InboxState>((set, get) => {
         winks: [],
         accessRequests: [],
         profileViews: [],
+        messageRequests: [],
         totalUnreadCount: 0,
         loadingConversations: false,
         loadingWinks: false,
         loadingRequests: false,
         loadingProfileViews: false,
+        loadingMessageRequests: false,
         realtimeChannel: null,
         lastConversationUpdate: 0, // Timeout tracker
         winksHaveBeenSeen: true,
@@ -85,6 +94,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
         lastWinksFetch: 0,
         lastRequestsFetch: 0,
         lastViewsFetch: 0,
+        lastMessageRequestsFetch: 0,
 
         fetchConversations: async (force = false) => {
             const now = Date.now();
@@ -103,6 +113,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
                 }));
                 
                 set({ conversations: processedConversations, loadingConversations: false, lastConversationsFetch: now });
+                get().fetchMessageRequests();
                 updateTotalUnreadCount();
             } catch (err: any) {
                 console.error('Error fetching conversations:', err);
@@ -443,6 +454,9 @@ export const useInboxStore = create<InboxState>((set, get) => {
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_views', filter: `viewed_id=eq.${user.id}` }, payload => {
                     get().fetchProfileViews();
                 })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'user_connections', filter: `following_id=eq.${user.id}` }, payload => {
+                    get().fetchMessageRequests();
+                })
                 .subscribe((status) => {
                     if (status === 'SUBSCRIBED') {
                         console.log(`Subscribed to inbox channel for user ${user.id}`);
@@ -457,6 +471,126 @@ export const useInboxStore = create<InboxState>((set, get) => {
             if (realtimeChannel) {
                 supabase.removeChannel(realtimeChannel);
                 set({ realtimeChannel: null });
+            }
+        },
+
+        fetchMessageRequests: async (force = false) => {
+            const now = Date.now();
+            if (!force && now - get().lastMessageRequestsFetch < 30000 && get().messageRequests.length > 0) return;
+
+            const currentUser = useAuthStore.getState().user;
+            if (!currentUser) return;
+
+            set({ loadingMessageRequests: true });
+            try {
+                const { data, error } = await supabase
+                    .from('user_connections')
+                    .select(`
+                        *,
+                        follower:profiles!user_connections_follower_id_fkey(*)
+                    `)
+                    .eq('following_id', currentUser.id)
+                    .eq('status', 'pending');
+
+                if (error) throw error;
+
+                const processedRequests = (data || []).map((req: any) => {
+                    const follower = req.follower;
+                    return {
+                        ...req,
+                        avatar_url: getPublicImageUrl(follower?.avatar_url),
+                        username: follower?.username || 'Usuário',
+                        age: calculateAge(follower?.date_of_birth),
+                    };
+                });
+
+                set({ 
+                    messageRequests: processedRequests, 
+                    loadingMessageRequests: false, 
+                    lastMessageRequestsFetch: now 
+                });
+                updateTotalUnreadCount();
+            } catch (err) {
+                console.error('Error fetching message requests:', err);
+                set({ loadingMessageRequests: false });
+            }
+        },
+
+        acceptMessageRequest: async (connectionId: string, followerId: string) => {
+            try {
+                const { error } = await supabase
+                    .from('user_connections')
+                    .update({ status: 'accepted' })
+                    .eq('id', connectionId);
+
+                if (error) throw error;
+
+                set(state => ({
+                    messageRequests: state.messageRequests.filter(req => req.id !== connectionId)
+                }));
+
+                // Send push notification to requester
+                const { session } = (await supabase.auth.getSession()).data;
+                const currentUser = useAuthStore.getState().user;
+                if (session && currentUser) {
+                    const senderName = currentUser.display_name || currentUser.username || 'Alguém';
+
+                    fetch('/api/send-generic-push', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`
+                        },
+                        body: JSON.stringify({
+                            receiver_id: followerId,
+                            title: 'Solicitação de conexão aceita! 🎉',
+                            body: `${senderName} aceitou sua solicitação de conexão.`
+                        })
+                    }).catch(err => console.error("Error sending connection accept push:", err));
+                }
+
+                toast.success('Solicitação aceita!');
+                updateTotalUnreadCount();
+
+                // Refresh community connections if store is loaded
+                try {
+                    const { useCommunityStore } = await import('./communityStore');
+                    useCommunityStore.getState().fetchConnections();
+                } catch (e) {
+                    console.error('Error updating communityStore:', e);
+                }
+            } catch (e) {
+                console.error('Error accepting connection:', e);
+                toast.error('Erro ao aceitar solicitação.');
+            }
+        },
+
+        rejectMessageRequest: async (connectionId: string) => {
+            try {
+                const { error } = await supabase
+                    .from('user_connections')
+                    .delete()
+                    .eq('id', connectionId);
+
+                if (error) throw error;
+
+                set(state => ({
+                    messageRequests: state.messageRequests.filter(req => req.id !== connectionId)
+                }));
+
+                toast.success('Solicitação recusada.');
+                updateTotalUnreadCount();
+
+                // Refresh community connections if store is loaded
+                try {
+                    const { useCommunityStore } = await import('./communityStore');
+                    useCommunityStore.getState().fetchConnections();
+                } catch (e) {
+                    console.error('Error updating communityStore:', e);
+                }
+            } catch (e) {
+                console.error('Error rejecting connection:', e);
+                toast.error('Erro ao recusar solicitação.');
             }
         },
     }

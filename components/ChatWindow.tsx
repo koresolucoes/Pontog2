@@ -278,6 +278,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   const [isViewOnce, setIsViewOnce] = useState(false);
   const [viewingOncePhoto, setViewingOncePhoto] = useState<MessageType | null>(null);
   const [viewingOnceAudio, setViewingOnceAudio] = useState<MessageType | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'pending_incoming' | 'pending_outgoing' | 'accepted' | 'none'>('none');
+  const [connectionIdState, setConnectionIdState] = useState<string | null>(null);
 
   const markMessagesAsRead = useCallback(async (messageIds: number[], convId: number | null) => {
       if (messageIds.length === 0 || !convId) return;
@@ -296,6 +298,60 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
           clearUnreadCountForConversation(convId);
       }
   }, [clearUnreadCountForConversation]);
+
+  useEffect(() => {
+    const fetchConnectionStatus = async () => {
+      if (!currentUser || !user.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('user_connections')
+          .select('*')
+          .or(`and(follower_id.eq.${currentUser.id},following_id.eq.${user.id}),and(follower_id.eq.${user.id},following_id.eq.${currentUser.id})`);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const conn = data[0];
+          setConnectionIdState(conn.id);
+          if (conn.status === 'accepted') {
+            setConnectionStatus('accepted');
+          } else if (conn.follower_id === currentUser.id) {
+            setConnectionStatus('pending_outgoing');
+          } else {
+            setConnectionStatus('pending_incoming');
+          }
+        } else {
+          setConnectionStatus('none');
+        }
+      } catch (err) {
+        console.error('Error fetching connection status:', err);
+      }
+    };
+
+    fetchConnectionStatus();
+  }, [currentUser, user.id]);
+
+  const handleAcceptConnection = async () => {
+    if (!connectionIdState) return;
+    try {
+      const { acceptMessageRequest } = useInboxStore.getState();
+      await acceptMessageRequest(connectionIdState, user.id);
+      setConnectionStatus('accepted');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRejectConnection = async () => {
+    if (!connectionIdState) return;
+    try {
+      const { rejectMessageRequest } = useInboxStore.getState();
+      await rejectMessageRequest(connectionIdState);
+      setConnectionStatus('none');
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     const setupConversation = async () => {
@@ -725,6 +781,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
             </button>
         </div>
       </header>
+      
+      {connectionStatus === 'pending_incoming' && (
+          <div className="bg-gradient-to-r from-primary-500/10 to-secondary-500/10 border-b border-white/5 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 flex-shrink-0 z-20 animate-fade-in">
+              <div className="text-center sm:text-left">
+                  <p className="text-sm font-bold text-white">Solicitação de Conexão</p>
+                  <p className="text-xs text-slate-400 mt-0.5 font-sans">Esta pessoa enviou uma solicitação de conversa.</p>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto justify-center">
+                  <button 
+                      onClick={handleRejectConnection} 
+                      className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs rounded-full transition-colors border border-white/5 flex items-center gap-1.5"
+                  >
+                      <span className="material-symbols-rounded text-sm">close</span>
+                      Recusar
+                  </button>
+                  <button 
+                      onClick={handleAcceptConnection} 
+                      className="px-4 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 font-bold text-xs rounded-full transition-colors border border-white/5 flex items-center gap-1.5"
+                  >
+                      <span className="material-symbols-rounded text-sm">check</span>
+                      Aceitar
+                  </button>
+              </div>
+          </div>
+      )}
 
       <div className="flex-1 p-4 overflow-y-auto bg-dark-900 scroll-smooth pb-24">
         {currentUser.current_checkin_venue_id && user.current_checkin_venue_id && currentUser.current_checkin_venue_id === user.current_checkin_venue_id && (
@@ -815,154 +896,166 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
       {/* Input Area */}
       {!editingMessage && (
         <div className="absolute bottom-0 left-0 right-0 p-3 bg-slate-900 border-t border-white/10 z-20">
-             {isAttachmentMenuOpen && (
-                <div className="absolute bottom-16 left-3 w-48 bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-1.5 animate-fade-in-up border border-white/10 z-30">
-                    <button onClick={() => { setAttachmentMenuOpen(false); imageInputRef.current?.click(); }} className="w-full flex items-center gap-3 text-left p-3 rounded-xl hover:bg-white/10 text-white transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center text-primary-400">
-                            <span className="material-symbols-rounded text-lg">image</span>
-                        </div>
-                        <span className="text-sm font-bold">{t('chat.photo', { defaultValue: 'Foto' })}</span>
-                    </button>
-                     <button onClick={handleSendLocation} className="w-full flex items-center gap-3 text-left p-3 rounded-xl hover:bg-white/10 text-white transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-400">
-                            <span className="material-symbols-rounded text-lg">location_on</span>
-                        </div>
-                        <span className="text-sm font-bold">{t('chat.location', { defaultValue: 'Localização' })}</span>
-                    </button>
-                     <button onClick={() => { setAttachmentMenuOpen(false); setIsAlbumSelectorOpen(true); }} className="w-full flex items-center gap-3 text-left p-3 rounded-xl hover:bg-white/10 text-white transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-secondary-500/20 flex items-center justify-center text-secondary-400">
-                            <span className="material-symbols-rounded text-lg">photo_album</span>
-                        </div>
-                        <span className="text-sm font-bold">{t('chat.private_album', { defaultValue: 'Álbum Privado' })}</span>
-                    </button>
+            {connectionStatus === 'pending_incoming' ? (
+                <div className="py-3.5 px-4 bg-slate-800/40 rounded-2xl border border-white/5 text-center animate-fade-in shadow-inner">
+                    <p className="text-xs text-slate-300 font-sans">Aceite a solicitação acima para poder responder a esta conversa.</p>
                 </div>
-            )}
-            
-            {imageToSend ? (
-                <div className="p-3 space-y-3 bg-slate-800 rounded-3xl border border-white/10 shadow-xl animate-slide-in-up">
-                    <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-black/50 border border-white/5">
-                        <img loading="lazy" src={imageToSend.preview} alt="Preview" className="w-full h-full object-contain" />
-                        <button onClick={cancelImageSend} className="absolute top-2 right-2 bg-black/60 p-2 rounded-full text-white hover:bg-black/80 transition-colors backdrop-blur-sm">
-                            <span className="material-symbols-rounded text-xl">close</span>
-                        </button>
-                    </div>
-                    <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                        <button 
-                            type="button" 
-                            onClick={() => setIsViewOnce(!isViewOnce)} 
-                            className={`flex-shrink-0 h-12 px-4 rounded-2xl transition-all font-bold text-sm flex items-center gap-2 ${isViewOnce ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg shadow-red-900/30' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`} 
-                        >
-                            <span className={`material-symbols-rounded text-xl ${isViewOnce ? 'filled animate-pulse' : ''}`}>local_fire_department</span>
-                            {isViewOnce ? t('chat.once_active', { defaultValue: '1x Ativo' }) : '1x'}
-                        </button>
-                        <input
-                            type="text"
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            placeholder={t('chat.caption_placeholder', { defaultValue: 'Legenda (opcional)...' })}
-                            className="flex-1 bg-slate-900 rounded-2xl py-3.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 border border-white/5 text-sm"
-                        />
-                        <button 
-                            type="submit" 
-                            className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-primary-900/30"
-                        >
-                            <span className="material-symbols-rounded text-2xl filled">send</span>
-                        </button>
-                    </form>
+            ) : connectionStatus === 'pending_outgoing' ? (
+                <div className="py-3.5 px-4 bg-slate-800/40 rounded-2xl border border-white/5 text-center animate-fade-in shadow-inner">
+                    <p className="text-xs text-slate-400 font-sans">Aguardando que {user.name} aceite sua solicitação de conexão.</p>
                 </div>
-              ) : audioToSend ? (
-                <div className="p-3 space-y-3 bg-slate-800 rounded-3xl border border-white/10 shadow-xl animate-slide-in-up">
-                    <div className="flex items-center gap-3 bg-slate-900/60 p-2 rounded-2xl border border-white/5">
-                        <AudioPreviewPlayer src={audioToSend.preview} />
-                        
-                        {/* Interactive Fire toggle for View Once Audio */}
-                        <button 
-                            type="button" 
-                            onClick={() => setIsViewOnce(!isViewOnce)} 
-                            className={`flex-shrink-0 h-10 px-3.5 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 ${isViewOnce ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg shadow-red-900/30 font-semibold' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                            title={t('chat.toggle_view_once', { defaultValue: 'Visualização Única' })}
-                        >
-                            <span className={`material-symbols-rounded text-lg ${isViewOnce ? 'filled animate-pulse' : ''}`}>local_fire_department</span>
-                            <span>{isViewOnce ? t('chat.once_active', { defaultValue: '1x Ativo' }) : t('chat.view_once', { defaultValue: 'Ver 1x' })}</span>
-                        </button>
-
-                        <button 
-                            type="button" 
-                            onClick={cancelAudioSend}
-                            className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-full transition-colors"
-                        >
-                            <span className="material-symbols-rounded text-xl">delete</span>
-                        </button>
-
-                        <button 
-                            type="button"
-                            onClick={handleSendAudioPreview} 
-                            className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-primary-900/20"
-                        >
-                            <span className="material-symbols-rounded text-xl filled">send</span>
-                        </button>
-                    </div>
-                    {isViewOnce && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-orange-400 font-semibold bg-orange-500/10 px-3 py-1.5 rounded-xl border border-orange-500/5 animate-fade-in">
-                            <span className="material-symbols-rounded text-sm filled animate-pulse">local_fire_department</span>
-                            <span>{t('chat.audio_view_once_tip', { defaultValue: 'Este áudio só poderá ser ouvido uma única vez pelo destinatário.' })}</span>
-                        </div>
-                    )}
-                </div>
-              ) : (
-                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                    <input type="file" accept="image/*" className="hidden" ref={imageInputRef} onChange={handleFileSelect}/>
-                    <button 
-                        type="button" 
-                        onClick={() => setAttachmentMenuOpen(prev => !prev)} 
-                        className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full transition-all ${isAttachmentMenuOpen ? 'bg-slate-800 text-white rotate-45' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                    >
-                        <span className="material-symbols-rounded text-2xl">add</span>
-                    </button>
-                    <div className="flex-1 relative bg-slate-800 rounded-full border border-white/5 overflow-hidden">
-                        {isRecording ? (
-                            <div className="w-full bg-transparent py-2.5 px-4 text-red-400 font-bold flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                                    <span>{t('chat.recording', { defaultValue: 'Gravando...' })} {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span>
+            ) : (
+                <>
+                     {isAttachmentMenuOpen && (
+                        <div className="absolute bottom-16 left-3 w-48 bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-1.5 animate-fade-in-up border border-white/10 z-30">
+                            <button onClick={() => { setAttachmentMenuOpen(false); imageInputRef.current?.click(); }} className="w-full flex items-center gap-3 text-left p-3 rounded-xl hover:bg-white/10 text-white transition-colors">
+                                <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center text-primary-400">
+                                    <span className="material-symbols-rounded text-lg">image</span>
                                 </div>
-                                <button type="button" onClick={cancelRecording} className="text-slate-400 hover:text-white">{t('common.cancel', { defaultValue: 'Cancelar' })}</button>
-                            </div>
-                        ) : (
-                            <input
-                                type="text"
-                                value={newMessage}
-                                onChange={(e) => setNewMessage(e.target.value)}
-                                placeholder={t('chat.type_message', { defaultValue: 'Digite uma mensagem...' })}
-                                className="w-full bg-transparent py-2.5 px-4 text-white placeholder-slate-400 focus:outline-none text-sm"
-                            />
-                        )}
-                    </div>
-                    {newMessage.trim() ? (
-                        <button 
-                            type="submit" 
-                            className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-all hover:scale-105 active:scale-95"
-                        >
-                            <span className="material-symbols-rounded text-lg filled">send</span>
-                        </button>
-                    ) : isRecording ? (
-                        <button 
-                            type="button" 
-                            onClick={stopRecording}
-                            className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all hover:scale-105 active:scale-95 animate-pulse"
-                        >
-                            <span className="material-symbols-rounded text-lg filled">stop</span>
-                        </button>
-                    ) : (
-                        <button 
-                            type="button" 
-                            onClick={startRecording}
-                            className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-slate-800 text-slate-400 rounded-full hover:bg-primary-500 hover:text-white transition-all hover:scale-105 active:scale-95 border border-white/5"
-                        >
-                            <span className="material-symbols-rounded text-lg filled">mic</span>
-                        </button>
+                                <span className="text-sm font-bold">{t('chat.photo', { defaultValue: 'Foto' })}</span>
+                            </button>
+                             <button onClick={handleSendLocation} className="w-full flex items-center gap-3 text-left p-3 rounded-xl hover:bg-white/10 text-white transition-colors">
+                                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-400">
+                                    <span className="material-symbols-rounded text-lg">location_on</span>
+                                </div>
+                                <span className="text-sm font-bold">{t('chat.location', { defaultValue: 'Localização' })}</span>
+                            </button>
+                             <button onClick={() => { setAttachmentMenuOpen(false); setIsAlbumSelectorOpen(true); }} className="w-full flex items-center gap-3 text-left p-3 rounded-xl hover:bg-white/10 text-white transition-colors">
+                                <div className="w-8 h-8 rounded-full bg-secondary-500/20 flex items-center justify-center text-secondary-400">
+                                    <span className="material-symbols-rounded text-lg">photo_album</span>
+                                </div>
+                                <span className="text-sm font-bold">{t('chat.private_album', { defaultValue: 'Álbum Privado' })}</span>
+                            </button>
+                        </div>
                     )}
-                </form>
+                    
+                    {imageToSend ? (
+                        <div className="p-3 space-y-3 bg-slate-800 rounded-3xl border border-white/10 shadow-xl animate-slide-in-up">
+                            <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-black/50 border border-white/5">
+                                <img loading="lazy" src={imageToSend.preview} alt="Preview" className="w-full h-full object-contain" />
+                                <button onClick={cancelImageSend} className="absolute top-2 right-2 bg-black/60 p-2 rounded-full text-white hover:bg-black/80 transition-colors backdrop-blur-sm">
+                                    <span className="material-symbols-rounded text-xl">close</span>
+                                </button>
+                            </div>
+                            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsViewOnce(!isViewOnce)} 
+                                    className={`flex-shrink-0 h-12 px-4 rounded-2xl transition-all font-bold text-sm flex items-center gap-2 ${isViewOnce ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg shadow-red-900/30' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`} 
+                                >
+                                    <span className={`material-symbols-rounded text-xl ${isViewOnce ? 'filled animate-pulse' : ''}`}>local_fire_department</span>
+                                    {isViewOnce ? t('chat.once_active', { defaultValue: '1x Ativo' }) : '1x'}
+                                </button>
+                                <input
+                                    type="text"
+                                    value={newMessage}
+                                    onChange={(e) => setNewMessage(e.target.value)}
+                                    placeholder={t('chat.caption_placeholder', { defaultValue: 'Legenda (opcional)...' })}
+                                    className="flex-1 bg-slate-900 rounded-2xl py-3.5 px-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 border border-white/5 text-sm"
+                                />
+                                <button 
+                                    type="submit" 
+                                    className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-primary-900/30"
+                                >
+                                    <span className="material-symbols-rounded text-2xl filled">send</span>
+                                </button>
+                            </form>
+                        </div>
+                      ) : audioToSend ? (
+                        <div className="p-3 space-y-3 bg-slate-800 rounded-3xl border border-white/10 shadow-xl animate-slide-in-up">
+                            <div className="flex items-center gap-3 bg-slate-900/60 p-2 rounded-2xl border border-white/5">
+                                <AudioPreviewPlayer src={audioToSend.preview} />
+                                
+                                {/* Interactive Fire toggle for View Once Audio */}
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsViewOnce(!isViewOnce)} 
+                                    className={`flex-shrink-0 h-10 px-3.5 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 ${isViewOnce ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg shadow-red-900/30 font-semibold' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                    title={t('chat.toggle_view_once', { defaultValue: 'Visualização Única' })}
+                                >
+                                    <span className={`material-symbols-rounded text-lg ${isViewOnce ? 'filled animate-pulse' : ''}`}>local_fire_department</span>
+                                    <span>{isViewOnce ? t('chat.once_active', { defaultValue: '1x Ativo' }) : t('chat.view_once', { defaultValue: 'Ver 1x' })}</span>
+                                </button>
+        
+                                <button 
+                                    type="button" 
+                                    onClick={cancelAudioSend}
+                                    className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-full transition-colors"
+                                >
+                                    <span className="material-symbols-rounded text-xl">delete</span>
+                                </button>
+        
+                                <button 
+                                    type="button"
+                                    onClick={handleSendAudioPreview} 
+                                    className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-primary-900/20"
+                                >
+                                    <span className="material-symbols-rounded text-xl filled">send</span>
+                                </button>
+                            </div>
+                            {isViewOnce && (
+                                <div className="flex items-center gap-1.5 text-[11px] text-orange-400 font-semibold bg-orange-500/10 px-3 py-1.5 rounded-xl border border-orange-500/5 animate-fade-in">
+                                    <span className="material-symbols-rounded text-sm filled animate-pulse">local_fire_department</span>
+                                    <span>{t('chat.audio_view_once_tip', { defaultValue: 'Este áudio só poderá ser ouvido uma única vez pelo destinatário.' })}</span>
+                                </div>
+                            )}
+                        </div>
+                      ) : (
+                        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                            <input type="file" accept="image/*" className="hidden" ref={imageInputRef} onChange={handleFileSelect}/>
+                            <button 
+                                type="button" 
+                                onClick={() => setAttachmentMenuOpen(prev => !prev)} 
+                                className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full transition-all ${isAttachmentMenuOpen ? 'bg-slate-800 text-white rotate-45' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                            >
+                                <span className="material-symbols-rounded text-2xl">add</span>
+                            </button>
+                            <div className="flex-1 relative bg-slate-800 rounded-full border border-white/5 overflow-hidden">
+                                {isRecording ? (
+                                    <div className="w-full bg-transparent py-2.5 px-4 text-red-400 font-bold flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                                            <span>{t('chat.recording', { defaultValue: 'Gravando...' })} {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span>
+                                        </div>
+                                        <button type="button" onClick={cancelRecording} className="text-slate-400 hover:text-white">{t('common.cancel', { defaultValue: 'Cancelar' })}</button>
+                                    </div>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        value={newMessage}
+                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        placeholder={t('chat.type_message', { defaultValue: 'Digite uma mensagem...' })}
+                                        className="w-full bg-transparent py-2.5 px-4 text-white placeholder-slate-400 focus:outline-none text-sm"
+                                    />
+                                )}
+                            </div>
+                            {newMessage.trim() ? (
+                                <button 
+                                    type="submit" 
+                                    className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-all hover:scale-105 active:scale-95"
+                                >
+                                    <span className="material-symbols-rounded text-lg filled">send</span>
+                                </button>
+                            ) : isRecording ? (
+                                <button 
+                                    type="button" 
+                                    onClick={stopRecording}
+                                    className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all hover:scale-105 active:scale-95 animate-pulse"
+                                >
+                                    <span className="material-symbols-rounded text-lg filled">stop</span>
+                                </button>
+                            ) : (
+                                <button 
+                                    type="button" 
+                                    onClick={startRecording}
+                                    className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-slate-800 text-slate-400 rounded-full hover:bg-primary-500 hover:text-white transition-all hover:scale-105 active:scale-95 border border-white/5"
+                                >
+                                    <span className="material-symbols-rounded text-lg filled">mic</span>
+                                </button>
+                            )}
+                        </form>
+                    )}
+                </>
             )}
         </div>
       )}

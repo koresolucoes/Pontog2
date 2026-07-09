@@ -494,6 +494,26 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             
         if (error) throw error;
         await get().fetchConnections();
+
+        // Send push notification to target user
+        const { session } = (await supabase.auth.getSession()).data;
+        if (session) {
+            supabase.from('profiles').select('username, display_name').eq('id', userData.user.id).single().then(({ data: profile }) => {
+                const senderName = profile?.display_name || profile?.username || 'Alguém';
+                fetch('/api/send-generic-push', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({
+                        receiver_id: targetUserId,
+                        title: 'Nova solicitação de conexão! ✨',
+                        body: `${senderName} quer se conectar com você para conversar.`
+                    })
+                }).catch(err => console.error("Error sending connection request push:", err));
+            });
+        }
     },
     
     acceptConnection: async (connectionId: string) => {
