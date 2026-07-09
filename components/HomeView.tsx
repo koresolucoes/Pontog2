@@ -102,19 +102,31 @@ export const HomeView: React.FC = () => {
             return 0;
         });
 
-        const items: (User | { type: 'ad' } | Ad)[] = [...sortedUsers];
         
-        // Insert custom B2B feed ads
-        feedAds.forEach((ad, idx) => {
-            const insertIndex = Math.min(items.length, (idx + 1) * 6);
-            items.splice(insertIndex, 0, ad);
-        });
-
-        // Insert AdSense after 8th item (adjust index to avoid collisions)
+        const items: (User | { type: 'ad' } | Ad)[] = [];
+        
+        let userIdx = 0;
+        let adIdx = 0;
+        
+        // Misturar ads no meio dos usuários
+        while (userIdx < sortedUsers.length || adIdx < feedAds.length) {
+            // Adicionar até 4 usuários
+            for (let i = 0; i < 4 && userIdx < sortedUsers.length; i++) {
+                items.push(sortedUsers[userIdx++]);
+            }
+            // Inserir 1 ad
+            if (adIdx < feedAds.length) {
+                items.push(feedAds[adIdx++]);
+            }
+        }
+        
+        // Insert AdSense after 8th item
         if (items.length > 8) {
             items.splice(8, 0, { type: 'ad' });
         }
+        
         return items;
+
     }, [popularUsers, onlineUsers, agoraUserIds, filters.favoritesOnly, filters.onlineOnly, favoriteIds, feedAds]);
 
 
