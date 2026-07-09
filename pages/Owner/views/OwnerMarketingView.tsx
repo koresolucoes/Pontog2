@@ -160,10 +160,10 @@ export const OwnerMarketingView: React.FC = () => {
             }
 
             if (!wallets || wallets.length === 0) {
-                // Safe check: try to create a new wallet for this venue with a welcome gift of R$ 350,00
+                // Create a new wallet for this venue with balance 0
                 const { data: newWallet, error: createError } = await supabase
                     .from('b2b_wallets')
-                    .insert({ venue_id: venueId, balance: 350.00 })
+                    .insert({ venue_id: venueId, balance: 0.00 })
                     .select();
                 
                 if (createError) {
@@ -382,46 +382,39 @@ export const OwnerMarketingView: React.FC = () => {
 
     const handleAddCredits = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (addingCreditsAmount <= 0) return;
+        if (addingCreditsAmount < 10) {
+            toast.error("O valor mínimo para recarga é de R$ 10,00.");
+            return;
+        }
         if (!walletId) {
             toast.error("Carteira de anúncios não carregada.");
             return;
         }
 
-        const toastId = toast.loading("Adicionando saldo...");
+        const toastId = toast.loading("Gerando pagamento no Mercado Pago...");
         try {
-            const newBalance = Number((adBalance + Number(addingCreditsAmount)).toFixed(2));
-            
-            // 1. Update wallet balance in database
-            const { error: walletErr } = await supabase
-                .from('b2b_wallets')
-                .update({ balance: newBalance })
-                .eq('id', walletId);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Não autenticado");
 
-            if (walletErr) {
-                throw new Error("Erro ao adicionar saldo: " + walletErr.message);
+            const res = await fetch('/api/owner/create-wallet-preference', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ amount: Number(addingCreditsAmount), walletId })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'Falha ao conectar com Mercado Pago.');
             }
 
-            // 2. Insert transaction log in database
-            const { error: txErr } = await supabase
-                .from('b2b_transactions')
-                .insert({
-                    wallet_id: walletId,
-                    amount: Number(addingCreditsAmount),
-                    type: 'credit_purchase',
-                    status: 'approved',
-                    description: 'Aporte de Créditos via Cartão/Pix (Demonstração)',
-                    reference_id: `credit_purchase_${Date.now()}`
-                });
-
-            if (txErr) {
-                console.error("Error logging credit purchase transaction:", txErr);
-            }
-
-            toast.success(`R$ ${addingCreditsAmount},00 adicionados com sucesso!`, { id: toastId });
+            const data = await res.json();
             
-            // Reload from database
-            await loadB2BData(selectedVenueId);
+            toast.success("Redirecionando...", { id: toastId });
+            window.location.href = data.init_point;
+            
         } catch (error: any) {
             toast.error(error.message || "Erro ao processar pagamento.", { id: toastId });
         }
@@ -1027,151 +1020,34 @@ export const OwnerMarketingView: React.FC = () => {
                                 <div>
                                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                         <TrendingUp className="text-primary-500 w-5 h-5" />
-                                        Funil de Tráfego Online-to-Offline (O2O)
+                                        Métricas Reais de Marketing
                                     </h3>
-                                    <p className="text-xs text-slate-500 mt-1">Entenda o fluxo completo do usuário no app até a chegada física (Check-in) no seu estabelecimento.</p>
+                                    <p className="text-xs text-slate-500 mt-1">Acompanhamento consolidado e real das ações executadas pelo seu local.</p>
                                 </div>
 
-                                {/* Custom Visual Funnel */}
-                                <div className="space-y-4 py-4 max-w-xl mx-auto">
-                                    
-                                    {/* Level 1 */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex justify-between text-xs font-bold px-2">
-                                            <span className="text-slate-300">1. Visualizações do Pino no Mapa</span>
-                                            <span className="text-white font-mono">1.280 views</span>
-                                        </div>
-                                        <div className="h-10 w-full bg-slate-950 rounded-xl relative overflow-hidden flex items-center px-4 border border-white/5">
-                                            <div className="absolute inset-y-0 left-0 bg-blue-500/20 w-full rounded-l-xl"></div>
-                                            <span className="relative z-10 text-xs font-black text-blue-400">100% dos usuários expostos</span>
-                                        </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4">
+                                    <div className="bg-slate-950/40 p-6 rounded-xl border border-white/5 text-center flex flex-col justify-center items-center">
+                                        <span className="text-[10px] text-slate-500 font-mono tracking-widest">ALCANCE TOTAL ESTIMADO</span>
+                                        <p className="text-3xl font-black text-blue-400 mt-2">{campaignsHistory.reduce((sum, c) => sum + (c.estimated_reach || 0), 0)} views</p>
+                                        <span className="text-xs text-slate-500 mt-2">Usuários notificados</span>
                                     </div>
-
-                                    {/* Level 2 */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex justify-between text-xs font-bold px-2">
-                                            <span className="text-slate-300">2. Cliques no Cartão de Detalhes</span>
-                                            <span className="text-white font-mono">680 cliques</span>
-                                        </div>
-                                        <div className="h-10 w-full bg-slate-950 rounded-xl relative overflow-hidden flex items-center px-4 border border-white/5">
-                                            <div className="absolute inset-y-0 left-0 bg-purple-500/20 w-[53%] rounded-l-xl"></div>
-                                            <span className="relative z-10 text-xs font-black text-purple-400">CTR do Pino: 53.1%</span>
-                                        </div>
+                                    <div className="bg-slate-950/40 p-6 rounded-xl border border-white/5 text-center flex flex-col justify-center items-center">
+                                        <span className="text-[10px] text-slate-500 font-mono tracking-widest">CAMPANHAS EXECUTADAS</span>
+                                        <p className="text-3xl font-black text-purple-400 mt-2">{campaignsHistory.length}</p>
+                                        <span className="text-xs text-slate-500 mt-2">Disparos realizados</span>
                                     </div>
-
-                                    {/* Level 3 */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex justify-between text-xs font-bold px-2">
-                                            <span className="text-slate-300">3. Engajamento com a Promoção / Push</span>
-                                            <span className="text-white font-mono">245 cliques</span>
-                                        </div>
-                                        <div className="h-10 w-full bg-slate-950 rounded-xl relative overflow-hidden flex items-center px-4 border border-white/5">
-                                            <div className="absolute inset-y-0 left-0 bg-pink-500/20 w-[19%] rounded-l-xl"></div>
-                                            <span className="relative z-10 text-xs font-black text-pink-400">Conversão de Oferta: 36.0%</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Level 4 */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex justify-between text-xs font-bold px-2">
-                                            <span className="text-slate-300">4. Check-ins Físicos Realizados (Conversão Final)</span>
-                                            <span className="text-white font-mono">94 check-ins</span>
-                                        </div>
-                                        <div className="h-10 w-full bg-slate-950 rounded-xl relative overflow-hidden flex items-center px-4 border border-white/5">
-                                            <div className="absolute inset-y-0 left-0 bg-emerald-500/20 w-[7.3%] rounded-l-xl"></div>
-                                            <span className="relative z-10 text-xs font-black text-emerald-400">Conversão O2O Final: 7.3% (Excelente)</span>
-                                        </div>
-                                    </div>
-
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-white/5 pt-6 mt-4">
-                                    <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 text-center">
-                                        <span className="text-[10px] text-slate-500 font-mono">VISITAS FÍSICAS REAIS</span>
-                                        <p className="text-2xl font-black text-emerald-400 mt-1">94 caras</p>
-                                    </div>
-                                    <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 text-center">
-                                        <span className="text-[10px] text-slate-500 font-mono">TICKET MÉDIO SIMULADO</span>
-                                        <p className="text-2xl font-black text-white mt-1">R$ 65,00</p>
-                                    </div>
-                                    <div className="bg-slate-950/40 p-4 rounded-xl border border-white/5 text-center">
-                                        <span className="text-[10px] text-slate-500 font-mono">RETORNO ESTIMADO (ROI)</span>
-                                        <p className="text-2xl font-black text-pink-500 mt-1">R$ 6.110,00</p>
+                                    <div className="bg-slate-950/40 p-6 rounded-xl border border-white/5 text-center flex flex-col justify-center items-center">
+                                        <span className="text-[10px] text-slate-500 font-mono tracking-widest">INVESTIMENTO TOTAL</span>
+                                        <p className="text-3xl font-black text-emerald-400 mt-2">R$ {campaignsHistory.reduce((sum, c) => sum + (c.cost || 0), 0).toFixed(2)}</p>
+                                        <span className="text-xs text-slate-500 mt-2">Custo acumulado</span>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Tribes Demographic Breakdown */}
-                        <div className="space-y-6">
-                            <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6">
-                                <div>
-                                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                        <Users className="text-primary-500 w-4 h-4" />
-                                        Frequência por Tribos
-                                    </h3>
-                                    <p className="text-xs text-slate-500 mt-0.5">Distribuição demográfica das tribos que mais fazem check-in.</p>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {/* Bear bar */}
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-300 font-bold">🐻 Ursos & Bears</span>
-                                            <span className="text-slate-400 font-mono">42% (39 check-ins)</span>
-                                        </div>
-                                        <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
-                                            <div className="bg-amber-500 h-full w-[42%] rounded-full"></div>
-                                        </div>
-                                    </div>
-
-                                    {/* Jock bar */}
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-300 font-bold">⚡ Jocks & Atletas</span>
-                                            <span className="text-slate-400 font-mono">25% (24 check-ins)</span>
-                                        </div>
-                                        <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
-                                            <div className="bg-blue-500 h-full w-[25%] rounded-full"></div>
-                                        </div>
-                                    </div>
-
-                                    {/* Drag bar */}
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-300 font-bold">👑 Drags & Pop</span>
-                                            <span className="text-slate-400 font-mono">15% (14 check-ins)</span>
-                                        </div>
-                                        <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
-                                            <div className="bg-pink-500 h-full w-[15%] rounded-full"></div>
-                                        </div>
-                                    </div>
-
-                                    {/* Twink bar */}
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-300 font-bold">✨ Twinks & Jovens</span>
-                                            <span className="text-slate-400 font-mono">10% (9 check-ins)</span>
-                                        </div>
-                                        <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
-                                            <div className="bg-purple-500 h-full w-[10%] rounded-full"></div>
-                                        </div>
-                                    </div>
-
-                                    {/* Daddies bar */}
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-300 font-bold">🕶️ Daddies & Maduros</span>
-                                            <span className="text-slate-400 font-mono">8% (8 check-ins)</span>
-                                        </div>
-                                        <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
-                                            <div className="bg-emerald-500 h-full w-[8%] rounded-full"></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="p-3.5 bg-slate-950/40 rounded-xl border border-white/5 text-[11px] text-slate-500">
-                                    💡 <strong>Dica de Marketing:</strong> Sua audiência é composta majoritariamente por <strong>Ursos</strong>. Considere focar suas promoções no Copiloto de Copywriting para essa tribo específica para triplicar a conversão!
+                                
+                                <div className="mt-4 bg-primary-500/10 border border-primary-500/20 rounded-xl p-4 flex gap-3 items-start">
+                                    <HelpCircle className="w-5 h-5 text-primary-400 shrink-0" />
+                                    <p className="text-sm text-slate-300">
+                                        Os dados apresentados acima são reais e baseados no seu histórico de disparos nesta plataforma. Métricas avançadas de conversão O2O (Online-to-Offline) como check-ins físicos automáticos estão em desenvolvimento para as próximas atualizações.
+                                    </p>
                                 </div>
                             </div>
                         </div>

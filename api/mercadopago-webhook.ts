@@ -114,6 +114,46 @@ export default async function handler(
                     .eq('id', donationId);
                 if (donationUpdateError) throw donationUpdateError;
             }
+        } else if (externalReference.startsWith('wallet_topup|')) {
+            const [, walletId, userId, amount] = externalReference.split('|');
+            
+            // Check if transaction was already processed
+            const { data: existingTx } = await supabaseAdmin
+                .from('b2b_transactions')
+                .select('id')
+                .eq('reference_id', paymentDetails.id.toString())
+                .single();
+
+            if (!existingTx) {
+                // Get current balance
+                const { data: wallet } = await supabaseAdmin
+                    .from('b2b_wallets')
+                    .select('balance')
+                    .eq('id', walletId)
+                    .single();
+
+                if (wallet) {
+                    const newBalance = wallet.balance + Number(amount);
+                    
+                    // Update balance
+                    await supabaseAdmin
+                        .from('b2b_wallets')
+                        .update({ balance: newBalance })
+                        .eq('id', walletId);
+                    
+                    // Insert transaction
+                    await supabaseAdmin
+                        .from('b2b_transactions')
+                        .insert({
+                            wallet_id: walletId,
+                            amount: Number(amount),
+                            type: 'credit_purchase',
+                            status: 'approved',
+                            description: 'Recarga de Saldo B2B (Mercado Pago)',
+                            reference_id: paymentDetails.id.toString()
+                        });
+                }
+            }
         } else {
             // É uma assinatura
             const { error: paymentLogError } = await supabaseAdmin
