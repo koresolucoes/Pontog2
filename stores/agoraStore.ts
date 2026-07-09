@@ -53,134 +53,57 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
         set({ isLoading: true });
     }
 
-    const user = useAuthStore.getState().user;
-    let response: any = null;
-
-    // Try using paginated RPC first if supported
-    if (isPaginatedRpcSupported) {
-        // Try with prefixed parameters first (p_page, p_limit)
-        response = await supabase.rpc('get_active_agora_posts_paginated', { p_page: currentPage, p_limit: 10 });
-        
-        // If that fails, try with non-prefixed parameters (page, limit)
-        if (response?.error) {
-            const secondResponse = await supabase.rpc('get_active_agora_posts_paginated', { page: currentPage, limit: 10 });
-            if (!secondResponse.error) {
-                response = secondResponse;
-            }
-        }
-        
-        // If still failing, this RPC is not supported or is broken; set to false to avoid future attempts in this session
-        if (response?.error) {
-            isPaginatedRpcSupported = false;
-        }
-    }
-
-    // Fallback to older RPC if paginated doesn't exist yet or fails, and if the older RPC is supported
-    if (!response || response.error) {
-        if (isWithDetailsRpcSupported) {
-            response = await supabase.rpc('get_active_agora_posts_with_details');
-            if (response?.error) {
-                isWithDetailsRpcSupported = false;
-            }
-        }
-    }
-
-    let data = response?.data;
-    let error = response?.error;
-    
-    let fallbackLikes: Record<number, number> = {};
-    let fallbackComments: Record<number, number> = {};
-    let fallbackUserLikes: Set<number> = new Set();
-
-    // Fallback to direct query if neither RPC works/exists
-    if (error || !response) {
-        const offset = (currentPage - 1) * 10;
-        const res = await supabase
-            .from('agora_posts')
-            .select(`
-                *,
-                profiles:user_id ( username, avatar_url, date_of_birth )
-            `)
-            .gt('expires_at', new Date().toISOString())
-            .order('created_at', { ascending: false })
-            .range(offset, offset + 9);
-        data = res.data;
-        error = res.error;
-
-        if (data && data.length > 0) {
-            const postIds = data.map((p: any) => p.id);
-            
-            // Fetch likes
-            const { data: likesData } = await supabase
-                .from('agora_post_likes')
-                .select('post_id, user_id')
-                .in('post_id', postIds);
-            
-            if (likesData) {
-                likesData.forEach((l: any) => {
-                    fallbackLikes[l.post_id] = (fallbackLikes[l.post_id] || 0) + 1;
-                    if (user && l.user_id === user.id) {
-                        fallbackUserLikes.add(l.post_id);
-                    }
-                });
-            }
-
-            // Fetch comments count (Note: table is actually named 'agora_post_comments' or 'agora_comments' - let's be careful. From line 259 we see it inserts into 'agora_post_comments')
-            const { data: commentsData } = await supabase
-                .from('agora_post_comments')
-                .select('post_id')
-                .in('post_id', postIds);
-            
-            if (commentsData) {
-                commentsData.forEach((c: any) => {
-                    fallbackComments[c.post_id] = (fallbackComments[c.post_id] || 0) + 1;
-                });
-            }
-        }
-    }
-
-    if (error) {
-      console.error('Error fetching Agora posts:', error);
-      set({ isLoading: false });
-      return;
-    }
-    
-    const formattedPosts = (data || []).map((p: any) => {
-        const likesCount = p.likes_count !== undefined && p.likes_count !== null 
-            ? Number(p.likes_count) 
-            : (fallbackLikes[p.id] || 0);
-        const commentsCount = p.comments_count !== undefined && p.comments_count !== null 
-            ? Number(p.comments_count) 
-            : (fallbackComments[p.id] || 0);
-        const userHasLiked = p.user_has_liked !== undefined && p.user_has_liked !== null 
-            ? !!p.user_has_liked 
-            : fallbackUserLikes.has(p.id);
-
-        return {
-            ...p,
-            username: p.username || p.profiles?.username,
-            photo_url: getPublicImageUrl(p.photo_url),
-            avatar_url: getPublicImageUrl(p.avatar_url || p.profiles?.avatar_url),
-            age: calculateAge(p.date_of_birth || p.profiles?.date_of_birth),
-            likes_count: likesCount,
-            comments_count: commentsCount,
-            user_has_liked: userHasLiked,
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
         };
-    });
+        if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
 
-    set(state => {
-        const newPosts = reset ? formattedPosts : [...state.posts, ...formattedPosts];
-        
-        // Remove duplicates just in case
-        const uniquePosts = Array.from(new Map(newPosts.map((p: AgoraPost) => [p.id, p])).values());
+        const response = await fetch(`/api/agora-posts?page=${currentPage}&limit=10`, {
+            method: 'GET',
+            headers
+        });
 
-        return { 
-            posts: uniquePosts as AgoraPost[], 
-            agoraUserIds: uniquePosts.map((p: AgoraPost) => p.user_id),
-            hasMore: formattedPosts.length === 10,
-            isLoading: false 
-        };
-    });
+        if (!response.ok) {
+            throw new Error(`API error: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        const data = result.data || [];
+
+        const formattedPosts = data.map((p: any) => {
+            return {
+                ...p,
+                username: p.username || p.profiles?.username,
+                photo_url: getPublicImageUrl(p.photo_url),
+                avatar_url: getPublicImageUrl(p.avatar_url || p.profiles?.avatar_url),
+                age: calculateAge(p.date_of_birth || p.profiles?.date_of_birth),
+                likes_count: Number(p.likes_count) || 0,
+                comments_count: Number(p.comments_count) || 0,
+                user_has_liked: !!p.user_has_liked,
+            };
+        });
+
+        set(state => {
+            const newPosts = reset ? formattedPosts : [...state.posts, ...formattedPosts];
+            
+            // Remove duplicates just in case
+            const uniquePosts = Array.from(new Map(newPosts.map((p: AgoraPost) => [p.id, p])).values());
+
+            return { 
+                posts: uniquePosts as AgoraPost[], 
+                agoraUserIds: uniquePosts.map((p: AgoraPost) => p.user_id),
+                hasMore: formattedPosts.length === 10,
+                isLoading: false 
+            };
+        });
+    } catch (error) {
+        console.error('Error fetching Agora posts from backend API:', error);
+        set({ isLoading: false });
+    }
   },
 
   loadMorePosts: async () => {

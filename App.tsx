@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
+import { Home, LayoutGrid, Map as MapIcon, Users, PlaySquare, Flame, Newspaper, MessageCircle, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Toaster, toast } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore';
@@ -291,7 +292,22 @@ interface NavButtonProps {
     className?: string;
 }
 
-const NavButton: React.FC<NavButtonProps> = ({ icon, label, isActive, onClick, isPlus = false, isFire = false, notificationCount = 0, className = "" }) => (
+const LucideIconMap: Record<string, React.FC<any>> = {
+    'home': Home,
+    'grid_view': LayoutGrid,
+    'map': MapIcon,
+    'groups': Users,
+    'play_circle': PlaySquare,
+    'local_fire_department': Flame,
+    'newspaper': Newspaper,
+    'chat_bubble': MessageCircle,
+    'person': UserIcon
+};
+
+const NavButton: React.FC<NavButtonProps> = ({ icon, label, isActive, onClick, isPlus = false, isFire = false, notificationCount = 0, className = "" }) => {
+    const IconComponent = LucideIconMap[icon] || Home; // fallback to Home
+    
+    return (
     <button
         onClick={onClick}
         className={`relative flex flex-col items-center justify-center py-2 px-1 min-w-[50px] w-full transition-all duration-300 group focus:outline-none rounded-xl ${className}`}
@@ -310,15 +326,11 @@ const NavButton: React.FC<NavButtonProps> = ({ icon, label, isActive, onClick, i
                         : 'bg-transparent'}`
                 }
             >
-                <span 
-                    className={`material-symbols-rounded text-[24px] transition-colors duration-300
-                        ${isActive 
-                            ? 'text-white filled' 
-                            : 'text-slate-500 group-hover:text-primary-500'}`
-                    }
-                >
-                    {icon}
-                </span>
+                <IconComponent 
+                    size={22} 
+                    strokeWidth={isActive ? 2.5 : 2}
+                    className={`transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-primary-500'}`} 
+                />
                 {isActive && (
                     <motion.div
                         layoutId="activeNavIndicator"
@@ -338,6 +350,7 @@ const NavButton: React.FC<NavButtonProps> = ({ icon, label, isActive, onClick, i
             <span className="absolute top-1 right-1 sm:right-2 material-symbols-rounded !text-[10px] text-yellow-400 filled shadow-black drop-shadow-md">auto_awesome</span>
         )}
     </button>
-);
+    );
+};
 
 export default App;
