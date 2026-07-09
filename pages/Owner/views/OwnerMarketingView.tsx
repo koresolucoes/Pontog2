@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../../stores/authStore';
 import { useOwnerStore } from '../../../stores/ownerStore';
+import { useAdStore } from '../../../stores/adStore';
 import { supabase } from '../../../lib/supabase';
 import { 
     Megaphone, 
@@ -206,6 +207,9 @@ export const OwnerMarketingView: React.FC = () => {
                 if (!txError && txs) {
                     setTransactionHistory(txs);
                 }
+                
+                // Refresh global ad state to reflect changes instantly on map/feed
+                useAdStore.getState().fetchAds();
             }
         } catch (err) {
             console.error("Exception in loadB2BData:", err);

@@ -607,20 +607,32 @@ interface ConversationListProps {
 }
 const ConversationList: React.FC<ConversationListProps> = ({ conversations, loading, onConversationClick, onDeleteClick, currentUserId, onEmptyAction, t, getLocale }) => {
     const onlineUsers = useMapStore((state) => state.onlineUsers);
+    const inboxAd = useAdStore((state) => state.inboxAd);
     const parentRef = useRef<HTMLDivElement>(null);
 
     const itemsWithAd = useMemo(() => {
-        const items: (ConversationPreview | { type: 'ad' })[] = [...conversations];
+        const items: any[] = [...conversations];
+        
+        // Add sponsored B2B ad at the very top of the inbox
+        if (inboxAd) {
+            items.splice(0, 0, { type: 'custom_ad', ad: inboxAd });
+        }
+
         if (items.length > 3) {
-            items.splice(3, 0, { type: 'ad' });
+            items.splice(inboxAd ? 4 : 3, 0, { type: 'ad' }); // Adjust index if inboxAd is present
         }
         return items;
-    }, [conversations]);
+    }, [conversations, inboxAd]);
 
     const rowVirtualizer = useVirtualizer({
         count: itemsWithAd.length,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => 74, // Height of the sleek minimalist item
+        estimateSize: (index) => {
+            const item = itemsWithAd[index];
+            if (item && item.type === 'custom_ad') return 90; // Custom banner height
+            if (item && item.type === 'ad') return 100; // AdSense height
+            return 74; // Conversation height
+        },
         overscan: 5,
     });
 
@@ -658,7 +670,18 @@ const ConversationList: React.FC<ConversationListProps> = ({ conversations, load
                                 transform: `translateY(${virtualRow.start}px)`,
                             }}
                         >
-                            {'type' in item && item.type === 'ad' ? (
+                            {'type' in item && item.type === 'custom_ad' ? (
+                                <div className="py-2 px-1 h-full cursor-pointer" onClick={() => { if(item.ad.cta_url !== '#') window.open(item.ad.cta_url, '_blank') }}>
+                                    <div className="relative rounded-xl overflow-hidden border border-primary-500/30 shadow-lg h-full bg-slate-800 flex items-center p-2 gap-3 group hover:border-primary-500/60 transition-colors">
+                                        <div className="absolute top-0 right-0 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-bl-lg z-10 shadow-sm border-l border-b border-white/10">PROMO</div>
+                                        <img src={item.ad.image_url} alt={item.ad.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-bold text-white text-sm truncate leading-tight">{item.ad.title}</h3>
+                                            <p className="text-xs text-slate-300 line-clamp-2 leading-snug mt-0.5">{item.ad.description}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : 'type' in item && item.type === 'ad' ? (
                                 <div className="py-2 h-full">
                                     <div className="rounded-xl overflow-hidden border border-white/5 shadow-lg h-full bg-slate-800/10">
                                         <AdSenseUnit

@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAgoraStore } from '../stores/agoraStore';
 import { useUiStore } from '../stores/uiStore';
 import { useUserActionsStore } from '../stores/userActionsStore';
+import { useAdStore } from '../stores/adStore';
 import * as L from 'leaflet';
 import { User, Venue } from '../types';
 import { TravelModeModal } from './TravelModeModal';
@@ -12,7 +13,7 @@ import { SuggestVenueModal } from './SuggestVenueModal';
 import { useTranslation } from 'react-i18next';
 
 // Helper para ícone do Venue
-const createVenueIcon = (type: string, isPartner: boolean) => {
+const createVenueIcon = (type: string, isPartner: boolean, isGolden: boolean = false) => {
     let iconName = 'place';
     let colorClass = 'bg-secondary-600';
     let ringClass = isPartner ? 'ring-4 ring-yellow-400/50' : 'ring-2 ring-white';
@@ -24,13 +25,19 @@ const createVenueIcon = (type: string, isPartner: boolean) => {
         case 'cruising': iconName = 'visibility'; colorClass = 'bg-slate-800'; break;
     }
 
+    if (isGolden) {
+        colorClass = 'bg-gradient-to-tr from-yellow-400 to-amber-600';
+        ringClass = 'ring-4 ring-yellow-400 shadow-[0_0_15px_rgba(251,191,36,0.8)] animate-pulse';
+    }
+
     const html = `
         <div class="relative w-10 h-10 transition-transform hover:scale-110">
-            <div class="absolute -inset-2 ${colorClass} opacity-30 rounded-full blur-sm ${isPartner ? 'animate-pulse' : ''}"></div>
+            <div class="absolute -inset-2 ${isGolden ? 'bg-amber-400' : colorClass} opacity-30 rounded-full blur-sm ${isPartner || isGolden ? 'animate-pulse' : ''}"></div>
             <div class="relative w-full h-full rounded-full ${colorClass} flex items-center justify-center shadow-lg ${ringClass} z-10">
                 <span class="material-symbols-rounded text-white text-xl">${iconName}</span>
             </div>
-            ${isPartner ? '<div class="absolute -top-1 -right-1 bg-yellow-400 text-black text-[8px] font-bold px-1 rounded-full border border-white z-20">★</div>' : ''}
+            ${isPartner && !isGolden ? '<div class="absolute -top-1 -right-1 bg-yellow-400 text-black text-[8px] font-bold px-1 rounded-full border border-white z-20">★</div>' : ''}
+            ${isGolden ? '<div class="absolute -top-2 -right-2 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white text-[10px] font-bold px-1.5 rounded-full border border-white z-20 shadow-lg">PRO</div>' : ''}
         </div>
     `;
 
@@ -204,6 +211,7 @@ export const Map: React.FC = () => {
   const { agoraUserIds } = useAgoraStore();
   const { favoriteIds } = useUserActionsStore();
   const { activeView, setSubscriptionModalOpen, isSuggestVenueModalOpen, setSuggestVenueModalOpen } = useUiStore();
+  const { activePinoDouradoVenueIds } = useAdStore();
   const { t } = useTranslation();
   
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -532,10 +540,11 @@ export const Map: React.FC = () => {
           if (!Number.isFinite(venue.lat) || !Number.isFinite(venue.lng)) return;
 
           let marker = markers.get(venue.id);
+          const isGolden = activePinoDouradoVenueIds.includes(venue.id);
           if (!marker) {
               marker = L.marker([venue.lat, venue.lng], {
-                  icon: createVenueIcon(venue.type, venue.is_partner),
-                  zIndexOffset: 200 
+                  icon: createVenueIcon(venue.type, venue.is_partner, isGolden),
+                  zIndexOffset: isGolden ? 300 : 200 
               });
               
               const partnerLabel = t('map.partner', { defaultValue: '★ Parceiro' });
@@ -549,7 +558,8 @@ export const Map: React.FC = () => {
                     <div class="h-32 w-full relative">
                         <img loading="lazy" src="${venue.image_url || 'https://placehold.co/600x400/1f2937/ffffff?text=Local'}" class="w-full h-full object-cover" />
                         <div class="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase">${venue.type}</div>
-                        ${venue.is_partner ? `<div class="absolute top-2 right-2 bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-md">${partnerLabel}</div>` : ''}
+                        ${venue.is_partner && !isGolden ? `<div class="absolute top-2 right-2 bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-md">${partnerLabel}</div>` : ''}
+                        ${isGolden ? `<div class="absolute top-2 right-2 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-md">PRO</div>` : ''}
                     </div>
                     <div class="p-4">
                         <h3 class="text-lg font-bold text-white leading-tight mb-1">${venue.name}</h3>
@@ -584,10 +594,14 @@ export const Map: React.FC = () => {
 
               marker.addTo(map);
               markers.set(venue.id, marker);
+          } else {
+              // Update existing icon and zIndex if status changes
+              marker.setIcon(createVenueIcon(venue.type, venue.is_partner, isGolden));
+              marker.setZIndexOffset(isGolden ? 300 : 200);
           }
       });
 
-  }, [venues, isMapCreated, setSelectedVenue, t]);
+  }, [venues, activePinoDouradoVenueIds, isMapCreated, setSelectedVenue, t]);
 
   const handleTravelClick = () => {
       if (profile?.subscription_tier === 'plus') {

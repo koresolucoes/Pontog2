@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AdSenseUnit } from './AdSenseUnit';
 import { useMapStore } from '../stores/mapStore';
 import { useNewsStore } from '../stores/newsStore';
+import { useAdStore } from '../stores/adStore';
 import { useUiStore } from '../stores/uiStore';
 import { PublicMap } from './PublicMap';
 import { Coordinates } from '../types';
@@ -82,6 +83,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
 
   useEffect(() => {
       fetchArticles();
+      useAdStore.getState().fetchAds();
       
       if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(

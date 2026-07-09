@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useHomeStore } from '../stores/homeStore';
 import { useMapStore } from '../stores/mapStore';
 import { useAgoraStore } from '../stores/agoraStore';
-import { User } from '../types';
+import { useAdStore } from '../stores/adStore';
+import { User, Ad } from '../types';
 import { AdSenseUnit } from './AdSenseUnit';
 import { useTranslation } from 'react-i18next';
 
@@ -70,6 +71,8 @@ export const HomeView: React.FC = () => {
         setSelectedUser(user);
     };
     
+    const { feedAds } = useAdStore();
+
     const itemsWithAds = useMemo(() => {
         let sortedUsers = [...popularUsers];
         
@@ -95,13 +98,20 @@ export const HomeView: React.FC = () => {
             return 0;
         });
 
-        const items: (User | { type: 'ad' })[] = [...sortedUsers];
-        // Insert an ad after the 8th item
+        const items: (User | { type: 'ad' } | Ad)[] = [...sortedUsers];
+        
+        // Insert custom B2B feed ads
+        feedAds.forEach((ad, idx) => {
+            const insertIndex = Math.min(items.length, (idx + 1) * 6);
+            items.splice(insertIndex, 0, ad);
+        });
+
+        // Insert AdSense after 8th item (adjust index to avoid collisions)
         if (items.length > 8) {
             items.splice(8, 0, { type: 'ad' });
         }
         return items;
-    }, [popularUsers, onlineUsers, agoraUserIds, filters.favoritesOnly, filters.onlineOnly, favoriteIds]);
+    }, [popularUsers, onlineUsers, agoraUserIds, filters.favoritesOnly, filters.onlineOnly, favoriteIds, feedAds]);
 
 
     if (loading && popularUsers.length === 0) {
@@ -195,6 +205,33 @@ export const HomeView: React.FC = () => {
                     >
                         <AnimatePresence mode="popLayout">
                             {itemsWithAds.map((item, index) => {
+                                if ('ad_type' in item) {
+                                    return (
+                                        <motion.div 
+                                            variants={itemVariants}
+                                            layout
+                                            key={`custom-ad-${item.id}-${index}`} 
+                                            className="relative aspect-[3/4] bg-dark-800 rounded-3xl overflow-hidden cursor-pointer group shadow-lg ring-1 ring-primary-500/50"
+                                            onClick={() => { if(item.cta_url !== '#') window.open(item.cta_url, '_blank') }}
+                                        >
+                                            <img 
+                                                src={item.image_url} 
+                                                alt={item.title} 
+                                                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110 opacity-80 group-hover:opacity-100"
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+                                            <div className="absolute top-3 right-3 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white px-2 py-0.5 rounded-md text-[9px] font-bold tracking-widest shadow-lg border border-white/20">PROMO</div>
+                                            <div className="absolute bottom-4 left-4 right-4 z-10">
+                                                <h3 className="font-bold text-white text-lg leading-tight mb-1 drop-shadow-md">{item.title}</h3>
+                                                <p className="text-xs text-slate-300 line-clamp-2 leading-snug drop-shadow-md">{item.description}</p>
+                                                <div className="mt-3 inline-flex items-center justify-center gap-1 bg-primary-600 text-white px-3 py-1.5 rounded-full text-xs font-bold w-full shadow-lg">
+                                                    {item.cta_text} <span className="material-symbols-rounded text-[14px]">arrow_forward</span>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                }
+
                                 if ('type' in item && item.type === 'ad') {
                                     return (
                                         <motion.div 

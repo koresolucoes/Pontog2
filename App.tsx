@@ -8,6 +8,7 @@ import { useUiStore } from './stores/uiStore';
 import { useMapStore } from './stores/mapStore';
 import { useInboxStore } from './stores/inboxStore';
 import { useUserActionsStore } from './stores/userActionsStore';
+import { useAdStore } from './stores/adStore';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { HomeView } from './components/HomeView';
@@ -114,6 +115,7 @@ const App: React.FC = () => {
                 fetchWinks();
                 fetchAccessRequests();
                 useUserActionsStore.getState().fetchFavorites();
+                useAdStore.getState().fetchAds();
             } else {
                 stopLocationWatch();
                 cleanupRealtime();

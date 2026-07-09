@@ -3,8 +3,9 @@ import { create } from 'zustand';
 import { Ad, TemporaryPerk } from '../types';
 import { add } from 'date-fns';
 import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 
-// Mock data, as we cannot create a new DB table
+// Mock data as fallback
 const MOCK_ADS: Ad[] = [
     {
         id: 1,
@@ -23,33 +24,6 @@ const MOCK_ADS: Ad[] = [
         image_url: 'https://images.pexels.com/photos/4021779/pexels-photo-4021779.jpeg?auto=compress&cs=tinysrgb&w=600',
         cta_text: 'Ver Agora',
         cta_url: 'https://example.com',
-    },
-    {
-        id: 3,
-        ad_type: 'feed',
-        title: 'Bear Pride Week',
-        description: 'O maior encontro de ursos da cidade. Não perca!',
-        image_url: 'https://images.pexels.com/photos/1485637/pexels-photo-1485637.jpeg?auto=compress&cs=tinysrgb&w=600',
-        cta_text: 'Ingressos',
-        cta_url: 'https://example.com',
-    },
-    {
-        id: 4,
-        ad_type: 'banner',
-        title: 'Festival de Cinema Queer',
-        description: 'Os melhores filmes LGBTQIA+ do ano, em cartaz esta semana.',
-        image_url: 'https://images.pexels.com/photos/7991579/pexels-photo-7991579.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2',
-        cta_text: 'Ver Programação',
-        cta_url: 'https://example.com',
-    },
-    {
-        id: 5,
-        ad_type: 'feed',
-        title: 'Barbearia Le Mustache',
-        description: 'Estilo e cuidado para o homem moderno. Agende seu horário.',
-        image_url: 'https://images.pexels.com/photos/3998414/pexels-photo-3998414.jpeg?auto=compress&cs=tinysrgb&w=600',
-        cta_text: 'Agendar',
-        cta_url: 'https://example.com',
     }
 ];
 
@@ -58,7 +32,8 @@ interface AdState {
   bannerAds: Ad[];
   inboxAd: Ad | null;
   temporaryPerks: TemporaryPerk[];
-  fetchAds: () => void;
+  activePinoDouradoVenueIds: string[];
+  fetchAds: () => Promise<void>;
   grantTemporaryPerk: (perk: TemporaryPerk['perk'], durationHours: number) => void;
   hasPerk: (perk: TemporaryPerk['perk']) => boolean;
 }
@@ -68,13 +43,66 @@ export const useAdStore = create<AdState>((set, get) => ({
     bannerAds: [],
     inboxAd: null,
     temporaryPerks: [],
-    fetchAds: () => {
-        // In a real app, this would be a network request.
-        // Here we just pull from the mock data.
-        const feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
-        const bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
-        const inboxAd = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
-        set({ feedAds, bannerAds, inboxAd });
+    activePinoDouradoVenueIds: [],
+    fetchAds: async () => {
+        try {
+            const { data, error } = await supabase
+                .from('b2b_campaigns')
+                .select('*')
+                .eq('status', 'approved');
+
+            let feedAds: Ad[] = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
+            let bannerAds: Ad[] = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
+            let inboxAd: Ad | null = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
+            let pinoVenueIds: string[] = [];
+
+            if (!error && data) {
+                const dynamicFeedAds: Ad[] = [];
+                const dynamicInboxAds: Ad[] = [];
+
+                data.forEach((camp: any) => {
+                    if (camp.title === 'Destaque: Pino Dourado') {
+                        pinoVenueIds.push(camp.venue_id);
+                    } else if (camp.title === 'Destaque: Banner no Feed' || camp.range_meters === 0) {
+                        // Include feed banner
+                        dynamicFeedAds.push({
+                            id: camp.id,
+                            ad_type: 'feed',
+                            title: '🌟 Patrocinado',
+                            description: camp.message,
+                            image_url: camp.image_url || 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600',
+                            cta_text: 'Saiba Mais',
+                            cta_url: '#',
+                        });
+                        dynamicInboxAds.push({
+                            id: camp.id,
+                            ad_type: 'inbox',
+                            title: 'Destaque Local',
+                            description: camp.message,
+                            image_url: camp.image_url || 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600',
+                            cta_text: 'Ver Agora',
+                            cta_url: '#',
+                        });
+                    }
+                });
+
+                if (dynamicFeedAds.length > 0) {
+                    feedAds = [...dynamicFeedAds, ...feedAds];
+                }
+                if (dynamicInboxAds.length > 0) {
+                    inboxAd = dynamicInboxAds[0];
+                }
+            }
+
+            set({ feedAds, bannerAds, inboxAd, activePinoDouradoVenueIds: pinoVenueIds });
+        } catch (err) {
+            console.error("Error fetching ads:", err);
+            // fallback to mock
+            const feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
+            const bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
+            const inboxAd = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
+            set({ feedAds, bannerAds, inboxAd, activePinoDouradoVenueIds: [] });
+        }
     },
 
     grantTemporaryPerk: (perk, durationHours) => {
@@ -82,7 +110,6 @@ export const useAdStore = create<AdState>((set, get) => ({
         const newPerk: TemporaryPerk = { perk, expires_at };
         
         set(state => {
-            // Remove any existing perk of the same type and add the new one
             const otherPerks = state.temporaryPerks.filter(p => p.perk !== perk);
             return { temporaryPerks: [...otherPerks, newPerk] };
         });
@@ -93,11 +120,9 @@ export const useAdStore = create<AdState>((set, get) => ({
     hasPerk: (perk) => {
         const existingPerk = get().temporaryPerks.find(p => p.perk === perk);
         if (existingPerk) {
-            // Check if it's expired
             if (new Date(existingPerk.expires_at) > new Date()) {
                 return true;
             } else {
-                // Clean up expired perk
                 set(state => ({
                     temporaryPerks: state.temporaryPerks.filter(p => p.perk !== perk)
                 }));

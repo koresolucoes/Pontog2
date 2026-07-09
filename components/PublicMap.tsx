@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import * as L from 'leaflet';
 import { Venue, Coordinates } from '../types';
 import { useTranslation } from 'react-i18next';
+import { useAdStore } from '../stores/adStore';
 
 interface PublicMapProps {
     venues: Venue[];
@@ -11,7 +12,7 @@ interface PublicMapProps {
     onVenueClick: () => void;
 }
 
-const createVenueIcon = (type: string, isPartner: boolean) => {
+const createVenueIcon = (type: string, isPartner: boolean, isGolden: boolean = false) => {
     let iconName = 'place';
     let colorClass = '#9333ea'; // Purple-600 default
 
@@ -22,6 +23,10 @@ const createVenueIcon = (type: string, isPartner: boolean) => {
         case 'cruising': iconName = 'visibility'; colorClass = '#1e293b'; break; // Slate-800
         case 'shop': iconName = 'shopping_bag'; colorClass = '#ef4444'; break; // Red-500
         case 'cinema': iconName = 'theaters'; colorClass = '#0891b2'; break; // Cyan-600
+    }
+
+    if (isGolden) {
+        colorClass = 'linear-gradient(to top right, #facc15, #d97706)';
     }
 
     const html = `
@@ -37,7 +42,7 @@ const createVenueIcon = (type: string, isPartner: boolean) => {
             <div style="
                 position: absolute;
                 inset: 0;
-                background-color: ${colorClass};
+                background: ${isGolden ? '#facc15' : colorClass};
                 border-radius: 50%;
                 opacity: 0.3;
                 filter: blur(4px);
@@ -47,18 +52,19 @@ const createVenueIcon = (type: string, isPartner: boolean) => {
                 position: relative;
                 width: 100%;
                 height: 100%;
-                background-color: ${colorClass};
+                background: ${colorClass};
                 border-radius: 50%;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 border: 2px solid white;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+                box-shadow: ${isGolden ? '0 0 15px rgba(251,191,36,0.8)' : '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.1)'};
                 transition: transform 0.2s;
             ">
                 <span class="material-symbols-rounded" style="font-size: 18px; color: white; font-weight: bold;">${iconName}</span>
             </div>
-            ${isPartner ? '<div style="position: absolute; top: -4px; right: -4px; background-color: #facc15; color: black; font-size: 8px; font-weight: bold; padding: 0 3px; border-radius: 9999px; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">★</div>' : ''}
+            ${isPartner && !isGolden ? '<div style="position: absolute; top: -4px; right: -4px; background-color: #facc15; color: black; font-size: 8px; font-weight: bold; padding: 0 3px; border-radius: 9999px; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">★</div>' : ''}
+            ${isGolden ? '<div style="position: absolute; top: -6px; right: -6px; background: linear-gradient(to top right, #facc15, #d97706); color: white; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 9999px; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">PRO</div>' : ''}
         </div>
     `;
 
@@ -73,6 +79,7 @@ const createVenueIcon = (type: string, isPartner: boolean) => {
 
 export const PublicMap: React.FC<PublicMapProps> = ({ venues, center, cityName, onVenueClick }) => {
     const { t } = useTranslation();
+    const { activePinoDouradoVenueIds } = useAdStore();
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<L.Map | null>(null);
     const markersRef = useRef<L.Marker[]>([]);
@@ -125,8 +132,10 @@ export const PublicMap: React.FC<PublicMapProps> = ({ venues, center, cityName, 
         venues.forEach(venue => {
             if (!venue.lat || !venue.lng) return;
 
+            const isGolden = activePinoDouradoVenueIds.includes(venue.id);
             const marker = L.marker([venue.lat, venue.lng], {
-                icon: createVenueIcon(venue.type, venue.is_partner)
+                icon: createVenueIcon(venue.type, venue.is_partner, isGolden),
+                zIndexOffset: isGolden ? 300 : 200
             }).addTo(map);
 
             // Popup Customizado para Landing Page
