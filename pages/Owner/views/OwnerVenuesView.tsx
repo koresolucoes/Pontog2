@@ -262,15 +262,15 @@ export const OwnerVenuesView: React.FC = () => {
 
                     {activeTab === 'promos' && (
                         <div className="bg-slate-800/30 p-6 rounded-2xl border border-white/10 max-w-2xl">
-                            <h3 className="text-xl font-bold font-outfit text-white mb-2">Enviar Promoção</h3>
-                            <p className="text-sm text-slate-400 mb-4">Envie uma notificação push para todos os clientes que já fizeram check-in no seu local.</p>
+                            <h3 className="text-xl font-bold font-outfit text-white mb-2">Publicar Promoção no Feed</h3>
+                            <p className="text-sm text-slate-400 mb-6">Publique ofertas, eventos ou avisos diretamente no feed social global do <strong>Modo Agora</strong> como uma publicação oficial do seu estabelecimento.</p>
                             
                             {/* Informativo sobre o Feed Agora */}
-                            <div className="bg-primary-500/10 border border-primary-500/30 rounded-xl p-4 mb-6 flex items-start gap-3">
+                            <div className="bg-gradient-to-r from-primary-500/10 to-secondary-500/10 border border-primary-500/30 rounded-2xl p-4 mb-6 flex items-start gap-3">
                                 <span className="material-symbols-rounded text-primary-400 mt-0.5">campaign</span>
                                 <div className="text-xs text-slate-300 leading-relaxed">
-                                    <span className="font-bold text-white block mb-0.5">📢 Publicação Automática no Feed Agora</span>
-                                    Esta promoção também será publicada instantaneamente no feed social global do <strong>Modo Agora</strong> como uma publicação oficial do estabelecimento.
+                                    <span className="font-bold text-white block mb-0.5">🚀 Destaque Instantâneo</span>
+                                    Todos os usuários que estiverem com o <strong>Modo Agora</strong> ativo verão sua publicação de destaque no feed de fotos imediatamente.
                                 </div>
                             </div>
                             
@@ -300,12 +300,12 @@ export const OwnerVenuesView: React.FC = () => {
                                 {isSendingPromo ? (
                                     <>
                                         <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
-                                        <span>Enviando...</span>
+                                        <span>Publicando...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <span className="material-symbols-rounded">send</span>
-                                        <span>Enviar Promoção & Publicar</span>
+                                        <span className="material-symbols-rounded">campaign</span>
+                                        <span>Publicar no Feed Agora</span>
                                     </>
                                 )}
                             </button>

@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import webpush from 'web-push';
 
 export default async function handler(
   req: VercelRequest,
@@ -61,76 +60,10 @@ export default async function handler(
 
     if (postError) {
       console.error('Error inserting venue post:', postError);
+      return res.status(500).json({ error: 'Erro ao publicar no feed Agora: ' + postError.message });
     }
 
-    // Attempt to set up Web Push if keys are present
-    const vapidPublic = process.env.VAPID_PUBLIC_KEY;
-    const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
-    const vapidEmail = process.env.VAPID_CONTACT_EMAIL || 'contact@example.com';
-
-    let canSendPush = false;
-    if (vapidPublic && vapidPrivate) {
-      try {
-        webpush.setVapidDetails(
-          `mailto:${vapidEmail}`,
-          vapidPublic,
-          vapidPrivate
-        );
-        canSendPush = true;
-      } catch (e: any) {
-        console.error('Failed to set VAPID details:', e.message);
-      }
-    } else {
-      console.warn('VAPID keys not configured in environment variables. Skipping push notification portion.');
-    }
-
-    // Get users who checked in (recent ones, or all unique)
-    const { data: checkins } = await supabaseAdmin
-      .from('venue_checkins')
-      .select('user_id')
-      .eq('venue_id', venueId);
-
-    if (!checkins || checkins.length === 0) {
-      return res.status(200).json({ success: true, message: 'Published to feed. No users checked-in to notify.' });
-    }
-
-    const uniqueUserIds = [...new Set(checkins.map(c => c.user_id))];
-
-    // If we cannot send push, return success since we successfully published to feed!
-    if (!canSendPush) {
-      return res.status(200).json({ success: true, message: 'Published to feed. Push notifications unconfigured.', sentCount: 0 });
-    }
-
-    // Find subscriptions
-    const { data: subscriptions } = await supabaseAdmin
-      .from('push_subscriptions')
-      .select('subscription_details, endpoint')
-      .in('user_id', uniqueUserIds);
-
-    if (!subscriptions || subscriptions.length === 0) {
-      return res.status(200).json({ success: true, message: 'Published to feed. No push subscriptions found.' });
-    }
-
-    const payload = JSON.stringify({
-      title: `${venue.name}: ${title}`,
-      body: message,
-    });
-
-    const sendPromises = subscriptions.map((sub: any) => {
-        return webpush.sendNotification(sub.subscription_details, payload)
-            .catch(async (error) => {
-                if (error.statusCode === 410 || error.statusCode === 404) {
-                    await supabaseAdmin
-                        .from('push_subscriptions')
-                        .delete()
-                        .eq('endpoint', sub.endpoint);
-                }
-            });
-    });
-
-    await Promise.all(sendPromises);
-
-    return res.status(200).json({ success: true, message: 'Promo successfully sent!', sentCount: sendPromises.length });
+    return res.status(200).json({ success: true, message: 'Promoção publicada com sucesso no feed Agora!' });
 
   } catch (error: any) {
     console.error('Error sending promo:', error);
