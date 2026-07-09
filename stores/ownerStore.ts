@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { Venue, VenueCheckin, User } from '../types';
 import { toast } from 'react-hot-toast';
+import { useAuthStore } from './authStore';
 
 interface OwnerState {
     managedVenues: Venue[];
