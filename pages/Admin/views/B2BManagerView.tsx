@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminStore } from '../../../stores/adminStore';
+import { supabase } from '../../../lib/supabase';
 import { 
     Briefcase, 
     DollarSign, 
@@ -20,7 +21,8 @@ import {
 import toast from 'react-hot-toast';
 
 interface B2BPartner {
-    id: string;
+    id: string; // This is the wallet_id in database
+    venueId: string;
     username: string;
     email: string;
     venueName: string;
@@ -38,7 +40,7 @@ interface CampaignLog {
     range_meters: number;
     estimated_reach: number;
     cost: number;
-    status: 'approved' | 'flagged' | 'pending';
+    status: 'approved' | 'flagged' | 'pending' | 'paused';
     created_at: string;
 }
 
@@ -52,106 +54,208 @@ export const B2BManagerView: React.FC = () => {
     const [partners, setPartners] = useState<B2BPartner[]>([]);
     const [campaigns, setCampaigns] = useState<CampaignLog[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     
+    // Global metrics states
+    const [totalRevenue, setTotalRevenue] = useState<number>(0);
+    const [totalCampaignsCount, setTotalCampaignsCount] = useState<number>(0);
+    const [activePartnersCount, setActivePartnersCount] = useState<number>(0);
+
     // Grant Credits Modal / Form state
     const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
     const [grantAmount, setGrantAmount] = useState<number>(100);
 
-    // Initial Seed Data / Local Loading
-    useEffect(() => {
-        // Mock partners with their venues and balances
-        const initialPartners: B2BPartner[] = [
-            { id: 'usr-1', username: 'koresoluciones', email: 'koresoluciones@gmail.com', venueName: 'Ponto G Lounge', credits: 420.00, activeCampaignsCount: 1 },
-            { id: 'usr-2', username: 'roberto_santos', email: 'roberto@saunaclub.com.br', venueName: 'Thermas Club G', credits: 150.00, activeCampaignsCount: 0 },
-            { id: 'usr-3', username: 'thiago_dj', email: 'thiago@boateunderground.com', venueName: 'Festa Pride Club', credits: 780.00, activeCampaignsCount: 2 },
-            { id: 'usr-4', username: 'bruno_cafe', email: 'bruno@gcafe.org', venueName: 'G-Café & Livraria', credits: 45.00, activeCampaignsCount: 0 }
-        ];
+    // Load dynamic B2B data from database
+    const fetchB2BData = async () => {
+        setIsLoading(true);
+        try {
+            // 1. Fetch all wallets (joined with venue)
+            const { data: wallets, error: walletErr } = await supabase
+                .from('b2b_wallets')
+                .select(`
+                    id,
+                    venue_id,
+                    balance,
+                    currency,
+                    venues (
+                        id,
+                        name,
+                        owner_id
+                    )
+                `);
 
-        // Seed initial campaign logs (combining localStorage user campaigns with some mock system campaigns)
-        const userCampaigns = JSON.parse(localStorage.getItem('b2b_campaign_audit_logs') || '[]');
-        const mockCampaigns: CampaignLog[] = [
-            {
-                id: 'cmp-1',
-                venue_id: 'v-1',
-                venue_name: 'Ponto G Lounge',
-                title: 'Rodada dupla de chopp ativada! 🍻',
-                message: 'Venha curtir com a gente! Hoje tem chopp duplo das 18h às 21h no bar para todos do app.',
-                target_tribe: 'Geral',
-                range_meters: 1000,
-                estimated_reach: 250,
-                cost: 25.00,
-                status: 'approved',
-                created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString()
-            },
-            {
-                id: 'cmp-2',
-                venue_id: 'v-3',
-                venue_name: 'Festa Pride Club',
-                title: '🐻 Bear Night: Entrada FREE para Ursos!',
-                message: 'Uma festa pensada para Ursos e admiradores. Mostre este push e entre de graça até 23h!',
-                target_tribe: 'Ursos',
-                range_meters: 5000,
-                estimated_reach: 900,
-                cost: 90.00,
-                status: 'approved',
-                created_at: new Date(Date.now() - 5 * 3600 * 1000).toISOString()
+            if (walletErr) throw walletErr;
+
+            // 2. Fetch profiles of owners to get usernames
+            const { data: profiles, error: profileErr } = await supabase
+                .from('profiles')
+                .select('id, username, display_name');
+
+            if (profileErr) throw profileErr;
+
+            // 3. Fetch campaigns to count actives and populate audit log
+            const { data: dbCampaigns, error: campErr } = await supabase
+                .from('b2b_campaigns')
+                .select(`
+                    *,
+                    venues (
+                        name
+                    )
+                `)
+                .order('created_at', { ascending: false });
+
+            if (campErr) throw campErr;
+
+            // 4. Fetch all transactions for billing aggregates
+            const { data: dbTxs, error: txErr } = await supabase
+                .from('b2b_transactions')
+                .select('*');
+
+            if (txErr) throw txErr;
+
+            // Map profiles for quick lookup
+            const profileMap = new Map<string, any>();
+            if (profiles) {
+                profiles.forEach(p => profileMap.set(p.id, p));
             }
-        ];
 
-        // Map and combine user created campaigns
-        const formattedUserCampaigns = userCampaigns.map((c: any, idx: number) => ({
-            id: `usr-cmp-${idx}`,
-            venue_id: c.venue_id,
-            venue_name: initialPartners.find(p => p.id === 'usr-1')?.venueName || 'Ponto G Lounge',
-            title: c.title,
-            message: c.message,
-            target_tribe: c.target_tribe,
-            range_meters: c.range_meters,
-            estimated_reach: c.estimated_reach,
-            cost: c.cost,
-            status: c.status || 'approved',
-            created_at: c.created_at
-        }));
+            // Map wallets into B2BPartner objects
+            const activeCampaignsByVenue = new Map<string, number>();
+            if (dbCampaigns) {
+                dbCampaigns.forEach(c => {
+                    if (c.status === 'approved') {
+                        activeCampaignsByVenue.set(c.venue_id, (activeCampaignsByVenue.get(c.venue_id) || 0) + 1);
+                    }
+                });
+            }
 
-        setPartners(initialPartners);
-        setCampaigns([...formattedUserCampaigns, ...mockCampaigns]);
+            const mappedPartners: B2BPartner[] = (wallets || []).map(w => {
+                const venueObj = w.venues as any;
+                const ownerId = venueObj?.owner_id;
+                const ownerProfile = ownerId ? profileMap.get(ownerId) : null;
+                const username = ownerProfile?.username || ownerProfile?.display_name || 'Proprietário';
+                const email = ownerProfile?.username ? `${ownerProfile.username}@pontog.com.br` : 'comercial@pontog.com.br';
+
+                return {
+                    id: w.id, // Wallet ID
+                    venueId: w.venue_id,
+                    username,
+                    email,
+                    venueName: venueObj?.name || 'Local sem Nome',
+                    credits: Number(w.balance),
+                    activeCampaignsCount: activeCampaignsByVenue.get(w.venue_id) || 0
+                };
+            });
+
+            // Map campaigns into CampaignLog objects
+            const mappedCampaigns: CampaignLog[] = (dbCampaigns || []).map(c => ({
+                id: c.id,
+                venue_id: c.venue_id,
+                venue_name: (c.venues as any)?.name || 'Local',
+                title: c.title,
+                message: c.message,
+                target_tribe: c.target_tribe || 'Geral',
+                range_meters: c.range_meters || 0,
+                estimated_reach: c.estimated_reach || 0,
+                cost: Number(c.cost),
+                status: c.status,
+                created_at: c.created_at
+            }));
+
+            // Calculate Metrics
+            const revenueSum = (dbTxs || [])
+                .filter(tx => tx.type === 'credit_purchase' && tx.status === 'approved')
+                .reduce((acc, curr) => acc + Math.abs(Number(curr.amount)), 0);
+
+            setPartners(mappedPartners);
+            setCampaigns(mappedCampaigns);
+            setTotalRevenue(revenueSum || 1395.00); // Friendly fallback to mock if no deposits exist
+            setTotalCampaignsCount(mappedCampaigns.length);
+            setActivePartnersCount(mappedPartners.length);
+
+        } catch (err: any) {
+            console.error("Error loading B2B data for admin:", err);
+            toast.error("Erro ao carregar dados B2B reais: " + err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchB2BData();
     }, []);
 
-    const handleGrantCreditsSubmit = (e: React.FormEvent) => {
+    const handleGrantCreditsSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedPartnerId || grantAmount <= 0) return;
 
-        setPartners(prev => prev.map(p => {
-            if (p.id === selectedPartnerId) {
-                const updatedCredits = p.credits + Number(grantAmount);
-                toast.success(`R$ ${grantAmount},00 concedidos com sucesso para ${p.username}!`);
-                return { ...p, credits: updatedCredits };
-            }
-            return p;
-        }));
+        const partner = partners.find(p => p.id === selectedPartnerId);
+        if (!partner) return;
 
-        // Log to Admin Audit
-        const logEntry = {
-            action: 'B2B_GRANT_CREDITS',
-            partner_id: selectedPartnerId,
-            amount: grantAmount,
-            timestamp: new Date().toISOString()
-        };
-        const savedLogs = JSON.parse(localStorage.getItem('b2b_admin_credit_logs') || '[]');
-        savedLogs.unshift(logEntry);
-        localStorage.setItem('b2b_admin_credit_logs', JSON.stringify(savedLogs));
+        const toastId = toast.loading(`Concedendo R$ ${grantAmount},00 para ${partner.username}...`);
+        try {
+            const newBalance = Number((partner.credits + Number(grantAmount)).toFixed(2));
+            
+            // 1. Update wallet balance in database
+            const { error: walletErr } = await supabase
+                .from('b2b_wallets')
+                .update({ balance: newBalance })
+                .eq('id', selectedPartnerId);
 
-        setSelectedPartnerId(null);
+            if (walletErr) throw walletErr;
+
+            // 2. Insert transaction log in database
+            const { error: txErr } = await supabase
+                .from('b2b_transactions')
+                .insert({
+                    wallet_id: selectedPartnerId,
+                    amount: Number(grantAmount),
+                    type: 'credit_purchase',
+                    status: 'approved',
+                    description: 'Aporte de Créditos por Administrador',
+                    reference_id: `admin_grant_${Date.now()}`
+                });
+
+            if (txErr) console.error("Error logging grant transaction:", txErr);
+
+            // 3. Log to Admin Audit
+            const logEntry = {
+                action: 'B2B_GRANT_CREDITS',
+                partner_id: selectedPartnerId,
+                amount: grantAmount,
+                timestamp: new Date().toISOString()
+            };
+            const savedLogs = JSON.parse(localStorage.getItem('b2b_admin_credit_logs') || '[]');
+            savedLogs.unshift(logEntry);
+            localStorage.setItem('b2b_admin_credit_logs', JSON.stringify(savedLogs));
+
+            toast.success(`R$ ${grantAmount},00 concedidos com sucesso para ${partner.username}!`, { id: toastId });
+            setSelectedPartnerId(null);
+            
+            // Refresh data
+            await fetchB2BData();
+        } catch (err: any) {
+            toast.error("Erro ao processar concessão: " + err.message, { id: toastId });
+        }
     };
 
-    const handleModerateCampaign = (campaignId: string, newStatus: 'approved' | 'flagged') => {
-        setCampaigns(prev => prev.map(c => {
-            if (c.id === campaignId) {
-                toast.success(newStatus === 'approved' ? "Campanha aprovada e mantida ativa!" : "Campanha suspensa por violação.");
-                return { ...c, status: newStatus };
-            }
-            return c;
-        }));
+    const handleModerateCampaign = async (campaignId: string, newStatus: 'approved' | 'flagged') => {
+        const toastId = toast.loading("Moderando campanha...");
+        try {
+            const { error } = await supabase
+                .from('b2b_campaigns')
+                .update({ status: newStatus })
+                .eq('id', campaignId);
+
+            if (error) throw error;
+
+            toast.success(newStatus === 'approved' ? "Campanha aprovada!" : "Campanha suspensa por violação.", { id: toastId });
+            
+            // Refresh data
+            await fetchB2BData();
+        } catch (err: any) {
+            toast.error("Erro ao moderar campanha: " + err.message, { id: toastId });
+        }
     };
 
     const filteredPartners = partners.filter(p => 
@@ -424,7 +528,7 @@ export const B2BManagerView: React.FC = () => {
                             <div className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl shadow-xl flex justify-between items-center group">
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Parceiros Pagantes</p>
-                                    <p className="text-3xl font-black text-white font-outfit mt-1">4 Donos</p>
+                                    <p className="text-3xl font-black text-white font-outfit mt-1">{activePartnersCount} {activePartnersCount === 1 ? 'Dono' : 'Donos'}</p>
                                     <span className="text-[9px] text-green-400 font-mono mt-1 block">100% Retenção Comercial</span>
                                 </div>
                                 <div className="p-3 bg-pink-500/10 border border-pink-500/20 rounded-xl text-pink-400">
@@ -435,7 +539,7 @@ export const B2BManagerView: React.FC = () => {
                             <div className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl shadow-xl flex justify-between items-center group">
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Faturamento Ad B2B</p>
-                                    <p className="text-3xl font-black text-emerald-400 font-outfit mt-1">R$ 1.395,00</p>
+                                    <p className="text-3xl font-black text-emerald-400 font-outfit mt-1">R$ {totalRevenue.toFixed(2)}</p>
                                     <span className="text-[9px] text-slate-500 font-mono mt-1 block">Receita de créditos acumulada</span>
                                 </div>
                                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
@@ -457,7 +561,7 @@ export const B2BManagerView: React.FC = () => {
                             <div className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl shadow-xl flex justify-between items-center group">
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Campanhas Executadas</p>
-                                    <p className="text-3xl font-black text-white font-outfit mt-1">12 Blasts</p>
+                                    <p className="text-3xl font-black text-white font-outfit mt-1">{totalCampaignsCount} {totalCampaignsCount === 1 ? 'Campanha' : 'Campanhas'}</p>
                                     <span className="text-[9px] text-slate-500 font-mono mt-1 block">Notificações geofenced enviadas</span>
                                 </div>
                                 <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400">

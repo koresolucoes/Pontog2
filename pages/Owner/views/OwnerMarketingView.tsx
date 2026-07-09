@@ -131,11 +131,88 @@ export const OwnerMarketingView: React.FC = () => {
     const [copyTone, setCopyTone] = useState<string>('friendly');
     const [generatedOptions, setGeneratedOptions] = useState<Array<{ title: string; message: string }>>([]);
 
-    // Ads State (Simulated Credit Balance)
+    // Ads State (Real Database-driven balance)
     const [adBalance, setAdBalance] = useState<number>(350.00);
     const [isPinoDouradoActive, setIsPinoDouradoActive] = useState<boolean>(false);
     const [isFeedBannerActive, setIsFeedBannerActive] = useState<boolean>(false);
     const [addingCreditsAmount, setAddingCreditsAmount] = useState<number>(100);
+
+    // B2B state variables
+    const [walletId, setWalletId] = useState<string>('');
+    const [campaignsHistory, setCampaignsHistory] = useState<any[]>([]);
+    const [transactionHistory, setTransactionHistory] = useState<any[]>([]);
+    const [isLoadingWallet, setIsLoadingWallet] = useState<boolean>(false);
+
+    // Fetch and initialize B2B Wallet, Campaigns, and Transactions for the venue
+    const loadB2BData = async (venueId: string) => {
+        if (!venueId) return;
+        setIsLoadingWallet(true);
+        try {
+            // 1. Fetch wallet or create one if missing
+            const { data: wallets, error: walletError } = await supabase
+                .from('b2b_wallets')
+                .select('*')
+                .eq('venue_id', venueId);
+
+            let wallet = null;
+            if (walletError) {
+                console.error("Error loading wallet:", walletError);
+            }
+
+            if (!wallets || wallets.length === 0) {
+                // Safe check: try to create a new wallet for this venue with a welcome gift of R$ 350,00
+                const { data: newWallet, error: createError } = await supabase
+                    .from('b2b_wallets')
+                    .insert({ venue_id: venueId, balance: 350.00 })
+                    .select();
+                
+                if (createError) {
+                    console.error("Error creating wallet:", createError);
+                } else if (newWallet && newWallet.length > 0) {
+                    wallet = newWallet[0];
+                }
+            } else {
+                wallet = wallets[0];
+            }
+
+            if (wallet) {
+                setWalletId(wallet.id);
+                setAdBalance(Number(wallet.balance));
+
+                // 2. Fetch campaign history
+                const { data: campaigns, error: campError } = await supabase
+                    .from('b2b_campaigns')
+                    .select('*')
+                    .eq('venue_id', venueId)
+                    .order('created_at', { ascending: false });
+                
+                if (!campError && campaigns) {
+                    setCampaignsHistory(campaigns);
+
+                    // Determine if highlights are active based on un-paused campaigns
+                    const pinoActive = campaigns.some(c => c.title === 'Destaque: Pino Dourado' && c.status === 'approved');
+                    const bannerActive = campaigns.some(c => c.title === 'Destaque: Banner no Feed' && c.status === 'approved');
+                    setIsPinoDouradoActive(pinoActive);
+                    setIsFeedBannerActive(bannerActive);
+                }
+
+                // 3. Fetch transaction history
+                const { data: txs, error: txError } = await supabase
+                    .from('b2b_transactions')
+                    .select('*')
+                    .eq('wallet_id', wallet.id)
+                    .order('created_at', { ascending: false });
+
+                if (!txError && txs) {
+                    setTransactionHistory(txs);
+                }
+            }
+        } catch (err) {
+            console.error("Exception in loadB2BData:", err);
+        } finally {
+            setIsLoadingWallet(false);
+        }
+    };
 
     // Load owned venues
     useEffect(() => {
@@ -150,6 +227,13 @@ export const OwnerMarketingView: React.FC = () => {
             setSelectedVenueId(managedVenues[0].id);
         }
     }, [managedVenues, selectedVenueId]);
+
+    // Load wallet & history when venue changes
+    useEffect(() => {
+        if (selectedVenueId) {
+            loadB2BData(selectedVenueId);
+        }
+    }, [selectedVenueId]);
 
     // Generate copy suggestions when inputs change
     useEffect(() => {
@@ -214,7 +298,6 @@ export const OwnerMarketingView: React.FC = () => {
 
         setIsSendingCampaign(true);
         try {
-            // Deduct simulated cost of push blast (R$ 0.10 per recipient)
             const pushCost = Number((estReach * 0.10).toFixed(2));
             if (adBalance < pushCost) {
                 toast.error(`Saldo insuficiente! Esta campanha custa R$ ${pushCost.toFixed(2)}, mas seu saldo é de R$ ${adBalance.toFixed(2)}. Adicione créditos.`);
@@ -222,8 +305,56 @@ export const OwnerMarketingView: React.FC = () => {
                 return;
             }
 
-            // Real insert in DB via ownerStore: creates a post in venue_posts
-            // We use the same sendPromotion function which hits the real backend API
+            // 1. Insert Campaign into database
+            const { data: newCamp, error: campErr } = await supabase
+                .from('b2b_campaigns')
+                .insert({
+                    venue_id: selectedVenueId,
+                    title: campaignTitle,
+                    message: campaignMessage,
+                    target_tribe: campaignTargetTribe,
+                    range_meters: campaignRange,
+                    estimated_reach: estReach,
+                    cost: pushCost,
+                    image_url: campaignImageUrl || null,
+                    status: 'approved'
+                })
+                .select();
+
+            if (campErr) {
+                throw new Error("Erro ao salvar campanha no banco de dados: " + campErr.message);
+            }
+
+            const campaignId = newCamp[0].id;
+
+            // 2. Deduct from wallet balance in database
+            const newBalance = Number((adBalance - pushCost).toFixed(2));
+            const { error: walletErr } = await supabase
+                .from('b2b_wallets')
+                .update({ balance: newBalance })
+                .eq('id', walletId);
+
+            if (walletErr) {
+                throw new Error("Erro ao debitar da carteira: " + walletErr.message);
+            }
+
+            // 3. Insert real Transaction log
+            const { error: txErr } = await supabase
+                .from('b2b_transactions')
+                .insert({
+                    wallet_id: walletId,
+                    amount: -pushCost,
+                    type: 'campaign_deduction',
+                    status: 'approved',
+                    description: `Geo-Marketing (Raio ${campaignRange}m, Tribo: ${campaignTargetTribe})`,
+                    reference_id: campaignId
+                });
+
+            if (txErr) {
+                console.error("Error logging transaction:", txErr);
+            }
+
+            // 4. Send real promotion via API
             const success = await useOwnerStore.getState().sendPromotion(
                 selectedVenueId,
                 campaignTitle,
@@ -232,31 +363,15 @@ export const OwnerMarketingView: React.FC = () => {
             );
 
             if (success) {
-                // Deduct balance and track campaign locally
-                setAdBalance(prev => Number((prev - pushCost).toFixed(2)));
-                
-                // Record simulated campaign log in database or local audit tracker
-                const campaignLog = {
-                    venue_id: selectedVenueId,
-                    title: campaignTitle,
-                    message: campaignMessage,
-                    target_tribe: campaignTargetTribe,
-                    range_meters: campaignRange,
-                    estimated_reach: estReach,
-                    cost: pushCost,
-                    created_at: new Date().toISOString()
-                };
-
-                const savedLogs = JSON.parse(localStorage.getItem('b2b_campaign_audit_logs') || '[]');
-                savedLogs.unshift(campaignLog);
-                localStorage.setItem('b2b_campaign_audit_logs', JSON.stringify(savedLogs));
-
                 // Clear input fields
                 setCampaignTitle('');
                 setCampaignMessage('');
                 setCampaignImageUrl('');
                 
                 toast.success(`Notificação Georreferenciada disparada para cerca de ${estReach} usuários ativos próximos!`);
+                
+                // Reload wallet balance and history from database
+                await loadB2BData(selectedVenueId);
             }
         } catch (error: any) {
             toast.error(error.message || "Erro ao disparar campanha.");
@@ -265,60 +380,220 @@ export const OwnerMarketingView: React.FC = () => {
         }
     };
 
-    const handleAddCredits = (e: React.FormEvent) => {
+    const handleAddCredits = async (e: React.FormEvent) => {
         e.preventDefault();
         if (addingCreditsAmount <= 0) return;
-        setAdBalance(prev => prev + Number(addingCreditsAmount));
-        toast.success(`R$ ${addingCreditsAmount},00 adicionados com sucesso! (Simulado)`);
-        
-        // Save transaction to local audit for financial statement
-        const newTx = {
-            id: Date.now(),
-            venue_id: selectedVenueId,
-            venue_name: currentVenue?.name || 'Local',
-            amount: addingCreditsAmount,
-            type: 'credit_purchase',
-            status: 'approved',
-            created_at: new Date().toISOString()
-        };
-        const savedTx = JSON.parse(localStorage.getItem('b2b_billing_transactions') || '[]');
-        savedTx.unshift(newTx);
-        localStorage.setItem('b2b_billing_transactions', JSON.stringify(savedTx));
+        if (!walletId) {
+            toast.error("Carteira de anúncios não carregada.");
+            return;
+        }
+
+        const toastId = toast.loading("Adicionando saldo...");
+        try {
+            const newBalance = Number((adBalance + Number(addingCreditsAmount)).toFixed(2));
+            
+            // 1. Update wallet balance in database
+            const { error: walletErr } = await supabase
+                .from('b2b_wallets')
+                .update({ balance: newBalance })
+                .eq('id', walletId);
+
+            if (walletErr) {
+                throw new Error("Erro ao adicionar saldo: " + walletErr.message);
+            }
+
+            // 2. Insert transaction log in database
+            const { error: txErr } = await supabase
+                .from('b2b_transactions')
+                .insert({
+                    wallet_id: walletId,
+                    amount: Number(addingCreditsAmount),
+                    type: 'credit_purchase',
+                    status: 'approved',
+                    description: 'Aporte de Créditos via Cartão/Pix (Demonstração)',
+                    reference_id: `credit_purchase_${Date.now()}`
+                });
+
+            if (txErr) {
+                console.error("Error logging credit purchase transaction:", txErr);
+            }
+
+            toast.success(`R$ ${addingCreditsAmount},00 adicionados com sucesso!`, { id: toastId });
+            
+            // Reload from database
+            await loadB2BData(selectedVenueId);
+        } catch (error: any) {
+            toast.error(error.message || "Erro ao processar pagamento.", { id: toastId });
+        }
     };
 
-    const handleTogglePinoDourado = () => {
+    const handleTogglePinoDourado = async () => {
         const costPerDay = 15.00;
-        if (!isPinoDouradoActive && adBalance < costPerDay) {
-            toast.error(`Saldo insuficiente para ativar o destaque! É necessário pelo menos R$ ${costPerDay.toFixed(2)}.`);
-            return;
-        }
+        if (!selectedVenueId || !walletId) return;
 
-        const newState = !isPinoDouradoActive;
-        setIsPinoDouradoActive(newState);
+        if (!isPinoDouradoActive) {
+            // Activate Highlight
+            if (adBalance < costPerDay) {
+                toast.error(`Saldo insuficiente para ativar o destaque! É necessário pelo menos R$ ${costPerDay.toFixed(2)}.`);
+                return;
+            }
 
-        if (newState) {
-            setAdBalance(prev => Number((prev - costPerDay).toFixed(2)));
-            toast.success("Destaque Pino Dourado ativado no mapa! (R$ 15,00 debitados para as próximas 24h)");
+            const toastId = toast.loading("Ativando destaque...");
+            try {
+                // 1. Insert highlight campaign
+                const { data: newCamp, error: campErr } = await supabase
+                    .from('b2b_campaigns')
+                    .insert({
+                        venue_id: selectedVenueId,
+                        title: 'Destaque: Pino Dourado',
+                        message: 'Seu estabelecimento em destaque com pino dourado brilhante no mapa.',
+                        target_tribe: 'Geral',
+                        range_meters: 0,
+                        estimated_reach: 0,
+                        cost: costPerDay,
+                        status: 'approved'
+                    })
+                    .select();
+
+                if (campErr) throw campErr;
+
+                // 2. Deduct cost from wallet in database
+                const newBalance = Number((adBalance - costPerDay).toFixed(2));
+                const { error: walletErr } = await supabase
+                    .from('b2b_wallets')
+                    .update({ balance: newBalance })
+                    .eq('id', walletId);
+
+                if (walletErr) throw walletErr;
+
+                // 3. Insert transaction log in database
+                await supabase
+                    .from('b2b_transactions')
+                    .insert({
+                        wallet_id: walletId,
+                        amount: -costPerDay,
+                        type: 'campaign_deduction',
+                        status: 'approved',
+                        description: 'Ativação: Pino Dourado no Mapa Principal',
+                        reference_id: newCamp[0].id
+                    });
+
+                toast.success("Destaque Pino Dourado ativado no mapa! (R$ 15,00 cobrados por 24h)", { id: toastId });
+                await loadB2BData(selectedVenueId);
+            } catch (err: any) {
+                toast.error("Erro ao ativar destaque: " + err.message, { id: toastId });
+            }
         } else {
-            toast.success("Destaque Pino Dourado desativado.");
+            // Deactivate Highlight (Cancel/Pause the approved campaign)
+            const toastId = toast.loading("Pausando destaque...");
+            try {
+                // Find and pause the active highlight campaign
+                const { data: activeCamps } = await supabase
+                    .from('b2b_campaigns')
+                    .select('id')
+                    .eq('venue_id', selectedVenueId)
+                    .eq('title', 'Destaque: Pino Dourado')
+                    .eq('status', 'approved');
+
+                if (activeCamps && activeCamps.length > 0) {
+                    for (const camp of activeCamps) {
+                        await supabase
+                            .from('b2b_campaigns')
+                            .update({ status: 'paused' })
+                            .eq('id', camp.id);
+                    }
+                }
+
+                toast.success("Destaque Pino Dourado desativado.", { id: toastId });
+                await loadB2BData(selectedVenueId);
+            } catch (err: any) {
+                toast.error("Erro ao pausar destaque: " + err.message, { id: toastId });
+            }
         }
     };
 
-    const handleToggleFeedBanner = () => {
+    const handleToggleFeedBanner = async () => {
         const costPerDay = 25.00;
-        if (!isFeedBannerActive && adBalance < costPerDay) {
-            toast.error(`Saldo insuficiente para ativar o destaque! É necessário pelo menos R$ ${costPerDay.toFixed(2)}.`);
-            return;
-        }
+        if (!selectedVenueId || !walletId) return;
 
-        const newState = !isFeedBannerActive;
-        setIsFeedBannerActive(newState);
+        if (!isFeedBannerActive) {
+            // Activate Highlight
+            if (adBalance < costPerDay) {
+                toast.error(`Saldo insuficiente para ativar o destaque! É necessário pelo menos R$ ${costPerDay.toFixed(2)}.`);
+                return;
+            }
 
-        if (newState) {
-            setAdBalance(prev => Number((prev - costPerDay).toFixed(2)));
-            toast.success("Destaque de Banner no Feed ativado! (R$ 25,00 debitados para as próximas 24h)");
+            const toastId = toast.loading("Ativando destaque...");
+            try {
+                // 1. Insert highlight campaign
+                const { data: newCamp, error: campErr } = await supabase
+                    .from('b2b_campaigns')
+                    .insert({
+                        venue_id: selectedVenueId,
+                        title: 'Destaque: Banner no Feed',
+                        message: 'Seu estabelecimento em destaque com banner promocional no feed de novidades.',
+                        target_tribe: 'Geral',
+                        range_meters: 0,
+                        estimated_reach: 0,
+                        cost: costPerDay,
+                        status: 'approved'
+                    })
+                    .select();
+
+                if (campErr) throw campErr;
+
+                // 2. Deduct cost from wallet in database
+                const newBalance = Number((adBalance - costPerDay).toFixed(2));
+                const { error: walletErr } = await supabase
+                    .from('b2b_wallets')
+                    .update({ balance: newBalance })
+                    .eq('id', walletId);
+
+                if (walletErr) throw walletErr;
+
+                // 3. Insert transaction log in database
+                await supabase
+                    .from('b2b_transactions')
+                    .insert({
+                        wallet_id: walletId,
+                        amount: -costPerDay,
+                        type: 'campaign_deduction',
+                        status: 'approved',
+                        description: 'Ativação: Banner Patrocinado no Feed & Inbox',
+                        reference_id: newCamp[0].id
+                    });
+
+                toast.success("Destaque de Banner no Feed ativado! (R$ 25,00 cobrados por 24h)", { id: toastId });
+                await loadB2BData(selectedVenueId);
+            } catch (err: any) {
+                toast.error("Erro ao ativar destaque: " + err.message, { id: toastId });
+            }
         } else {
-            toast.success("Destaque de Banner no Feed desativado.");
+            // Deactivate Highlight (Cancel/Pause the approved campaign)
+            const toastId = toast.loading("Pausando destaque...");
+            try {
+                // Find and pause the active highlight campaign
+                const { data: activeCamps } = await supabase
+                    .from('b2b_campaigns')
+                    .select('id')
+                    .eq('venue_id', selectedVenueId)
+                    .eq('title', 'Destaque: Banner no Feed')
+                    .eq('status', 'approved');
+
+                if (activeCamps && activeCamps.length > 0) {
+                    for (const camp of activeCamps) {
+                        await supabase
+                            .from('b2b_campaigns')
+                            .update({ status: 'paused' })
+                            .eq('id', camp.id);
+                    }
+                }
+
+                toast.success("Destaque de Banner no Feed desativado.", { id: toastId });
+                await loadB2BData(selectedVenueId);
+            } catch (err: any) {
+                toast.error("Erro ao pausar destaque: " + err.message, { id: toastId });
+            }
         }
     };
 
@@ -391,6 +666,7 @@ export const OwnerMarketingView: React.FC = () => {
                 
                 {/* 📡 1. GEO-MARKETING / CAMPANHAS */}
                 {activeSubTab === 'geo' && (
+                    <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-2 space-y-6">
                             <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6">
@@ -562,6 +838,81 @@ export const OwnerMarketingView: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Real Campaign History from Database */}
+                    <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl mt-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <span className="material-symbols-rounded text-primary-500">history</span>
+                                    Histórico de Campanhas Realizadas
+                                </h3>
+                                <p className="text-xs text-slate-500">Campanhas salvas e auditadas diretamente no banco de dados.</p>
+                            </div>
+                            <span className="text-xs font-mono font-bold px-2.5 py-1 bg-slate-950 rounded-lg text-slate-400 border border-white/5">
+                                Total: {campaignsHistory.length}
+                            </span>
+                        </div>
+                        
+                        {campaignsHistory.length === 0 ? (
+                            <div className="text-center py-8 bg-slate-950/20 border border-dashed border-white/5 rounded-xl">
+                                <p className="text-xs text-slate-500">Nenhuma campanha registrada para este estabelecimento.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="border-b border-white/5 text-slate-400 font-bold uppercase tracking-wider font-mono text-[10px]">
+                                            <th className="py-3 px-4">Data</th>
+                                            <th className="py-3 px-4">Título</th>
+                                            <th className="py-3 px-4">Mensagem</th>
+                                            <th className="py-3 px-4">Tribo Alvo</th>
+                                            <th className="py-3 px-4 text-right">Raio</th>
+                                            <th className="py-3 px-4 text-right">Alcance</th>
+                                            <th className="py-3 px-4 text-right text-emerald-400">Custo</th>
+                                            <th className="py-3 px-4 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {campaignsHistory.map((camp) => (
+                                            <tr key={camp.id} className="hover:bg-white/5 transition-all">
+                                                <td className="py-3.5 px-4 font-mono text-slate-400">
+                                                    {new Date(camp.created_at).toLocaleDateString('pt-BR', {
+                                                        day: '2-digit',
+                                                        month: '2-digit',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </td>
+                                                <td className="py-3.5 px-4 font-bold text-white">{camp.title}</td>
+                                                <td className="py-3.5 px-4 text-slate-300 max-w-xs truncate" title={camp.message}>{camp.message}</td>
+                                                <td className="py-3.5 px-4 font-bold text-primary-400">{camp.target_tribe}</td>
+                                                <td className="py-3.5 px-4 text-right font-mono text-slate-400">
+                                                    {camp.range_meters === 0 ? '-' : `${camp.range_meters}m`}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right font-mono text-white font-bold">
+                                                    {camp.estimated_reach === 0 ? '-' : camp.estimated_reach}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-400">
+                                                    R$ {Number(camp.cost).toFixed(2)}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-center">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                        camp.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                        camp.status === 'paused' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                                        'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                    }`}>
+                                                        {camp.status === 'approved' ? 'Ativo' : camp.status === 'paused' ? 'Pausado' : camp.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                    </>
                 )}
 
                 {/* 📝 2. COPILOTO DE COPYWRITING */}
@@ -829,6 +1180,7 @@ export const OwnerMarketingView: React.FC = () => {
 
                 {/* 💎 4. ADS PATROCINADOS & BILLING */}
                 {activeSubTab === 'ads' && (
+                    <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* highlights widgets */}
                         <div className="lg:col-span-2 space-y-6">
@@ -933,12 +1285,83 @@ export const OwnerMarketingView: React.FC = () => {
                                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-900/20 text-sm flex items-center justify-center gap-1.5 transition-all"
                                     >
                                         <Plus className="w-4 h-4" />
-                                        Comprar Créditos (Simulado)
+                                        Comprar Créditos
                                     </button>
                                 </form>
                             </div>
                         </div>
                     </div>
+
+                    {/* Real Transaction History from Database */}
+                    <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl mt-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <span className="material-symbols-rounded text-green-400 font-bold">receipt_long</span>
+                                    Histórico de Transações e Cobranças
+                                </h3>
+                                <p className="text-xs text-slate-500">Extrato de lançamentos e recargas da sua carteira B2B integrado em tempo real.</p>
+                            </div>
+                            <span className="text-xs font-mono font-bold px-2.5 py-1 bg-slate-950 rounded-lg text-slate-400 border border-white/5">
+                                Total: {transactionHistory.length}
+                            </span>
+                        </div>
+
+                        {transactionHistory.length === 0 ? (
+                            <div className="text-center py-8 bg-slate-950/20 border border-dashed border-white/5 rounded-xl">
+                                <p className="text-xs text-slate-500">Nenhuma transação registrada nesta carteira.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="border-b border-white/5 text-slate-400 font-bold uppercase tracking-wider font-mono text-[10px]">
+                                            <th className="py-3 px-4">Data</th>
+                                            <th className="py-3 px-4">Descrição</th>
+                                            <th className="py-3 px-4 text-center">Tipo</th>
+                                            <th className="py-3 px-4 text-right">Valor</th>
+                                            <th className="py-3 px-4 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {transactionHistory.map((tx) => {
+                                            const isNegative = Number(tx.amount) < 0;
+                                            return (
+                                                <tr key={tx.id} className="hover:bg-white/5 transition-all">
+                                                    <td className="py-3.5 px-4 font-mono text-slate-400">
+                                                        {new Date(tx.created_at).toLocaleDateString('pt-BR', {
+                                                            day: '2-digit',
+                                                            month: '2-digit',
+                                                            year: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 font-bold text-white">{tx.description}</td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                                            tx.type === 'credit_purchase' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                        }`}>
+                                                            {tx.type === 'credit_purchase' ? 'DEPÓSITO' : 'DÉBITO'}
+                                                        </span>
+                                                    </td>
+                                                    <td className={`py-3.5 px-4 text-right font-mono font-bold text-sm ${isNegative ? 'text-red-400' : 'text-green-400'}`}>
+                                                        {isNegative ? '-' : '+'} R$ {Math.abs(Number(tx.amount)).toFixed(2)}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-950 text-slate-400 border border-white/5">
+                                                            {tx.status === 'approved' ? 'Aprovado' : tx.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                    </>
                 )}
 
             </div>
