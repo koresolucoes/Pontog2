@@ -20,7 +20,7 @@ export const ViewOnceAudioModal: React.FC<ViewOnceAudioModalProps> = ({ audioUrl
     useEffect(() => {
         const handleBlur = () => {
             setIsFocused(false);
-            if (audioRef.current && isPlaying) {
+            if (audioRef.current && !audioRef.current.paused) {
                 audioRef.current.pause();
                 setIsPlaying(false);
             }
@@ -39,39 +39,7 @@ export const ViewOnceAudioModal: React.FC<ViewOnceAudioModalProps> = ({ audioUrl
                 audioRef.current.pause();
             }
         };
-    }, [isPlaying]);
-
-    // Initialize Audio
-    useEffect(() => {
-        const audio = new Audio(audioUrl);
-        audioRef.current = audio;
-        audio.preload = 'auto';
-
-        const handleLoadedMetadata = () => {
-            setDuration(audio.duration || 0);
-        };
-
-        const handleTimeUpdate = () => {
-            setCurrentTime(audio.currentTime);
-        };
-
-        const handleEnded = () => {
-            setIsPlaying(false);
-            onClose(); // Automatically close and destroy when audio finishes playing
-        };
-
-        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-        audio.addEventListener('timeupdate', handleTimeUpdate);
-        audio.addEventListener('ended', handleEnded);
-
-        return () => {
-            audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-            audio.removeEventListener('timeupdate', handleTimeUpdate);
-            audio.removeEventListener('ended', handleEnded);
-            audio.pause();
-            audioRef.current = null;
-        };
-    }, [audioUrl, onClose]);
+    }, []);
 
     const togglePlay = () => {
         if (!isFocused || !audioRef.current) return;
@@ -80,10 +48,30 @@ export const ViewOnceAudioModal: React.FC<ViewOnceAudioModalProps> = ({ audioUrl
             audioRef.current.pause();
             setIsPlaying(false);
         } else {
-            audioRef.current.play().catch(err => console.error("Error playing audio:", err));
-            setIsPlaying(true);
-            setHasStarted(true);
+            audioRef.current.play().then(() => {
+                setIsPlaying(true);
+                setHasStarted(true);
+            }).catch(err => {
+                console.error("Error playing audio:", err);
+            });
         }
+    };
+
+    const handleLoadedMetadata = () => {
+        if (audioRef.current) {
+            setDuration(audioRef.current.duration || 0);
+        }
+    };
+
+    const handleTimeUpdate = () => {
+        if (audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+        }
+    };
+
+    const handleEnded = () => {
+        setIsPlaying(false);
+        onClose(); // Automatically close and destroy when audio finishes playing
     };
 
     const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -99,6 +87,18 @@ export const ViewOnceAudioModal: React.FC<ViewOnceAudioModalProps> = ({ audioUrl
             className="fixed inset-0 bg-black bg-opacity-98 flex items-center justify-center z-[70] animate-fade-in select-none touch-none" 
             onContextMenu={(e) => e.preventDefault()}
         >
+            {/* Native HTML5 Audio element with CORS support */}
+            <audio
+                ref={audioRef}
+                src={audioUrl}
+                preload="auto"
+                crossOrigin="anonymous"
+                onLoadedMetadata={handleLoadedMetadata}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleEnded}
+                className="hidden"
+            />
+
             {/* Custom Animation CSS for the Waveform */}
             <style>{`
                 @keyframes audio-wave-pulse {
@@ -163,7 +163,7 @@ export const ViewOnceAudioModal: React.FC<ViewOnceAudioModalProps> = ({ audioUrl
                             </div>
                             <div className="flex justify-between text-[11px] font-bold font-mono text-slate-400">
                                 <span>{formatTime(currentTime)}</span>
-                                <span>{formatTime(duration)}</span>
+                                <span>{formatTime(duration || 0)}</span>
                             </div>
                         </div>
 

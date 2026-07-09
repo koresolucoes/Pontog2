@@ -39,6 +39,85 @@ interface MessageContentProps {
   t: any;
 }
 
+// AudioPreviewPlayer component for reviewing voice messages before sending
+const AudioPreviewPlayer: React.FC<{ src: string }> = ({ src }) => {
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+
+    const togglePlay = () => {
+        if (!audioRef.current) return;
+        if (isPlaying) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+        } else {
+            audioRef.current.play().then(() => {
+                setIsPlaying(true);
+            }).catch(err => console.error("Error playing preview:", err));
+        }
+    };
+
+    const handleTimeUpdate = () => {
+        if (audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+        }
+    };
+
+    const handleLoadedMetadata = () => {
+        if (audioRef.current) {
+            setDuration(audioRef.current.duration || 0);
+        }
+    };
+
+    const handleEnded = () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+    };
+
+    const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+    const formatTime = (time: number) => {
+        const mins = Math.floor(time / 60);
+        const secs = Math.floor(time % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    return (
+        <div className="flex-1 flex items-center gap-3 bg-slate-950/40 px-3 py-2 rounded-xl">
+            <audio 
+                ref={audioRef} 
+                src={src} 
+                onTimeUpdate={handleTimeUpdate} 
+                onLoadedMetadata={handleLoadedMetadata} 
+                onEnded={handleEnded} 
+                className="hidden" 
+            />
+            <button 
+                type="button" 
+                onClick={togglePlay} 
+                className="w-8 h-8 rounded-full bg-primary-500/20 text-primary-400 hover:bg-primary-500 hover:text-white flex items-center justify-center transition-all flex-shrink-0"
+            >
+                <span className="material-symbols-rounded text-lg filled">
+                    {isPlaying ? 'pause' : 'play_arrow'}
+                </span>
+            </button>
+            <div className="flex-1 space-y-1">
+                <div className="relative w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                        className="absolute left-0 top-0 h-full bg-primary-500 rounded-full transition-all duration-100"
+                        style={{ width: `${progressPercentage}%` }}
+                    />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono font-bold">
+                    <span>{formatTime(currentTime)}</span>
+                    <span>{formatTime(duration || 0)}</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Memoized MessageContent to prevent unnecessary re-renders
 const MessageContent: React.FC<MessageContentProps> = React.memo(({ message, onViewOnceClick, t }) => {
     if (message.is_view_once) {
@@ -195,6 +274,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [imageToSend, setImageToSend] = useState<{ file: File; preview: string } | null>(null);
+  const [audioToSend, setAudioToSend] = useState<{ file: File; preview: string } | null>(null);
   const [isViewOnce, setIsViewOnce] = useState(false);
   const [viewingOncePhoto, setViewingOncePhoto] = useState<MessageType | null>(null);
   const [viewingOnceAudio, setViewingOnceAudio] = useState<MessageType | null>(null);
@@ -355,15 +435,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
         if (audioChunksRef.current.length > 0) {
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           const audioFile = new File([audioBlob], 'voice_message.webm', { type: 'audio/webm' });
-          const toastId = toast.loading(t('chat.sending_audio', { defaultValue: 'Enviando áudio...' }));
-          const audioPath = await uploadAudio(audioFile);
-          if (audioPath) {
-            await sendMessage(null, null, isViewOnce, audioPath);
-            setIsViewOnce(false);
-            toast.success(t('chat.audio_sent', { defaultValue: 'Áudio enviado!' }), { id: toastId });
-          } else {
-            toast.error(t('chat.error_sending_audio', { defaultValue: 'Erro ao enviar áudio.' }), { id: toastId });
-          }
+          const previewUrl = URL.createObjectURL(audioBlob);
+          setAudioToSend({ file: audioFile, preview: previewUrl });
         }
       };
 
@@ -434,6 +507,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
     setImageToSend(null);
     setIsViewOnce(false);
     setNewMessage('');
+  };
+
+  const cancelAudioSend = () => {
+    if (audioToSend) {
+        URL.revokeObjectURL(audioToSend.preview);
+    }
+    setAudioToSend(null);
+    setIsViewOnce(false);
+  };
+
+  const handleSendAudioPreview = async () => {
+    if (!audioToSend) return;
+    const toastId = toast.loading(t('chat.sending_audio', { defaultValue: 'Enviando áudio...' }));
+    const audioPath = await uploadAudio(audioToSend.file);
+    if (audioPath) {
+      await sendMessage(null, null, isViewOnce, audioPath);
+      cancelAudioSend();
+      toast.success(t('chat.audio_sent', { defaultValue: 'Áudio enviado!' }), { id: toastId });
+    } else {
+      toast.error(t('chat.error_sending_audio', { defaultValue: 'Erro ao enviar áudio.' }), { id: toastId });
+    }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -776,6 +870,45 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
                         </button>
                     </form>
                 </div>
+              ) : audioToSend ? (
+                <div className="p-3 space-y-3 bg-slate-800 rounded-3xl border border-white/10 shadow-xl animate-slide-in-up">
+                    <div className="flex items-center gap-3 bg-slate-900/60 p-2 rounded-2xl border border-white/5">
+                        <AudioPreviewPlayer src={audioToSend.preview} />
+                        
+                        {/* Interactive Fire toggle for View Once Audio */}
+                        <button 
+                            type="button" 
+                            onClick={() => setIsViewOnce(!isViewOnce)} 
+                            className={`flex-shrink-0 h-10 px-3.5 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 ${isViewOnce ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg shadow-red-900/30 font-semibold' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                            title={t('chat.toggle_view_once', { defaultValue: 'Visualização Única' })}
+                        >
+                            <span className={`material-symbols-rounded text-lg ${isViewOnce ? 'filled animate-pulse' : ''}`}>local_fire_department</span>
+                            <span>{isViewOnce ? t('chat.once_active', { defaultValue: '1x Ativo' }) : t('chat.view_once', { defaultValue: 'Ver 1x' })}</span>
+                        </button>
+
+                        <button 
+                            type="button" 
+                            onClick={cancelAudioSend}
+                            className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-full transition-colors"
+                        >
+                            <span className="material-symbols-rounded text-xl">delete</span>
+                        </button>
+
+                        <button 
+                            type="button"
+                            onClick={handleSendAudioPreview} 
+                            className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-primary-900/20"
+                        >
+                            <span className="material-symbols-rounded text-xl filled">send</span>
+                        </button>
+                    </div>
+                    {isViewOnce && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-orange-400 font-semibold bg-orange-500/10 px-3 py-1.5 rounded-xl border border-orange-500/5 animate-fade-in">
+                            <span className="material-symbols-rounded text-sm filled animate-pulse">local_fire_department</span>
+                            <span>{t('chat.audio_view_once_tip', { defaultValue: 'Este áudio só poderá ser ouvido uma única vez pelo destinatário.' })}</span>
+                        </div>
+                    )}
+                </div>
               ) : (
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                     <input type="file" accept="image/*" className="hidden" ref={imageInputRef} onChange={handleFileSelect}/>
@@ -821,23 +954,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
                             <span className="material-symbols-rounded text-lg filled">stop</span>
                         </button>
                     ) : (
-                        <div className="flex items-center gap-2">
-                            <button 
-                                type="button" 
-                                onClick={() => setIsViewOnce(prev => !prev)} 
-                                className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full transition-all border border-white/5 ${isViewOnce ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-md animate-pulse' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                                title={t('chat.toggle_view_once_audio', { defaultValue: 'Áudio de visualização única' })}
-                            >
-                                <span className={`material-symbols-rounded text-lg ${isViewOnce ? 'filled' : ''}`}>local_fire_department</span>
-                            </button>
-                            <button 
-                                type="button" 
-                                onClick={startRecording}
-                                className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-slate-800 text-slate-400 rounded-full hover:bg-primary-500 hover:text-white transition-all hover:scale-105 active:scale-95 border border-white/5"
-                            >
-                                <span className="material-symbols-rounded text-lg filled">mic</span>
-                            </button>
-                        </div>
+                        <button 
+                            type="button" 
+                            onClick={startRecording}
+                            className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-slate-800 text-slate-400 rounded-full hover:bg-primary-500 hover:text-white transition-all hover:scale-105 active:scale-95 border border-white/5"
+                        >
+                            <span className="material-symbols-rounded text-lg filled">mic</span>
+                        </button>
                     )}
                 </form>
             )}
