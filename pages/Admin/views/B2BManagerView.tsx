@@ -40,7 +40,7 @@ interface CampaignLog {
     range_meters: number;
     estimated_reach: number;
     cost: number;
-    status: 'approved' | 'flagged' | 'pending' | 'paused';
+    status: 'approved' | 'flagged' | 'pending' | 'paused' | 'cancelled' | 'redirected';
     created_at: string;
 }
 
@@ -64,6 +64,12 @@ export const B2BManagerView: React.FC = () => {
     // Grant Credits Modal / Form state
     const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(null);
     const [grantAmount, setGrantAmount] = useState<number>(100);
+    const [historyPartnerId, setHistoryPartnerId] = useState<string | null>(null);
+    const [historyTransactions, setHistoryTransactions] = useState<any[]>([]);
+
+    const [redirectCampaignId, setRedirectCampaignId] = useState<string | null>(null);
+    const [newTarget, setNewTarget] = useState<string>('');
+
 
     // Load dynamic B2B data from database
     const fetchB2BData = async () => {
@@ -71,18 +77,7 @@ export const B2BManagerView: React.FC = () => {
         try {
             // 1. Fetch all wallets (joined with venue)
             const { data: wallets, error: walletErr } = await supabase
-                .from('b2b_wallets')
-                .select(`
-                    id,
-                    venue_id,
-                    balance,
-                    currency,
-                    venues (
-                        id,
-                        name,
-                        owner_id
-                    )
-                `);
+                .from('b2b_wallets').select('*');
 
             if (walletErr) throw walletErr;
 
@@ -94,15 +89,7 @@ export const B2BManagerView: React.FC = () => {
             if (profileErr) throw profileErr;
 
             // 3. Fetch campaigns to count actives and populate audit log
-            const { data: dbCampaigns, error: campErr } = await supabase
-                .from('b2b_campaigns')
-                .select(`
-                    *,
-                    venues (
-                        name
-                    )
-                `)
-                .order('created_at', { ascending: false });
+            const { data: dbCampaigns, error: campErr } = await supabase.from('b2b_campaigns').select('*').order('created_at', { ascending: false });
 
             if (campErr) throw campErr;
 
@@ -113,13 +100,21 @@ export const B2BManagerView: React.FC = () => {
 
             if (txErr) throw txErr;
 
+            
+            const { data: dbVenues, error: venueErr } = await supabase.from('venues').select('id, name, owner_id');
+            if (venueErr) throw venueErr;
+
             // Map profiles for quick lookup
             const profileMap = new Map<string, any>();
             if (profiles) {
                 profiles.forEach(p => profileMap.set(p.id, p));
             }
 
-            // Map wallets into B2BPartner objects
+            const venueMap = new Map<string, any>();
+            if (dbVenues) {
+                dbVenues.forEach(v => venueMap.set(v.id, v));
+            }
+// Map wallets into B2BPartner objects
             const activeCampaignsByVenue = new Map<string, number>();
             if (dbCampaigns) {
                 dbCampaigns.forEach(c => {
@@ -130,7 +125,7 @@ export const B2BManagerView: React.FC = () => {
             }
 
             const mappedPartners: B2BPartner[] = (wallets || []).map(w => {
-                const venueObj = w.venues as any;
+                const venueObj = venueMap.get(w.venue_id) as any;
                 const ownerId = venueObj?.owner_id;
                 const ownerProfile = ownerId ? profileMap.get(ownerId) : null;
                 const username = ownerProfile?.username || ownerProfile?.display_name || 'Proprietário';
@@ -239,22 +234,98 @@ export const B2BManagerView: React.FC = () => {
         }
     };
 
-    const handleModerateCampaign = async (campaignId: string, newStatus: 'approved' | 'flagged') => {
-        const toastId = toast.loading("Moderando campanha...");
+    
+    
+    
+    const handleModerateCampaign = async (campaignId: string, newStatus: 'approved' | 'flagged' | 'cancelled' | 'redirected') => {
+        if (newStatus === 'redirected') {
+            setRedirectCampaignId(campaignId);
+            setNewTarget('');
+            return;
+        }
+
+        let updateData: any = { status: newStatus };
+        
+        const toastId = toast.loading("Processando campanha...");
         try {
+            // Se foi cancelada, fazemos o estorno do valor original
+            if (newStatus === 'cancelled') {
+                const { data: campData } = await supabase.from('b2b_campaigns').select('cost, venue_id, title').eq('id', campaignId).single();
+                if (campData && campData.cost > 0) {
+                    // Descobre a carteira pelo venue_id
+                    const { data: walletData } = await supabase.from('b2b_wallets').select('id, balance').eq('venue_id', campData.venue_id).single();
+                    if (walletData) {
+                        const newBalance = Number((walletData.balance + campData.cost).toFixed(2));
+                        await supabase.from('b2b_wallets').update({ balance: newBalance }).eq('id', walletData.id);
+                        await supabase.from('b2b_transactions').insert({
+                            wallet_id: walletData.id,
+                            amount: campData.cost,
+                            type: 'credit_purchase', // Ou podemos usar um type especifico se houver, usar credit_purchase adiciona fundos.
+                            description: `Estorno: ${campData.title}`,
+                            reference_id: campaignId
+                        });
+                    }
+                }
+            }
+
             const { error } = await supabase
                 .from('b2b_campaigns')
-                .update({ status: newStatus })
+                .update(updateData)
                 .eq('id', campaignId);
 
             if (error) throw error;
 
-            toast.success(newStatus === 'approved' ? "Campanha aprovada!" : "Campanha suspensa por violação.", { id: toastId });
+            toast.success("Campanha atualizada com sucesso!", { id: toastId });
             
-            // Refresh data
+            if (newStatus === 'cancelled') {
+                toast.success("Campanha cancelada e créditos estornados.");
+            }
+            
             await fetchB2BData();
         } catch (err: any) {
             toast.error("Erro ao moderar campanha: " + err.message, { id: toastId });
+        }
+    };
+
+
+    const confirmRedirect = async () => {
+        if (!redirectCampaignId || !newTarget) return;
+        const toastId = toast.loading("Redirecionando campanha...");
+        try {
+            const { error } = await supabase
+                .from('b2b_campaigns')
+                .update({ target_tribe: newTarget, status: 'approved' })
+                .eq('id', redirectCampaignId);
+
+            if (error) throw error;
+
+            toast.success("Campanha redirecionada com sucesso!", { id: toastId });
+            setRedirectCampaignId(null);
+            await fetchB2BData();
+        } catch (err: any) {
+            toast.error("Erro ao redirecionar: " + err.message, { id: toastId });
+        }
+    };
+
+
+
+    
+    const handleViewHistory = async (walletId: string) => {
+        const toastId = toast.loading("Carregando histórico...");
+        try {
+            const { data, error } = await supabase
+                .from('b2b_transactions')
+                .select('*')
+                .eq('wallet_id', walletId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            
+            setHistoryTransactions(data || []);
+            setHistoryPartnerId(walletId);
+            toast.dismiss(toastId);
+        } catch (err: any) {
+            toast.error("Erro ao buscar histórico: " + err.message, { id: toastId });
         }
     };
 
@@ -296,6 +367,39 @@ export const B2BManagerView: React.FC = () => {
                     Métricas Globais B2B
                 </button>
             </div>
+
+            
+{redirectCampaignId && (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl space-y-4 animate-scale-in">
+            <h3 className="text-lg font-black text-white font-outfit">Redirecionar Campanha</h3>
+            <p className="text-xs text-slate-400">Insira a nova tribo alvo ou novo destino para a campanha.</p>
+            <input 
+                type="text" 
+                value={newTarget}
+                onChange={(e) => setNewTarget(e.target.value)}
+                placeholder="Ex: Urso, Caçador, Fetiche..."
+                className="w-full bg-slate-950 border border-white/10 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-pink-500"
+            />
+            <div className="flex gap-3 pt-2">
+                <button 
+                    onClick={() => setRedirectCampaignId(null)}
+                    className="flex-1 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition-all border border-white/5"
+                >
+                    Cancelar
+                </button>
+                <button 
+                    onClick={confirmRedirect}
+                    disabled={!newTarget}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-lg"
+                >
+                    Redirecionar
+                </button>
+            </div>
+        </div>
+    </div>
+)}
+
 
             {/* TAB CONTENTS */}
             <div className="space-y-6">
@@ -356,13 +460,21 @@ export const B2BManagerView: React.FC = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold">
-                                                        <button 
-                                                            onClick={() => setSelectedPartnerId(partner.id)}
-                                                            className="bg-pink-600 hover:bg-pink-700 text-white text-xs px-3.5 py-2 rounded-xl transition-all shadow-md shadow-pink-900/10 flex items-center gap-1.5 ml-auto"
-                                                        >
-                                                            <Plus className="w-3.5 h-3.5" />
-                                                            Conceder Créditos
-                                                        </button>
+                                                        <div className="flex justify-end gap-2">
+        <button 
+            onClick={() => handleViewHistory(partner.id)}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-xl transition-all border border-white/10"
+        >
+            Histórico
+        </button>
+        <button 
+            onClick={() => setSelectedPartnerId(partner.id)}
+            className="bg-pink-600 hover:bg-pink-700 text-white text-xs px-3.5 py-2 rounded-xl transition-all shadow-md shadow-pink-900/10 flex items-center gap-1.5"
+        >
+            <Plus className="w-3.5 h-3.5" />
+            Créditos
+        </button>
+    </div>
                                                     </td>
                                                 </tr>
                                             ))
@@ -371,6 +483,60 @@ export const B2BManagerView: React.FC = () => {
                                 </table>
                             </div>
                         </div>
+
+                        
+{historyPartnerId && (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-2xl w-full shadow-2xl space-y-5 animate-scale-in max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-start">
+                <div>
+                    <h3 className="text-lg font-black text-white font-outfit">Histórico de Transações</h3>
+                    <p className="text-xs text-slate-500 mt-1">Extrato de gastos e compras do parceiro.</p>
+                </div>
+                <button onClick={() => setHistoryPartnerId(null)} className="text-slate-500 hover:text-white p-1">
+                    &times;
+                </button>
+            </div>
+            
+            <div className="overflow-y-auto flex-1 space-y-3 pr-2 custom-scrollbar">
+                {historyTransactions.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500 text-sm">Nenhuma transação encontrada.</div>
+                ) : (
+                    historyTransactions.map(tx => (
+                        <div key={tx.id} className="flex justify-between items-center p-4 bg-slate-950/50 border border-white/5 rounded-xl">
+                            <div>
+                                <div className="text-sm font-bold text-white flex items-center gap-2">
+                                    {tx.type === 'credit_purchase' ? (
+                                        <span className="text-green-400 bg-green-500/10 px-2 py-0.5 rounded text-[10px] uppercase">Compra/Aporte</span>
+                                    ) : (
+                                        <span className="text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded text-[10px] uppercase">Gasto</span>
+                                    )}
+                                    {tx.description || 'Transação'}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-1 font-mono">
+                                    {new Date(tx.created_at).toLocaleString()}
+                                </div>
+                            </div>
+                            <div className={`text-lg font-mono font-bold ${tx.amount > 0 ? 'text-green-400' : 'text-pink-400'}`}>
+                                {tx.amount > 0 ? '+' : ''}{Number(tx.amount).toFixed(2)}
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+            
+            <div className="pt-4 flex justify-end border-t border-white/10">
+                <button 
+                    onClick={() => setHistoryPartnerId(null)}
+                    className="bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold py-2.5 px-6 rounded-xl text-xs border border-white/5 transition-all"
+                >
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+)}
+
 
                         {/* Grant Credits Modal Overlay */}
                         {selectedPartnerId && (
@@ -454,6 +620,8 @@ export const B2BManagerView: React.FC = () => {
                                                     </span>
                                                     {cmp.status === 'flagged' ? (
                                                         <span className="text-[9px] bg-red-500/10 text-red-400 border border-red-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">SUSPENSA (Spam/Ofensiva)</span>
+                                                    ) : cmp.status === 'cancelled' ? (
+                                                        <span className="text-[9px] bg-slate-500/10 text-slate-400 border border-slate-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">CANCELADA</span>
                                                     ) : (
                                                         <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">ATIVA & SAUDÁVEL</span>
                                                     )}
@@ -489,28 +657,49 @@ export const B2BManagerView: React.FC = () => {
                                             </div>
 
                                             {/* Action modifiers */}
-                                            {cmp.status === 'approved' && (
-                                                <div className="flex md:flex-col justify-end gap-2.5 self-start md:self-center">
-                                                    <button
-                                                        onClick={() => handleModerateCampaign(cmp.id, 'flagged')}
-                                                        className="bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 hover:border-transparent text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
-                                                    >
-                                                        <Ban className="w-4 h-4" />
-                                                        Suspender / Bloquear
-                                                    </button>
-                                                </div>
-                                            )}
-                                            {cmp.status === 'flagged' && (
-                                                <div className="flex md:flex-col justify-end gap-2.5 self-start md:self-center">
-                                                    <button
-                                                        onClick={() => handleModerateCampaign(cmp.id, 'approved')}
-                                                        className="bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-transparent text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
-                                                    >
-                                                        <CheckCircle className="w-4 h-4" />
-                                                        Re-Ativar Campanha
-                                                    </button>
-                                                </div>
-                                            )}
+                                            
+{cmp.status === 'approved' && (
+    <div className="flex md:flex-col justify-end gap-2.5 self-start md:self-center">
+        <button
+            onClick={() => handleModerateCampaign(cmp.id, 'flagged')}
+            className="bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 hover:border-transparent text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
+        >
+            <Ban className="w-3.5 h-3.5" />
+            Suspender
+        </button>
+        <button
+            onClick={() => handleModerateCampaign(cmp.id, 'redirected')}
+            className="bg-blue-500/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/20 hover:border-transparent text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
+        >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Redirecionar
+        </button>
+        <button
+            onClick={() => handleModerateCampaign(cmp.id, 'cancelled')}
+            className="bg-slate-500/10 hover:bg-slate-600 text-slate-400 hover:text-white border border-slate-500/20 hover:border-transparent text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
+        >
+            <Trash2 className="w-3.5 h-3.5" />
+            Cancelar
+        </button>
+    </div>
+)}
+{cmp.status === 'flagged' && (
+    <div className="flex md:flex-col justify-end gap-2.5 self-start md:self-center">
+        <button
+            onClick={() => handleModerateCampaign(cmp.id, 'approved')}
+            className="bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-transparent text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
+        >
+            <CheckCircle className="w-4 h-4" />
+            Re-Ativar
+        </button>
+    </div>
+)}
+{cmp.status === 'cancelled' && (
+    <div className="flex md:flex-col justify-end gap-2.5 self-start md:self-center text-slate-500 text-xs font-bold">
+        CANCELADA
+    </div>
+)}
+
                                         </div>
                                     ))
                                 )}
