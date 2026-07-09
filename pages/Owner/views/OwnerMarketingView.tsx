@@ -124,6 +124,8 @@ export const OwnerMarketingView: React.FC = () => {
     const [campaignTitle, setCampaignTitle] = useState<string>('');
     const [campaignMessage, setCampaignMessage] = useState<string>('');
     const [campaignImageUrl, setCampaignImageUrl] = useState<string>('');
+    const [campaignPlacement, setCampaignPlacement] = useState<'feed' | 'map' | 'messages' | 'push'>('push');
+    const [campaignDuration, setCampaignDuration] = useState<number>(24);
     const [isSendingCampaign, setIsSendingCampaign] = useState<boolean>(false);
 
     // Copywriting State
@@ -280,7 +282,9 @@ export const OwnerMarketingView: React.FC = () => {
         return Math.round(rangeInMeters * 0.12 + 400);
     };
 
-    const estReach = getEstimatedReach(campaignRange);
+    const estReach = campaignPlacement === 'push' 
+        ? getEstimatedReach(campaignRange) 
+        : campaignDuration * (campaignPlacement === 'feed' ? 150 : campaignPlacement === 'map' ? 300 : 80);
 
     const handleApplyCopy = (title: string, message: string) => {
         setCampaignTitle(title);
@@ -302,7 +306,7 @@ export const OwnerMarketingView: React.FC = () => {
 
         setIsSendingCampaign(true);
         try {
-            const pushCost = Number((estReach * 0.10).toFixed(2));
+            const pushCost = Number((estReach * (campaignPlacement === 'push' ? 0.10 : 0.05)).toFixed(2));
             if (adBalance < pushCost) {
                 toast.error(`Saldo insuficiente! Esta campanha custa R$ ${pushCost.toFixed(2)}, mas seu saldo é de R$ ${adBalance.toFixed(2)}. Adicione créditos.`);
                 setIsSendingCampaign(false);
@@ -317,11 +321,13 @@ export const OwnerMarketingView: React.FC = () => {
                     title: campaignTitle,
                     message: campaignMessage,
                     target_tribe: campaignTargetTribe,
-                    range_meters: campaignRange,
+                    range_meters: campaignPlacement === 'push' ? campaignRange : 0,
                     estimated_reach: estReach,
                     cost: pushCost,
                     image_url: campaignImageUrl || null,
-                    status: 'approved'
+                    status: 'approved',
+                    placement: campaignPlacement,
+                    duration_hours: campaignDuration
                 })
                 .select();
 
@@ -676,26 +682,67 @@ export const OwnerMarketingView: React.FC = () => {
                                 </div>
 
                                 <form onSubmit={handleSendCampaign} className="space-y-5">
-                                    {/* Range Selector */}
-                                    <div className="space-y-3 bg-slate-950/40 border border-white/5 p-4 rounded-xl">
-                                        <div className="flex justify-between text-sm font-bold">
-                                            <span className="text-slate-300">Raio de Cobertura (Geofence)</span>
-                                            <span className="text-primary-400 font-mono">{campaignRange >= 1000 ? `${(campaignRange/1000).toFixed(1)} km` : `${campaignRange} m`}</span>
-                                        </div>
-                                        <input 
-                                            type="range" 
-                                            min="100" 
-                                            max="10000" 
-                                            step="100"
-                                            value={campaignRange}
-                                            onChange={(e) => setCampaignRange(Number(e.target.value))}
-                                            className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary-500"
-                                        />
-                                        <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                                            <span>100m (Super Localizado)</span>
-                                            <span>10km (Toda a Cidade)</span>
+                                    {/* Campaign Placement */}
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-slate-300">Onde mostrar a campanha?</label>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            {[
+                                                { id: 'push', label: 'Push Notification (Raio)' },
+                                                { id: 'feed', label: 'Feed de Destaques' },
+                                                { id: 'map', label: 'Pino Promocional (Mapa)' },
+                                                { id: 'messages', label: 'Inbox / Mensagens' }
+                                            ].map(placement => (
+                                                <button
+                                                    key={placement.id}
+                                                    type="button"
+                                                    onClick={() => setCampaignPlacement(placement.id as any)}
+                                                    className={`px-3 py-2 text-xs font-bold rounded-xl border text-center transition-all ${campaignPlacement === placement.id ? 'bg-primary-500/10 border-primary-500 text-primary-500' : 'bg-slate-950/30 border-white/5 text-slate-400 hover:bg-slate-850'}`}
+                                                >
+                                                    {placement.label}
+                                                </button>
+                                            ))}
                                         </div>
                                     </div>
+
+                                    {/* Campaign Duration - Only for non-push */}
+                                    {campaignPlacement !== 'push' && (
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-bold text-slate-300">Duração da Campanha (Horas)</label>
+                                            <select 
+                                                value={campaignDuration}
+                                                onChange={(e) => setCampaignDuration(Number(e.target.value))}
+                                                className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary-500 text-white"
+                                            >
+                                                <option value={12}>12 Horas</option>
+                                                <option value={24}>24 Horas (1 Dia)</option>
+                                                <option value={72}>72 Horas (3 Dias)</option>
+                                                <option value={168}>168 Horas (1 Semana)</option>
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {/* Range Selector */}
+                                    {campaignPlacement === 'push' && (
+                                        <div className="space-y-3 bg-slate-950/40 border border-white/5 p-4 rounded-xl">
+                                            <div className="flex justify-between text-sm font-bold">
+                                                <span className="text-slate-300">Raio de Cobertura (Geofence)</span>
+                                                <span className="text-primary-400 font-mono">{campaignRange >= 1000 ? `${(campaignRange/1000).toFixed(1)} km` : `${campaignRange} m`}</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="100" 
+                                                max="10000" 
+                                                step="100"
+                                                value={campaignRange}
+                                                onChange={(e) => setCampaignRange(Number(e.target.value))}
+                                                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                                            />
+                                            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                                                <span>100m (Super Localizado)</span>
+                                                <span>10km (Toda a Cidade)</span>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Segment Tribe */}
                                     <div className="space-y-2">
@@ -767,7 +814,7 @@ export const OwnerMarketingView: React.FC = () => {
                                         ) : (
                                             <>
                                                 <Send className="w-5 h-5" />
-                                                Disparar para cerca de {estReach} usuários (Custo: R$ {(estReach * 0.10).toFixed(2)})
+                                                Lançar Campanha (Custo: R$ {(estReach * (campaignPlacement === 'push' ? 0.10 : 0.05)).toFixed(2)})
                                             </>
                                         )}
                                     </button>
@@ -780,48 +827,50 @@ export const OwnerMarketingView: React.FC = () => {
                             <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl flex flex-col justify-between h-full">
                                 <div className="space-y-5">
                                     <h4 className="font-bold text-white flex items-center gap-2 text-md">
-                                        <Map className="w-4 h-4 text-primary-400" />
-                                        Simulador de Alcance de Geofence
+                                        {campaignPlacement === 'push' ? <Map className="w-4 h-4 text-primary-400" /> : <Megaphone className="w-4 h-4 text-primary-400" />}
+                                        {campaignPlacement === 'push' ? 'Simulador de Alcance de Geofence' : 'Alcance da Campanha'}
                                     </h4>
 
                                     {/* Custom Simulated Map graphic representing concentric circles from venue */}
-                                    <div className="relative aspect-square w-full rounded-xl bg-slate-950 border border-white/5 flex items-center justify-center overflow-hidden">
-                                        {/* Center Point - Venue Marker */}
-                                        <div className="absolute z-30 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-lg"></div>
-                                        
-                                        {/* Dynamic Pulse circle based on range value */}
-                                        <div 
-                                            className="absolute border border-primary-500/50 bg-primary-500/10 rounded-full transition-all duration-350 ease-out z-10"
-                                            style={{
-                                                width: `${Math.min(90, Math.max(10, (campaignRange / 10000) * 90 + 10))}%`,
-                                                height: `${Math.min(90, Math.max(10, (campaignRange / 10000) * 90 + 10))}%`,
-                                            }}
-                                        ></div>
+                                    {campaignPlacement === 'push' && (
+                                        <div className="relative aspect-square w-full rounded-xl bg-slate-950 border border-white/5 flex items-center justify-center overflow-hidden">
+                                            {/* Center Point - Venue Marker */}
+                                            <div className="absolute z-30 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-lg"></div>
+                                            
+                                            {/* Dynamic Pulse circle based on range value */}
+                                            <div 
+                                                className="absolute border border-primary-500/50 bg-primary-500/10 rounded-full transition-all duration-350 ease-out z-10"
+                                                style={{
+                                                    width: `${Math.min(90, Math.max(10, (campaignRange / 10000) * 90 + 10))}%`,
+                                                    height: `${Math.min(90, Math.max(10, (campaignRange / 10000) * 90 + 10))}%`,
+                                                }}
+                                            ></div>
 
-                                        {/* Nested ring guidelines */}
-                                        <div className="absolute w-1/4 h-1/4 rounded-full border border-white/5 pointer-events-none"></div>
-                                        <div className="absolute w-1/2 h-1/2 rounded-full border border-white/5 pointer-events-none"></div>
-                                        <div className="absolute w-3/4 h-3/4 rounded-full border border-white/5 pointer-events-none"></div>
+                                            {/* Nested ring guidelines */}
+                                            <div className="absolute w-1/4 h-1/4 rounded-full border border-white/5 pointer-events-none"></div>
+                                            <div className="absolute w-1/2 h-1/2 rounded-full border border-white/5 pointer-events-none"></div>
+                                            <div className="absolute w-3/4 h-3/4 rounded-full border border-white/5 pointer-events-none"></div>
 
-                                        {/* Random mock user dots */}
-                                        <div className="absolute top-1/3 left-1/4 w-1.5 h-1.5 bg-green-500 rounded-full opacity-60"></div>
-                                        <div className="absolute bottom-1/4 right-1/3 w-1.5 h-1.5 bg-green-500 rounded-full opacity-85"></div>
-                                        <div className="absolute top-1/4 right-1/4 w-1.5 h-1.5 bg-green-500 rounded-full opacity-40"></div>
-                                        <div className="absolute bottom-1/3 left-1/3 w-1.5 h-1.5 bg-green-500 rounded-full opacity-70"></div>
-                                        <div className="absolute top-1/2 right-1/3 w-1.5 h-1.5 bg-green-500 rounded-full opacity-80"></div>
-                                        
-                                        <span className="absolute bottom-3 right-3 text-[10px] font-mono text-slate-500">Preview Operacional</span>
-                                    </div>
+                                            {/* Random mock user dots */}
+                                            <div className="absolute top-1/3 left-1/4 w-1.5 h-1.5 bg-green-500 rounded-full opacity-60"></div>
+                                            <div className="absolute bottom-1/4 right-1/3 w-1.5 h-1.5 bg-green-500 rounded-full opacity-85"></div>
+                                            <div className="absolute top-1/4 right-1/4 w-1.5 h-1.5 bg-green-500 rounded-full opacity-40"></div>
+                                            <div className="absolute bottom-1/3 left-1/3 w-1.5 h-1.5 bg-green-500 rounded-full opacity-70"></div>
+                                            <div className="absolute top-1/2 right-1/3 w-1.5 h-1.5 bg-green-500 rounded-full opacity-80"></div>
+                                            
+                                            <span className="absolute bottom-3 right-3 text-[10px] font-mono text-slate-500">Preview Operacional</span>
+                                        </div>
+                                    )}
 
                                     {/* Analytics stats */}
                                     <div className="grid grid-cols-2 gap-3 bg-slate-950/40 p-4 rounded-xl border border-white/5">
                                         <div>
                                             <p className="text-[10px] text-slate-500 font-mono">AUDIÊNCIA ESTIMADA</p>
-                                            <p className="text-2xl font-bold text-white mt-1">{estReach} caras</p>
+                                            <p className="text-2xl font-bold text-white mt-1">{estReach} {campaignPlacement === 'push' ? 'celulares' : 'views'}</p>
                                         </div>
                                         <div>
                                             <p className="text-[10px] text-slate-500 font-mono">INVESTIMENTO DO DISPARO</p>
-                                            <p className="text-2xl font-bold text-green-400 mt-1">R$ {(estReach * 0.10).toFixed(2)}</p>
+                                            <p className="text-2xl font-bold text-green-400 mt-1">R$ {(estReach * (campaignPlacement === 'push' ? 0.10 : 0.05)).toFixed(2)}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -829,7 +878,7 @@ export const OwnerMarketingView: React.FC = () => {
                                 <div className="pt-6 border-t border-white/5 mt-5">
                                     <p className="text-xs text-slate-500 flex items-center gap-1">
                                         <HelpCircle className="w-3.5 h-3.5" />
-                                        Como funciona? Cada push tem um custo simbólico de faturamento de R$ 0,10 por celular alcançado. Economize criando mensagens atraentes para seu tom ideal!
+                                        Como funciona? {campaignPlacement === 'push' ? 'Cada push tem um custo simbólico de faturamento de R$ 0,10 por celular alcançado.' : `Esta campanha terá a duração de ${campaignDuration}h por um custo reduzido de R$ 0,05 por view estimada.`} Economize criando mensagens atraentes para seu tom ideal!
                                     </p>
                                 </div>
                             </div>
