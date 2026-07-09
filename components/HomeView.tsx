@@ -9,6 +9,7 @@ import { User, Ad } from '../types';
 import { AdSenseUnit } from './AdSenseUnit';
 import { useTranslation } from 'react-i18next';
 import { AdDetailModal } from './AdDetailModal';
+import { AdBanner } from './AdBanner';
 
 import { useUserActionsStore } from '../stores/userActionsStore';
 
@@ -74,7 +75,7 @@ export const HomeView: React.FC = () => {
         setSelectedUser(user);
     };
     
-    const { feedAds } = useAdStore();
+    const { feedAds, bannerAds } = useAdStore();
 
     const itemsWithAds = useMemo(() => {
         let sortedUsers = [...popularUsers];
@@ -147,6 +148,13 @@ export const HomeView: React.FC = () => {
             </header>
             
             <div className="flex-1 overflow-y-auto px-3 pt-3">
+
+                {bannerAds.length > 0 && (
+                    <div className="mb-6 rounded-3xl overflow-hidden shadow-2xl border border-white/10 ring-1 ring-primary-500/30">
+                        <AdBanner ad={bannerAds[0]} />
+                    </div>
+                )}
+
                 {venues.length > 0 && (
                     <div className="mb-6">
                         <div className="flex items-center justify-between px-2 mb-3">

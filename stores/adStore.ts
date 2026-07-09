@@ -51,9 +51,9 @@ export const useAdStore = create<AdState>((set, get) => ({
                 .select('*')
                 .eq('status', 'approved');
 
-            let feedAds: Ad[] = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
-            let bannerAds: Ad[] = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
-            let inboxAd: Ad | null = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
+            let feedAds: Ad[] = [];
+            let bannerAds: Ad[] = [];
+            let inboxAd: Ad | null = null;
             let pinoVenueIds: string[] = [];
 
             if (!error && data) {
@@ -65,28 +65,31 @@ export const useAdStore = create<AdState>((set, get) => ({
                     
                     if (isExpired) return;
 
+                    const defaultImage = 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600';
+                    const imageUrl = camp.image_url ? camp.image_url : defaultImage;
+
                     if (camp.placement === 'map' || camp.title === 'Destaque: Pino Dourado') {
                         pinoVenueIds.push(camp.venue_id);
                     } 
-                    if (camp.placement === 'feed' || camp.title === 'Destaque: Banner no Feed') {
+                    if (camp.placement === 'feed' || camp.placement === 'push' || camp.title === 'Destaque: Banner no Feed') {
                         dynamicFeedAds.push({
                             id: camp.id,
                             ad_type: 'feed',
                             title: camp.title || '🌟 Patrocinado',
                             description: camp.message,
-                            image_url: camp.image_url || 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600',
+                            image_url: imageUrl,
                             cta_text: 'Saiba Mais',
                             cta_url: camp.venue_id ? `/venue/${camp.venue_id}` : '#',
                             venue_id: camp.venue_id
                         });
                     }
-                    if (camp.placement === 'messages' || camp.range_meters === 0) {
+                    if (camp.placement === 'messages' || camp.placement === 'push' || camp.range_meters === 0) {
                         dynamicInboxAds.push({
                             id: camp.id,
                             ad_type: 'inbox',
                             title: camp.title || 'Destaque Local',
                             description: camp.message,
-                            image_url: camp.image_url || 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600',
+                            image_url: imageUrl,
                             cta_text: 'Ver Agora',
                             cta_url: camp.venue_id ? `/venue/${camp.venue_id}` : '#',
                             venue_id: camp.venue_id
@@ -95,11 +98,29 @@ export const useAdStore = create<AdState>((set, get) => ({
                 });
 
                 if (dynamicFeedAds.length > 0) {
-                    feedAds = [...dynamicFeedAds, ...feedAds];
+                    feedAds = dynamicFeedAds;
+                    // Se a pessoa comprou banner, usamos o primeiro como banner no topo
+                    const banners = dynamicFeedAds.filter(ad => ad.title === 'Destaque: Banner no Feed' || ad.title.toLowerCase().includes('banner'));
+                    if (banners.length > 0) {
+                        bannerAds = banners;
+                    } else {
+                        // Se não tem banner específico, usa o feedAd mais recente no banner
+                        bannerAds = [dynamicFeedAds[0]];
+                    }
+                } else {
+                    feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
+                    bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
                 }
+                
                 if (dynamicInboxAds.length > 0) {
                     inboxAd = dynamicInboxAds[0];
+                } else {
+                    inboxAd = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
                 }
+            } else {
+                feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
+                bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
+                inboxAd = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
             }
 
             set({ feedAds, bannerAds, inboxAd, activePinoDouradoVenueIds: pinoVenueIds });
