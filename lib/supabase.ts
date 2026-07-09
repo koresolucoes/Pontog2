@@ -32,8 +32,8 @@ export const getPublicImageUrl = (path: string | null | undefined, options?: Ima
     // Retorna um placeholder elegante se não houver caminho
     if (!path) return 'https://placehold.co/400x400/1f2937/d1d5db/png?text=G'; 
     
-    // Se já for uma URL completa, retorna ela mesma.
-    if (path.startsWith('http')) {
+    // Se já for uma URL completa ou um caminho relativo local, retorna como está.
+    if (path.startsWith('http') || path.startsWith('/') || path.startsWith('./')) {
         return path;
     }
     

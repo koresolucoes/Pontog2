@@ -62,7 +62,7 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
             headers['Authorization'] = `Bearer ${session.access_token}`;
         }
 
-        const response = await fetch(`/api/agora-posts?page=${currentPage}&limit=10`, {
+        const response = await fetch(`/api/agora-posts?page=${currentPage}&limit=10&_t=${Date.now()}`, {
             method: 'GET',
             headers
         });
@@ -311,10 +311,22 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
     const user = useAuthStore.getState().user;
     if (!user) return;
     
+    // Beautiful nightlife fallback images for checkins if venue has no image
+    const fallbackImages = [
+        'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&auto=format&fit=crop&q=80', // Party / Club lights
+        'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80', // Nightlife bokeh
+        'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80', // Club DJ / Music
+        'https://images.unsplash.com/photo-1486591978090-58e619d37fe7?w=800&auto=format&fit=crop&q=80'  // Bar / Social
+    ];
+    const hash = venueName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const fallbackImage = fallbackImages[hash % fallbackImages.length];
+
+    const finalPhotoUrl = venueImageUrl || fallbackImage;
+    
     // We create a post directly with the venue image url
     const payload = {
         user_id: user.id,
-        photo_url: venueImageUrl,
+        photo_url: finalPhotoUrl,
         status_text: `Acabou de chegar em ${venueName} 📍`,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     };
@@ -329,17 +341,24 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
             const { error: updateError } = await supabase
                 .from('agora_posts')
                 .update({
-                    photo_url: venueImageUrl,
+                    photo_url: finalPhotoUrl,
                     status_text: payload.status_text,
                     expires_at: payload.expires_at
                 })
                 .eq('user_id', user.id);
+            
             if (updateError) {
                 console.error("Error updating Agora post:", updateError);
+                toast.error("Erro ao atualizar post no feed.");
+            } else {
+                toast.success('Check-in atualizado no feed Agora!');
             }
         } else {
             console.error("Error inserting Agora post:", insertError);
+            toast.error("Erro ao publicar no feed Agora.");
         }
+    } else {
+        toast.success('Publicado no feed Agora!');
     }
     
     // Refresh posts

@@ -17,7 +17,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
   const { t } = useTranslation();
   const [checkins, setCheckins] = useState<VenueCheckin[]>([]);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
-  const [postToAgora, setPostToAgora] = useState(false);
+  const [postToAgora, setPostToAgora] = useState(true);
   const user = useAuthStore(state => state.user);
   const mapUsers = useMapStore(state => state.users);
   const setSelectedUser = useMapStore(state => state.setSelectedUser);
@@ -614,8 +614,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
             useAuthStore.setState({ user: { ...user, current_checkin_venue_id: venue.id, current_checkin_venue_name: venue.name } });
 
             if (postToAgora) {
-                publishAgoraCheckin(venue.name, venue.image_url);
-                toast.success('Publicado no feed Agora!');
+                await publishAgoraCheckin(venue.name, venue.image_url);
             }
 
             toast.success(t('venue.checkin_success', { defaultValue: 'Check-in realizado!' }));

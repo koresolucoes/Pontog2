@@ -11,6 +11,9 @@ export default async function handler(
     return res.status(405).end('Method Not Allowed');
   }
 
+  // Prevent browser and proxy caching of dynamic feeds
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;

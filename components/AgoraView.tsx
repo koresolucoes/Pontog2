@@ -25,12 +25,16 @@ const itemVariants = {
 
 export const AgoraView: React.FC = () => {
     const { t } = useTranslation();
-    const { posts, isLoading, agoraUserIds, deactivateAgoraMode, toggleLikePost, loadMorePosts, hasMore } = useAgoraStore();
+    const { posts, isLoading, agoraUserIds, deactivateAgoraMode, toggleLikePost, loadMorePosts, hasMore, fetchAgoraPosts } = useAgoraStore();
     const user = useAuthStore(state => state.user);
     const [isActivateModalOpen, setIsActivateModalOpen] = useState(false);
     const [selectedPost, setSelectedPost] = useState<AgoraPost | null>(null);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const observer = useRef<IntersectionObserver | null>(null);
+
+    useEffect(() => {
+        fetchAgoraPosts(true);
+    }, [fetchAgoraPosts]);
 
     const lastPostElementRef = useCallback((node: HTMLDivElement) => {
         if (isLoading) return;
@@ -165,7 +169,15 @@ export const AgoraView: React.FC = () => {
                                             </div>
                                         </div>
                                         <div className="drop-shadow-md">
-                                            <h3 className="font-bold text-white text-sm leading-none">{post.username}, {post.age}</h3>
+                                            <h3 className="font-bold text-white text-sm leading-none flex items-center gap-2">
+                                                <span>{post.username}, {post.age}</span>
+                                                {post.status_text?.includes('📍') && (
+                                                    <span className="flex items-center gap-0.5 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow border border-white/10 animate-pulse">
+                                                        <span className="material-symbols-rounded text-[10px] filled">location_on</span>
+                                                        <span>Check-in</span>
+                                                    </span>
+                                                )}
+                                            </h3>
                                             <p className="text-[10px] text-primary-300 font-bold uppercase tracking-wider mt-0.5">{t('agora.online_now', { defaultValue: 'Online Agora' })}</p>
                                         </div>
                                     </div>
@@ -186,11 +198,22 @@ export const AgoraView: React.FC = () => {
                                         className="w-full h-full object-cover"
                                     />
                                     
+                                    {/* Big Check-In Badge on Image */}
+                                    {post.status_text?.includes('📍') && (
+                                        <div className="absolute top-4 right-4 bg-primary-600/95 backdrop-blur-md text-white font-extrabold text-[10px] tracking-wider uppercase py-1.5 px-3 rounded-full flex items-center gap-1 shadow-lg z-10 border border-white/20 animate-pulse">
+                                            <span className="material-symbols-rounded filled text-xs">location_on</span>
+                                            <span>CHECK-IN</span>
+                                        </div>
+                                    )}
+                                    
                                     {/* Status Text Overlay */}
                                     {post.status_text && (
                                         <div className="absolute bottom-0 left-0 right-0 p-5 pt-12 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                                            <p className="text-white text-lg font-medium leading-snug drop-shadow-lg">
-                                                "{post.status_text}"
+                                            <p className="text-white text-lg font-medium leading-snug drop-shadow-lg flex items-center gap-1.5">
+                                                {post.status_text.includes('📍') && (
+                                                    <span className="material-symbols-rounded text-primary-500 filled text-xl animate-bounce">location_on</span>
+                                                )}
+                                                <span>"{post.status_text}"</span>
                                             </p>
                                         </div>
                                     )}

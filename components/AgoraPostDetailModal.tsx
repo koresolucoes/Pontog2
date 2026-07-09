@@ -94,8 +94,21 @@ export const AgoraPostDetailModal: React.FC<AgoraPostDetailModalProps> = ({ post
         <div className="flex-1 overflow-y-auto">
             <div className="relative">
                 <img loading="lazy" src={currentPost.photo_url} alt={`Post de ${currentPost.username}`} className="w-full h-auto object-contain bg-black" />
+                {currentPost.status_text?.includes('📍') && (
+                    <div className="absolute top-4 right-4 bg-primary-600/95 backdrop-blur-md text-white font-extrabold text-[10px] tracking-wider uppercase py-1.5 px-3 rounded-full flex items-center gap-1 shadow-lg z-10 border border-white/20 animate-pulse">
+                        <span className="material-symbols-rounded filled text-xs">location_on</span>
+                        <span>CHECK-IN</span>
+                    </div>
+                )}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-12">
-                     {currentPost.status_text && <p className="text-white text-lg font-medium italic">"{currentPost.status_text}"</p>}
+                     {currentPost.status_text && (
+                        <p className="text-white text-lg font-medium italic flex items-center gap-1.5">
+                            {currentPost.status_text.includes('📍') && (
+                                <span className="material-symbols-rounded text-primary-500 filled text-xl animate-bounce">location_on</span>
+                            )}
+                            <span>"{currentPost.status_text}"</span>
+                        </p>
+                     )}
                 </div>
             </div>
             
