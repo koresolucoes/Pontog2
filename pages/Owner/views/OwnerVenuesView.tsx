@@ -15,6 +15,7 @@ export const OwnerVenuesView: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'checkins' | 'promos' | 'edit' | 'safety'>('checkins');
     const [promoTitle, setPromoTitle] = useState('');
     const [promoMessage, setPromoMessage] = useState('');
+    const [isSendingPromo, setIsSendingPromo] = useState(false);
     
     // Safety feedback state
     const [venueSafetyReviews, setVenueSafetyReviews] = useState<any[]>([]);
@@ -138,9 +139,13 @@ export const OwnerVenuesView: React.FC = () => {
 
     const handleSendPromo = async () => {
         if (!selectedVenue || !promoTitle || !promoMessage) return;
-        await useOwnerStore.getState().sendPromotion(selectedVenue.id, promoTitle, promoMessage);
-        setPromoTitle('');
-        setPromoMessage('');
+        setIsSendingPromo(true);
+        const success = await useOwnerStore.getState().sendPromotion(selectedVenue.id, promoTitle, promoMessage);
+        setIsSendingPromo(false);
+        if (success) {
+            setPromoTitle('');
+            setPromoMessage('');
+        }
     };
 
     const handleUpdateVenue = async () => {
@@ -258,7 +263,16 @@ export const OwnerVenuesView: React.FC = () => {
                     {activeTab === 'promos' && (
                         <div className="bg-slate-800/30 p-6 rounded-2xl border border-white/10 max-w-2xl">
                             <h3 className="text-xl font-bold font-outfit text-white mb-2">Enviar Promoção</h3>
-                            <p className="text-sm text-slate-400 mb-6">Envie uma notificação push para todos os clientes que já fizeram check-in no seu local.</p>
+                            <p className="text-sm text-slate-400 mb-4">Envie uma notificação push para todos os clientes que já fizeram check-in no seu local.</p>
+                            
+                            {/* Informativo sobre o Feed Agora */}
+                            <div className="bg-primary-500/10 border border-primary-500/30 rounded-xl p-4 mb-6 flex items-start gap-3">
+                                <span className="material-symbols-rounded text-primary-400 mt-0.5">campaign</span>
+                                <div className="text-xs text-slate-300 leading-relaxed">
+                                    <span className="font-bold text-white block mb-0.5">📢 Publicação Automática no Feed Agora</span>
+                                    Esta promoção também será publicada instantaneamente no feed social global do <strong>Modo Agora</strong> como uma publicação oficial do estabelecimento.
+                                </div>
+                            </div>
                             
                             <label className="block text-sm font-medium text-slate-300 mb-2">Título da Promoção</label>
                             <input 
@@ -280,11 +294,20 @@ export const OwnerVenuesView: React.FC = () => {
 
                             <button 
                                 onClick={handleSendPromo}
-                                disabled={!promoTitle || !promoMessage}
+                                disabled={!promoTitle || !promoMessage || isSendingPromo}
                                 className="px-6 py-3 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white rounded-xl font-bold transition-colors w-full sm:w-auto flex items-center gap-2 justify-center"
                             >
-                                <span className="material-symbols-rounded">send</span>
-                                Enviar para Clientes
+                                {isSendingPromo ? (
+                                    <>
+                                        <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
+                                        <span>Enviando...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="material-symbols-rounded">send</span>
+                                        <span>Enviar Promoção & Publicar</span>
+                                    </>
+                                )}
                             </button>
                         </div>
                     )}
