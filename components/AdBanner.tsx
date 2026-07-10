@@ -1,12 +1,25 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Ad } from '../types';
+import { useAdStore } from '../stores/adStore';
 
 interface AdBannerProps {
   ad: Ad;
 }
 
 export const AdBanner: React.FC<AdBannerProps> = ({ ad }) => {
+  const trackView = useAdStore(state => state.trackView);
+  const trackClick = useAdStore(state => state.trackClick);
+
+  useEffect(() => {
+    if (ad && ad.id) {
+      trackView(ad.id);
+    }
+  }, [ad?.id]);
+
   const handleClick = () => {
+    if (ad && ad.id) {
+      trackClick(ad.id);
+    }
     window.open(ad.cta_url, '_blank', 'noopener,noreferrer');
   };
 

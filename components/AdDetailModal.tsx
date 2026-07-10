@@ -4,6 +4,7 @@ import { ExternalLink, MapPin, Tag, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../stores/uiStore';
 import { useMapStore } from '../stores/mapStore';
+import { useAdStore } from '../stores/adStore';
 
 interface AdDetailModalProps {
   ad: Ad;
@@ -14,14 +15,21 @@ export const AdDetailModal: React.FC<AdDetailModalProps> = ({ ad, onClose }) => 
   const { t } = useTranslation();
   const setSelectedVenue = useMapStore(state => state.setSelectedVenue);
   const venues = useMapStore(state => state.venues);
+  const trackClick = useAdStore(state => state.trackClick);
 
   const handleOpenLink = () => {
+    if (ad && ad.id) {
+      trackClick(ad.id);
+    }
     if (ad.cta_url && ad.cta_url !== '#') {
       window.open(ad.cta_url, '_blank', 'noopener,noreferrer');
     }
   };
 
   const handleViewVenue = () => {
+    if (ad && ad.id) {
+      trackClick(ad.id);
+    }
     if (ad.venue_id) {
         const venue = venues.find(v => v.id === ad.venue_id);
         if (venue) {

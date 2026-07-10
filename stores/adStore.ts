@@ -36,6 +36,8 @@ interface AdState {
   fetchAds: () => Promise<void>;
   grantTemporaryPerk: (perk: TemporaryPerk['perk'], durationHours: number) => void;
   hasPerk: (perk: TemporaryPerk['perk']) => boolean;
+  trackView: (campaignId: string | number) => Promise<void>;
+  trackClick: (campaignId: string | number) => Promise<void>;
 }
 
 export const useAdStore = create<AdState>((set, get) => ({
@@ -159,5 +161,51 @@ export const useAdStore = create<AdState>((set, get) => ({
             }
         }
         return false;
+    },
+
+    trackView: async (campaignId: string | number) => {
+        try {
+            // Verify campaignId is valid number/string to avoid errors
+            if (!campaignId || typeof campaignId === 'string' && campaignId.startsWith('mock_') || typeof campaignId === 'number' && campaignId < 10) return;
+            
+            // Try to increment views_count directly on supabase
+            const { data: current } = await supabase
+                .from('b2b_campaigns')
+                .select('views_count')
+                .eq('id', campaignId)
+                .single();
+
+            if (current) {
+                const nextViews = (current.views_count || 0) + 1;
+                await supabase
+                    .from('b2b_campaigns')
+                    .update({ views_count: nextViews })
+                    .eq('id', campaignId);
+            }
+        } catch (err) {
+            console.error("Error tracking ad view:", err);
+        }
+    },
+
+    trackClick: async (campaignId: string | number) => {
+        try {
+            if (!campaignId || typeof campaignId === 'string' && campaignId.startsWith('mock_') || typeof campaignId === 'number' && campaignId < 10) return;
+            
+            const { data: current } = await supabase
+                .from('b2b_campaigns')
+                .select('clicks_count')
+                .eq('id', campaignId)
+                .single();
+
+            if (current) {
+                const nextClicks = (current.clicks_count || 0) + 1;
+                await supabase
+                    .from('b2b_campaigns')
+                    .update({ clicks_count: nextClicks })
+                    .eq('id', campaignId);
+            }
+        } catch (err) {
+            console.error("Error tracking ad click:", err);
+        }
     }
 }));

@@ -42,13 +42,21 @@ interface CampaignLog {
     cost: number;
     status: 'approved' | 'flagged' | 'pending' | 'paused' | 'cancelled' | 'redirected';
     created_at: string;
+    views_count?: number;
+    clicks_count?: number;
+    image_url?: string;
+    placement?: string;
+    duration_hours?: number;
+    created_by_admin?: boolean;
+    cta_url?: string;
+    cta_text?: string;
 }
 
 export const B2BManagerView: React.FC = () => {
     const token = useAdminStore((state) => state.getToken());
     
     // Sub-tab selection
-    const [activeTab, setActiveTab] = useState<'billing' | 'audit' | 'metrics'>('billing');
+    const [activeTab, setActiveTab] = useState<'billing' | 'ads-manager' | 'create-ad' | 'metrics'>('billing');
     
     // States for B2B Management
     const [partners, setPartners] = useState<B2BPartner[]>([]);
@@ -69,6 +77,35 @@ export const B2BManagerView: React.FC = () => {
 
     const [redirectCampaignId, setRedirectCampaignId] = useState<string | null>(null);
     const [newTarget, setNewTarget] = useState<string>('');
+
+    // Ads Manager Advanced Filters
+    const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [filterPlacement, setFilterPlacement] = useState<string>('all');
+    const [filterCreator, setFilterCreator] = useState<string>('all');
+    const [filterDateRange, setFilterDateRange] = useState<string>('all');
+    const [filterTribe, setFilterTribe] = useState<string>('all');
+    const [campaignSearchTerm, setCampaignSearchTerm] = useState('');
+
+    // Form state for creating a platform ad
+    const [newAdTitle, setNewAdTitle] = useState('');
+    const [newAdMessage, setNewAdMessage] = useState('');
+    const [newAdPlacement, setNewAdPlacement] = useState<'feed' | 'banner' | 'map' | 'messages' | 'push'>('feed');
+    const [newAdTargetTribe, setNewAdTargetTribe] = useState('Geral');
+    const [newAdImageUrl, setNewAdImageUrl] = useState('');
+    const [newAdCtaUrl, setNewAdCtaUrl] = useState('');
+    const [newAdCtaText, setNewAdCtaText] = useState('Saiba Mais');
+    const [newAdDuration, setNewAdDuration] = useState<number>(24);
+    const [newAdVenueId, setNewAdVenueId] = useState<string>(''); // empty means platform-wide ad
+    const [isCreatingAd, setIsCreatingAd] = useState(false);
+
+    // Editing/Inspecting Ad modal state
+    const [editingCampaign, setEditingCampaign] = useState<CampaignLog | null>(null);
+    const [editStatus, setEditStatus] = useState<'approved' | 'paused' | 'flagged' | 'cancelled'>('approved');
+    const [editTitle, setEditTitle] = useState('');
+    const [editMessage, setEditMessage] = useState('');
+    const [editCtaText, setEditCtaText] = useState('');
+    const [editCtaUrl, setEditCtaUrl] = useState('');
+    const [editImageUrl, setEditImageUrl] = useState('');
 
 
     // Load dynamic B2B data from database
@@ -143,19 +180,30 @@ export const B2BManagerView: React.FC = () => {
             });
 
             // Map campaigns into CampaignLog objects
-            const mappedCampaigns: CampaignLog[] = (dbCampaigns || []).map(c => ({
-                id: c.id,
-                venue_id: c.venue_id,
-                venue_name: (c.venues as any)?.name || 'Local',
-                title: c.title,
-                message: c.message,
-                target_tribe: c.target_tribe || 'Geral',
-                range_meters: c.range_meters || 0,
-                estimated_reach: c.estimated_reach || 0,
-                cost: Number(c.cost),
-                status: c.status,
-                created_at: c.created_at
-            }));
+            const mappedCampaigns: CampaignLog[] = (dbCampaigns || []).map(c => {
+                const venueObj = venueMap.get(c.venue_id);
+                return {
+                    id: c.id,
+                    venue_id: c.venue_id,
+                    venue_name: venueObj?.name || (c.created_by_admin ? 'Anúncio de Plataforma (Admin)' : 'Anúncio Global / Desconhecido'),
+                    title: c.title,
+                    message: c.message,
+                    target_tribe: c.target_tribe || 'Geral',
+                    range_meters: c.range_meters || 0,
+                    estimated_reach: c.estimated_reach || 0,
+                    cost: Number(c.cost),
+                    status: c.status,
+                    created_at: c.created_at,
+                    views_count: c.views_count || 0,
+                    clicks_count: c.clicks_count || 0,
+                    image_url: c.image_url || '',
+                    placement: c.placement || 'feed',
+                    duration_hours: c.duration_hours || 24,
+                    created_by_admin: c.created_by_admin || false,
+                    cta_url: c.cta_url || '',
+                    cta_text: c.cta_text || 'Saiba Mais'
+                };
+            });
 
             // Calculate Metrics
             const revenueSum = (dbTxs || [])
@@ -307,6 +355,120 @@ export const B2BManagerView: React.FC = () => {
         }
     };
 
+    const handleCreatePlatformAd = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newAdTitle || !newAdMessage) {
+            toast.error("Por favor, preencha o título e a mensagem do anúncio.");
+            return;
+        }
+
+        setIsCreatingAd(true);
+        const toastId = toast.loading("Criando anúncio da plataforma...");
+        try {
+            const { error } = await supabase.from('b2b_campaigns').insert({
+                venue_id: newAdVenueId || null,
+                title: newAdTitle,
+                message: newAdMessage,
+                target_tribe: newAdTargetTribe,
+                range_meters: 0,
+                estimated_reach: 5000,
+                cost: 0, 
+                image_url: newAdImageUrl || null,
+                status: 'approved',
+                placement: newAdPlacement,
+                duration_hours: newAdDuration,
+                created_by_admin: true,
+                cta_url: newAdCtaUrl || null,
+                cta_text: newAdCtaText || 'Saiba Mais'
+            });
+
+            if (error) throw error;
+
+            toast.success("Anúncio criado e ativado na plataforma!", { id: toastId });
+            setNewAdTitle('');
+            setNewAdMessage('');
+            setNewAdPlacement('feed');
+            setNewAdTargetTribe('Geral');
+            setNewAdImageUrl('');
+            setNewAdCtaUrl('');
+            setNewAdCtaText('Saiba Mais');
+            setNewAdDuration(24);
+            setNewAdVenueId('');
+            
+            await fetchB2BData();
+            setActiveTab('ads-manager');
+        } catch (err: any) {
+            toast.error("Erro ao criar anúncio: " + err.message, { id: toastId });
+        } finally {
+            setIsCreatingAd(false);
+        }
+    };
+
+    const handleUpdateCampaign = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingCampaign) return;
+
+        const toastId = toast.loading("Atualizando campanha...");
+        try {
+            const { error } = await supabase
+                .from('b2b_campaigns')
+                .update({
+                    status: editStatus,
+                    title: editTitle,
+                    message: editMessage,
+                    cta_text: editCtaText,
+                    cta_url: editCtaUrl,
+                    image_url: editImageUrl || null
+                })
+                .eq('id', editingCampaign.id);
+
+            if (error) throw error;
+
+            toast.success("Campanha atualizada com sucesso!", { id: toastId });
+            setEditingCampaign(null);
+            await fetchB2BData();
+        } catch (err: any) {
+            toast.error("Erro ao atualizar campanha: " + err.message, { id: toastId });
+        }
+    };
+
+    const handleToggleCampaignStatus = async (campaignId: string, currentStatus: string) => {
+        const nextStatus = currentStatus === 'approved' ? 'paused' : 'approved';
+        const toastId = toast.loading(nextStatus === 'approved' ? "Ativando anúncio..." : "Desativando anúncio...");
+        try {
+            const { error } = await supabase
+                .from('b2b_campaigns')
+                .update({ status: nextStatus })
+                .eq('id', campaignId);
+
+            if (error) throw error;
+
+            toast.success(nextStatus === 'approved' ? "Anúncio ativado!" : "Anúncio pausado/desativado!", { id: toastId });
+            await fetchB2BData();
+        } catch (err: any) {
+            toast.error("Erro ao alterar status: " + err.message, { id: toastId });
+        }
+    };
+
+    const handleDeleteCampaign = async (campaignId: string) => {
+        if (!window.confirm("Tem certeza que deseja excluir permanentemente este anúncio?")) return;
+        
+        const toastId = toast.loading("Excluindo anúncio...");
+        try {
+            const { error } = await supabase
+                .from('b2b_campaigns')
+                .delete()
+                .eq('id', campaignId);
+
+            if (error) throw error;
+
+            toast.success("Anúncio excluído permanentemente!", { id: toastId });
+            await fetchB2BData();
+        } catch (err: any) {
+            toast.error("Erro ao excluir anúncio: " + err.message, { id: toastId });
+        }
+    };
+
 
 
     
@@ -353,11 +515,18 @@ export const B2BManagerView: React.FC = () => {
                     Controle de Créditos & Faturamento
                 </button>
                 <button 
-                    onClick={() => setActiveTab('audit')}
-                    className={`flex items-center gap-2 px-5 py-4 font-bold text-sm border-b-2 transition-all ${activeTab === 'audit' ? 'border-pink-500 text-pink-500 bg-pink-500/5' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                    onClick={() => setActiveTab('ads-manager')}
+                    className={`flex items-center gap-2 px-5 py-4 font-bold text-sm border-b-2 transition-all ${activeTab === 'ads-manager' ? 'border-pink-500 text-pink-500 bg-pink-500/5' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
                 >
-                    <ShieldAlert className="w-4 h-4" />
-                    Auditoria de Campanhas ({campaigns.filter(c => c.status === 'approved').length})
+                    <Sliders className="w-4 h-4" />
+                    Gerenciador de Anúncios ({campaigns.length})
+                </button>
+                <button 
+                    onClick={() => setActiveTab('create-ad')}
+                    className={`flex items-center gap-2 px-5 py-4 font-bold text-sm border-b-2 transition-all ${activeTab === 'create-ad' ? 'border-pink-500 text-pink-500 bg-pink-500/5' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                >
+                    <Plus className="w-4 h-4" />
+                    Criar Anúncio (Plataforma)
                 </button>
                 <button 
                     onClick={() => setActiveTab('metrics')}
@@ -586,123 +755,574 @@ export const B2BManagerView: React.FC = () => {
                     </div>
                 )}
 
-                {/* 🛡️ Tab 2: Campaign Audit Log & Moderation */}
-                {activeTab === 'audit' && (
+                {/* 🛡️ Tab 2: Gerenciador Avançado de Anúncios */}
+                {activeTab === 'ads-manager' && (
                     <div className="space-y-6">
+                        {/* Advanced Filters Panel */}
                         <div className="bg-slate-900/40 border border-white/5 p-5 rounded-2xl shadow-xl space-y-4">
-                            <div>
-                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <ShieldAlert className="text-pink-500 w-5 h-5" />
-                                    Fila de Auditoria de Campanhas Georreferenciadas
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-1">Monitore em tempo real as promoções disparadas pelos donos para conter abusos, spam ou conteúdos abusivos.</p>
+                            <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                        <Sliders className="text-pink-500 w-5 h-5" />
+                                        Gerenciador Geral de Anúncios e Campanhas
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">Filtre, monitore métricas de engajamento (Views, Cliques, CTR) e modifique o status de veiculação de qualquer campanha.</p>
+                                </div>
                             </div>
 
-                            <div className="space-y-4">
-                                {campaigns.length === 0 ? (
-                                    <div className="p-10 text-center text-slate-500 text-sm">
-                                        Nenhuma campanha disparada na plataforma para auditar no momento.
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                                {/* Search */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Buscar</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
+                                        <input 
+                                            type="text"
+                                            value={campaignSearchTerm}
+                                            onChange={(e) => setCampaignSearchTerm(e.target.value)}
+                                            placeholder="Título, local, mensagem..."
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl py-2.5 pl-9 pr-4 text-xs text-white focus:outline-none focus:border-pink-500"
+                                        />
                                     </div>
-                                ) : (
-                                    campaigns.map(cmp => (
-                                        <div 
-                                            key={cmp.id}
-                                            className={`border rounded-2xl p-5 flex flex-col md:flex-row justify-between gap-6 transition-all ${cmp.status === 'flagged' ? 'bg-red-500/5 border-red-500/20 opacity-70' : 'bg-slate-950/40 border-white/5 hover:border-white/10'}`}
-                                        >
-                                            <div className="space-y-3 flex-1">
-                                                {/* Header info */}
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="text-xs font-bold text-slate-300 bg-slate-900 border border-white/10 px-2.5 py-0.5 rounded-full">
-                                                        {cmp.venue_name}
-                                                    </span>
-                                                    <span className="text-[10px] font-mono text-slate-500">
-                                                        Enviado em {new Date(cmp.created_at).toLocaleString()}
-                                                    </span>
-                                                    {cmp.status === 'flagged' ? (
-                                                        <span className="text-[9px] bg-red-500/10 text-red-400 border border-red-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">SUSPENSA (Spam/Ofensiva)</span>
-                                                    ) : cmp.status === 'cancelled' ? (
-                                                        <span className="text-[9px] bg-slate-500/10 text-slate-400 border border-slate-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">CANCELADA</span>
-                                                    ) : (
-                                                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">ATIVA & SAUDÁVEL</span>
-                                                    )}
-                                                </div>
+                                </div>
 
-                                                {/* Content block */}
-                                                <div className="space-y-1">
-                                                    <h4 className="text-base font-bold text-white flex items-center gap-1.5">
-                                                        {cmp.title}
-                                                    </h4>
-                                                    <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">{cmp.message}</p>
-                                                </div>
+                                {/* Status */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Status</label>
+                                    <select
+                                        value={filterStatus}
+                                        onChange={(e) => setFilterStatus(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-pink-500"
+                                    >
+                                        <option value="all">Todos os Status</option>
+                                        <option value="approved">Ativos (Aprovados)</option>
+                                        <option value="paused">Pausados</option>
+                                        <option value="flagged">Suspensos (Flagged)</option>
+                                        <option value="cancelled">Cancelados</option>
+                                    </select>
+                                </div>
 
-                                                {/* Meta indicators */}
-                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2 border-t border-white/[0.03] text-xs font-mono text-slate-400">
-                                                    <div>
-                                                        <span className="text-slate-500 block text-[9px] uppercase tracking-wider">Tribo Alvo</span>
-                                                        <span className="font-bold text-slate-200">{cmp.target_tribe}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-500 block text-[9px] uppercase tracking-wider">Raio Geofence</span>
-                                                        <span className="font-bold text-slate-200">{cmp.range_meters} metros</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-500 block text-[9px] uppercase tracking-wider">Alcance Alc.</span>
-                                                        <span className="font-bold text-slate-200">{cmp.estimated_reach} recipientes</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-500 block text-[9px] uppercase tracking-wider">Custo do Blast</span>
-                                                        <span className="font-bold text-green-400">R$ {cmp.cost.toFixed(2)}</span>
-                                                    </div>
-                                                </div>
+                                {/* Placement */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Canal/Tipo</label>
+                                    <select
+                                        value={filterPlacement}
+                                        onChange={(e) => setFilterPlacement(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-pink-500"
+                                    >
+                                        <option value="all">Todos os Canais</option>
+                                        <option value="feed">Feed (Notícias)</option>
+                                        <option value="banner">Banner Destaque</option>
+                                        <option value="map">Mapa (Pino Dourado)</option>
+                                        <option value="messages">Mensagem Direta/Inbox</option>
+                                        <option value="push">Push Geofence</option>
+                                    </select>
+                                </div>
+
+                                {/* Creator */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Origem</label>
+                                    <select
+                                        value={filterCreator}
+                                        onChange={(e) => setFilterCreator(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-pink-500"
+                                    >
+                                        <option value="all">Todos os Autores</option>
+                                        <option value="admin">Administrador (Plataforma)</option>
+                                        <option value="owner">Proprietários (B2B)</option>
+                                    </select>
+                                </div>
+
+                                {/* Tribe Target */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Tribo Alvo</label>
+                                    <select
+                                        value={filterTribe}
+                                        onChange={(e) => setFilterTribe(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-pink-500"
+                                    >
+                                        <option value="all">Todas as Tribos</option>
+                                        <option value="Geral">Geral (Sem Filtro)</option>
+                                        <option value="Urso">Urso 🐻</option>
+                                        <option value="Caçador">Caçador 🎯</option>
+                                        <option value="Leather">Leather 🖤</option>
+                                        <option value="Fetiche">Fetiche ⛓️</option>
+                                        <option value="Casual">Casual 🍻</option>
+                                        <option value="Twink">Twink ✨</option>
+                                        <option value="Daddy">Daddy 👑</option>
+                                        <option value="Geek">Geek 👾</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Ads list table */}
+                        <div className="bg-slate-900/40 border border-white/5 rounded-2xl shadow-xl overflow-hidden">
+                            <div className="p-4 border-b border-white/5 flex justify-between items-center bg-slate-950/20">
+                                <span className="text-xs font-bold text-slate-400">Anúncios Filtrados: {
+                                    campaigns.filter(c => {
+                                        if (campaignSearchTerm && !c.title.toLowerCase().includes(campaignSearchTerm.toLowerCase()) && !c.venue_name.toLowerCase().includes(campaignSearchTerm.toLowerCase())) return false;
+                                        if (filterStatus !== 'all' && c.status !== filterStatus) return false;
+                                        if (filterPlacement !== 'all' && c.placement !== filterPlacement) return false;
+                                        if (filterCreator === 'admin' && !c.created_by_admin) return false;
+                                        if (filterCreator === 'owner' && c.created_by_admin) return false;
+                                        if (filterTribe !== 'all' && c.target_tribe !== filterTribe) return false;
+                                        return true;
+                                    }).length
+                                }</span>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="border-b border-white/5 text-slate-400 font-bold uppercase tracking-wider font-mono text-[10px] bg-slate-950/40">
+                                            <th className="py-3.5 px-4">Anúncio / ID</th>
+                                            <th className="py-3.5 px-4">Veiculação</th>
+                                            <th className="py-3.5 px-4">Direcionamento</th>
+                                            <th className="py-3.5 px-4 text-center">Views</th>
+                                            <th className="py-3.5 px-4 text-center">Cliques</th>
+                                            <th className="py-3.5 px-4 text-center">CTR %</th>
+                                            <th className="py-3.5 px-4">Status</th>
+                                            <th className="py-3.5 px-4 text-right">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {campaigns.filter(c => {
+                                            if (campaignSearchTerm && !c.title.toLowerCase().includes(campaignSearchTerm.toLowerCase()) && !c.venue_name.toLowerCase().includes(campaignSearchTerm.toLowerCase()) && !c.message.toLowerCase().includes(campaignSearchTerm.toLowerCase())) return false;
+                                            if (filterStatus !== 'all' && c.status !== filterStatus) return false;
+                                            if (filterPlacement !== 'all' && c.placement !== filterPlacement) return false;
+                                            if (filterCreator === 'admin' && !c.created_by_admin) return false;
+                                            if (filterCreator === 'owner' && c.created_by_admin) return false;
+                                            if (filterTribe !== 'all' && c.target_tribe !== filterTribe) return false;
+                                            return true;
+                                        }).length === 0 ? (
+                                            <tr>
+                                                <td colSpan={8} className="py-12 text-center text-slate-500 font-mono text-xs">
+                                                    Nenhum anúncio localizado com os filtros selecionados.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            campaigns.filter(c => {
+                                                if (campaignSearchTerm && !c.title.toLowerCase().includes(campaignSearchTerm.toLowerCase()) && !c.venue_name.toLowerCase().includes(campaignSearchTerm.toLowerCase()) && !c.message.toLowerCase().includes(campaignSearchTerm.toLowerCase())) return false;
+                                                if (filterStatus !== 'all' && c.status !== filterStatus) return false;
+                                                if (filterPlacement !== 'all' && c.placement !== filterPlacement) return false;
+                                                if (filterCreator === 'admin' && !c.created_by_admin) return false;
+                                                if (filterCreator === 'owner' && c.created_by_admin) return false;
+                                                if (filterTribe !== 'all' && c.target_tribe !== filterTribe) return false;
+                                                return true;
+                                            }).map(cmp => {
+                                                const ctr = cmp.views_count && cmp.views_count > 0 ? ((cmp.clicks_count || 0) / cmp.views_count * 100) : 0;
+                                                return (
+                                                    <tr key={cmp.id} className="hover:bg-white/5 transition-all">
+                                                        <td className="py-3.5 px-4">
+                                                            <div className="font-bold text-white text-sm leading-tight">{cmp.title}</div>
+                                                            <div className="text-slate-400 text-[10px] mt-0.5 font-mono truncate max-w-xs">{cmp.message}</div>
+                                                            <div className="flex gap-2 items-center mt-1.5">
+                                                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-black tracking-widest ${cmp.created_by_admin ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
+                                                                    {cmp.created_by_admin ? 'ADMIN' : 'B2B PARCEIRO'}
+                                                                </span>
+                                                                <span className="text-[10px] font-mono text-slate-500 truncate">{cmp.venue_name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <span className="bg-slate-950 px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-300 font-mono border border-white/5 capitalize">
+                                                                {cmp.placement === 'feed' ? 'Feed Notícias' : 
+                                                                 cmp.placement === 'banner' ? 'Banner Topo' : 
+                                                                 cmp.placement === 'map' ? 'Mapa (Pino)' : 
+                                                                 cmp.placement === 'messages' ? 'Direct Inbox' : 'Push Notification'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <div className="text-slate-200 font-medium">Tribo: <strong className="text-pink-400 font-bold">{cmp.target_tribe}</strong></div>
+                                                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">Disparo: {new Date(cmp.created_at).toLocaleDateString()}</div>
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-300 text-sm">
+                                                            {cmp.views_count || 0}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-300 text-sm">
+                                                            {cmp.clicks_count || 0}
+                                                        </td>
+                                                        <td className={`py-3.5 px-4 text-center font-mono font-bold text-sm ${ctr > 10 ? 'text-emerald-400' : ctr > 5 ? 'text-yellow-400' : 'text-slate-400'}`}>
+                                                            {ctr.toFixed(2)}%
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                                                cmp.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                                cmp.status === 'paused' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                                                cmp.status === 'flagged' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                                                'bg-slate-800 text-slate-400 border-white/5'
+                                                            }`}>
+                                                                {cmp.status === 'approved' ? 'Ativo' : 
+                                                                 cmp.status === 'paused' ? 'Pausado' : 
+                                                                 cmp.status === 'flagged' ? 'Suspenso' : 'Cancelado'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-right">
+                                                            <div className="flex justify-end gap-1.5">
+                                                                {/* Quick Activation Toggle Button */}
+                                                                <button 
+                                                                    onClick={() => handleToggleCampaignStatus(cmp.id, cmp.status)}
+                                                                    className={`p-1.5 rounded-lg border text-xs font-bold transition-all ${
+                                                                        cmp.status === 'approved' 
+                                                                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20' 
+                                                                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                                                                    }`}
+                                                                    title={cmp.status === 'approved' ? 'Pausar anúncio' : 'Ativar anúncio'}
+                                                                >
+                                                                    {cmp.status === 'approved' ? 'Pausar' : 'Ativar'}
+                                                                </button>
+
+                                                                {/* Edit Modal Trigger */}
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setEditingCampaign(cmp);
+                                                                        setEditStatus(cmp.status as any);
+                                                                        setEditTitle(cmp.title);
+                                                                        setEditMessage(cmp.message);
+                                                                        setEditCtaText(cmp.cta_text || 'Saiba Mais');
+                                                                        setEditCtaUrl(cmp.cta_url || '');
+                                                                        setEditImageUrl(cmp.image_url || '');
+                                                                    }}
+                                                                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 rounded-lg p-1.5 transition-colors"
+                                                                    title="Editar anúncio completo"
+                                                                >
+                                                                    Editar
+                                                                </button>
+
+                                                                {/* Delete permanent */}
+                                                                <button 
+                                                                    onClick={() => handleDeleteCampaign(cmp.id)}
+                                                                    className="bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 hover:border-transparent rounded-lg p-1.5 transition-all"
+                                                                    title="Excluir permanentemente"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Custom Campaign Editing Modal Overlaid */}
+                        {editingCampaign && (
+                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                                <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-lg w-full shadow-2xl space-y-5 animate-scale-in max-h-[90vh] overflow-y-auto">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white font-outfit">Editar Anúncio / Campanha</h3>
+                                        <p className="text-xs text-slate-500 mt-1">Modifique as cópias, URLs de destino CTA, imagens ou suspenda de forma oficial.</p>
+                                    </div>
+
+                                    <form onSubmit={handleUpdateCampaign} className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {/* Status Selection */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <label className="text-xs font-bold text-slate-400">Status Geral do Anúncio</label>
+                                                <select 
+                                                    value={editStatus}
+                                                    onChange={(e) => setEditStatus(e.target.value as any)}
+                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500"
+                                                >
+                                                    <option value="approved">Ativo / Aprovado (Disponível p/ Usuários)</option>
+                                                    <option value="paused">Pausado (Inativo temporariamente)</option>
+                                                    <option value="flagged">Suspenso / Bloqueado (Flagged)</option>
+                                                    <option value="cancelled">Cancelado (Estorno de Fundos se houver)</option>
+                                                </select>
                                             </div>
 
-                                            {/* Action modifiers */}
-                                            
-{cmp.status === 'approved' && (
-    <div className="flex md:flex-col justify-end gap-2.5 self-start md:self-center">
-        <button
-            onClick={() => handleModerateCampaign(cmp.id, 'flagged')}
-            className="bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/20 hover:border-transparent text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
-        >
-            <Ban className="w-3.5 h-3.5" />
-            Suspender
-        </button>
-        <button
-            onClick={() => handleModerateCampaign(cmp.id, 'redirected')}
-            className="bg-blue-500/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/20 hover:border-transparent text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
-        >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            Redirecionar
-        </button>
-        <button
-            onClick={() => handleModerateCampaign(cmp.id, 'cancelled')}
-            className="bg-slate-500/10 hover:bg-slate-600 text-slate-400 hover:text-white border border-slate-500/20 hover:border-transparent text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
-        >
-            <Trash2 className="w-3.5 h-3.5" />
-            Cancelar
-        </button>
-    </div>
-)}
-{cmp.status === 'flagged' && (
-    <div className="flex md:flex-col justify-end gap-2.5 self-start md:self-center">
-        <button
-            onClick={() => handleModerateCampaign(cmp.id, 'approved')}
-            className="bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-transparent text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
-        >
-            <CheckCircle className="w-4 h-4" />
-            Re-Ativar
-        </button>
-    </div>
-)}
-{cmp.status === 'cancelled' && (
-    <div className="flex md:flex-col justify-end gap-2.5 self-start md:self-center text-slate-500 text-xs font-bold">
-        CANCELADA
-    </div>
-)}
+                                            {/* Title */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <label className="text-xs font-bold text-slate-400">Título do Anúncio</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editTitle}
+                                                    onChange={(e) => setEditTitle(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-bold"
+                                                    required
+                                                />
+                                            </div>
 
+                                            {/* Description / Message */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <label className="text-xs font-bold text-slate-400">Mensagem / Conteúdo</label>
+                                                <textarea 
+                                                    value={editMessage}
+                                                    onChange={(e) => setEditMessage(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 h-20 resize-none leading-relaxed"
+                                                    required
+                                                />
+                                            </div>
+
+                                            {/* Image Url */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <label className="text-xs font-bold text-slate-400">Link URL da Imagem Promocional</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editImageUrl}
+                                                    onChange={(e) => setEditImageUrl(e.target.value)}
+                                                    placeholder="URL completo iniciando com https://"
+                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-mono"
+                                                />
+                                            </div>
+
+                                            {/* CTA Url */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-bold text-slate-400">Link de Ação / CTA</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editCtaUrl}
+                                                    onChange={(e) => setEditCtaUrl(e.target.value)}
+                                                    placeholder="Ex: https://bar.site"
+                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-mono"
+                                                />
+                                            </div>
+
+                                            {/* CTA Text */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-bold text-slate-400">Texto do Botão CTA</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editCtaText}
+                                                    onChange={(e) => setEditCtaText(e.target.value)}
+                                                    placeholder="Ex: Saiba Mais"
+                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-bold"
+                                                />
+                                            </div>
                                         </div>
-                                    ))
-                                )}
+
+                                        <div className="flex gap-3 pt-3 border-t border-white/5">
+                                            <button 
+                                                type="button"
+                                                onClick={() => setEditingCampaign(null)}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold py-3 rounded-xl text-xs border border-white/5 transition-all"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button 
+                                                type="submit"
+                                                className="flex-1 bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-lg"
+                                            >
+                                                Salvar Alterações
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ➕ Tab 3: Criar Novo Anúncio da Plataforma */}
+                {activeTab === 'create-ad' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Formulation Card */}
+                        <div className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6">
+                            <div>
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Plus className="text-pink-500" />
+                                    Criar Nova Publicidade do Administrador
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-1">Publique comunicações da própria plataforma, eventos corporativos, ou crie campanhas patrocinadas de parceiros sem consumir seu saldo.</p>
+                            </div>
+
+                            <form onSubmit={handleCreatePlatformAd} className="space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    
+                                    {/* Campaign Type / Placement */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">Canal de Exibição</label>
+                                        <select
+                                            value={newAdPlacement}
+                                            onChange={(e) => setNewAdPlacement(e.target.value as any)}
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500"
+                                        >
+                                            <option value="feed">Feed Principal (Feed Ads)</option>
+                                            <option value="banner">Banner no Topo do Feed</option>
+                                            <option value="map">Marcação Especial no Mapa (Pino)</option>
+                                            <option value="messages">Mensagem Direta para Caixa de Entrada</option>
+                                            <option value="push">Push Georreferenciado</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Target Tribe */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">Filtro de Público (Tribo Alvo)</label>
+                                        <select
+                                            value={newAdTargetTribe}
+                                            onChange={(e) => setNewAdTargetTribe(e.target.value)}
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500"
+                                        >
+                                            <option value="Geral">Geral (Sem Filtro)</option>
+                                            <option value="Urso">Urso 🐻</option>
+                                            <option value="Caçador">Caçador 🎯</option>
+                                            <option value="Leather">Leather 🖤</option>
+                                            <option value="Fetiche">Fetiche ⛓️</option>
+                                            <option value="Casual">Casual 🍻</option>
+                                            <option value="Twink">Twink ✨</option>
+                                            <option value="Daddy">Daddy 👑</option>
+                                            <option value="Geek">Geek 👾</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Title */}
+                                    <div className="col-span-2 space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">Título do Anúncio</label>
+                                        <input 
+                                            type="text" 
+                                            value={newAdTitle}
+                                            onChange={(e) => setNewAdTitle(e.target.value)}
+                                            placeholder="Ex: Ponto G Premium VIP Ativado! 🌟"
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-bold"
+                                            required
+                                        />
+                                    </div>
+
+                                    {/* Message */}
+                                    <div className="col-span-2 space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">Mensagem de Conteúdo (Copy)</label>
+                                        <textarea 
+                                            value={newAdMessage}
+                                            onChange={(e) => setNewAdMessage(e.target.value)}
+                                            placeholder="Ex: Assine a assinatura anual Ponto G VIP com 40% de desconto essa semana e acesse salas de bate-papo VIP secretas e radar expandido de proximidade..."
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 h-24 resize-none leading-relaxed"
+                                            required
+                                        />
+                                    </div>
+
+                                    {/* Banner Image URL */}
+                                    <div className="col-span-2 space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">URL Completo da Imagem Ilustrativa</label>
+                                        <input 
+                                            type="text" 
+                                            value={newAdImageUrl}
+                                            onChange={(e) => setNewAdImageUrl(e.target.value)}
+                                            placeholder="https://images.unsplash.com/... ou link de arquivo de imagem"
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-mono"
+                                        />
+                                    </div>
+
+                                    {/* CTA URL */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">Link de Ação (URL CTA)</label>
+                                        <input 
+                                            type="text" 
+                                            value={newAdCtaUrl}
+                                            onChange={(e) => setNewAdCtaUrl(e.target.value)}
+                                            placeholder="Ex: https://pontog.com.br/vip"
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-mono"
+                                        />
+                                    </div>
+
+                                    {/* CTA TEXT */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">Texto do Botão de Ação CTA</label>
+                                        <input 
+                                            type="text" 
+                                            value={newAdCtaText}
+                                            onChange={(e) => setNewAdCtaText(e.target.value)}
+                                            placeholder="Ex: Resgatar Ingresso"
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-bold"
+                                        />
+                                    </div>
+
+                                    {/* Duration hours */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">Duração (Horas)</label>
+                                        <input 
+                                            type="number" 
+                                            value={newAdDuration}
+                                            onChange={(e) => setNewAdDuration(Math.max(1, Number(e.target.value)))}
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500 font-mono"
+                                        />
+                                    </div>
+
+                                    {/* Associated Venue */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-slate-300">Associar a Estabelecimento (Opcional)</label>
+                                        <select
+                                            value={newAdVenueId}
+                                            onChange={(e) => setNewAdVenueId(e.target.value)}
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-pink-500"
+                                        >
+                                            <option value="">Nenhum (Anúncio Geral/Próprio)</option>
+                                            {partners.map(p => (
+                                                <option key={p.venueId} value={p.venueId}>{p.venueName}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={isCreatingAd}
+                                    className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-pink-900/20 flex items-center justify-center gap-2 transition-all mt-4 text-sm"
+                                >
+                                    {isCreatingAd ? (
+                                        <>
+                                            <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                            Criando Anúncio...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle className="w-5 h-5" />
+                                            Ativar e Publicar Anúncio Oficial
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        </div>
+
+                        {/* Real-Time Mockup Simulator Column */}
+                        <div className="space-y-6">
+                            <div className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6 sticky top-24">
+                                <div>
+                                    <h3 className="font-bold text-white text-md">Simulador de Mockup de Usuário</h3>
+                                    <p className="text-xs text-slate-500 mt-1">Visualize exatamente como este anúncio será formatado nas interfaces móveis do feed de novidades.</p>
+                                </div>
+
+                                <div className="border border-white/10 rounded-3xl p-4 bg-slate-950 overflow-hidden relative shadow-inner">
+                                    {/* Mobile status bar */}
+                                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono px-2 pb-3 border-b border-white/5">
+                                        <span>Ponto G App</span>
+                                        <span>12:00 UTC</span>
+                                        <span className="text-emerald-400">● Live Preview</span>
+                                    </div>
+
+                                    {/* Render dynamic previews depending on selection */}
+                                    <div className="p-4 mt-4 space-y-4">
+                                        <div className="bg-slate-900 border border-white/5 rounded-2xl p-4 space-y-3 shadow-lg">
+                                            {newAdImageUrl && (
+                                                <img 
+                                                    src={newAdImageUrl} 
+                                                    alt="Preview Promo" 
+                                                    className="w-full aspect-video object-cover rounded-xl border border-white/5"
+                                                    onError={(e) => { (e.target as any).style.display = 'none'; }}
+                                                />
+                                            )}
+                                            
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="bg-pink-500/10 text-pink-400 border border-pink-500/20 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Patrocinado Oficial</span>
+                                                    <span className="text-[10px] text-slate-500 font-mono">{newAdTargetTribe === 'Geral' ? 'Público Amplo' : `Filtro: ${newAdTargetTribe}`}</span>
+                                                </div>
+                                                <h4 className="text-base font-bold text-white">{newAdTitle || 'Seu título do anúncio aqui...'}</h4>
+                                                <p className="text-xs text-slate-300 leading-relaxed">{newAdMessage || 'Sua mensagem de copy descritiva e atraente aparecerá completa aqui.'}</p>
+                                            </div>
+
+                                            <button 
+                                                type="button"
+                                                className="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition-colors mt-2"
+                                            >
+                                                {newAdCtaText}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

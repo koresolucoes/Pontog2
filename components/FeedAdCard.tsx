@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Ad } from '../types';
 import { useTranslation } from 'react-i18next';
 import { AdDetailModal } from './AdDetailModal';
+import { useAdStore } from '../stores/adStore';
 
 interface FeedAdCardProps {
   ad: Ad;
@@ -10,6 +11,13 @@ interface FeedAdCardProps {
 export const FeedAdCard: React.FC<FeedAdCardProps> = ({ ad }) => {
   const { t } = useTranslation();
   const [showModal, setShowModal] = useState(false);
+  const trackView = useAdStore(state => state.trackView);
+
+  useEffect(() => {
+    if (ad && ad.id) {
+      trackView(ad.id);
+    }
+  }, [ad?.id]);
 
   const handleClick = () => {
     setShowModal(true);
