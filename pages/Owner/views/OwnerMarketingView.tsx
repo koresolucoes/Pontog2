@@ -21,7 +21,7 @@ import {
     Map,
     Upload,
     X
-, Eye} from 'lucide-react';
+, Eye, Image} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Static copywriting template engine (Fully structured copywriting assistant, 100% without external AI)
