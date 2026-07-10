@@ -408,7 +408,7 @@ export const OwnerMarketingView: React.FC = () => {
             const success = await useOwnerStore.getState().sendPromotion(
                 selectedVenueId,
                 campaignTitle,
-                `[Push Raio de ${campaignRange}m para ${campaignTargetTribe}] ${campaignMessage}`,
+                campaignMessage,
                 campaignImageUrl
             );
 

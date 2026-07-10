@@ -120,7 +120,7 @@ export default async function handler(
       id: stringToHash(vp.id),
       user_id: vp.venue_id,
       photo_url: vp.image_url || vp.venue?.image_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
-      status_text: vp.content ? `📢 ${vp.title}: ${vp.content}` : `📢 ${vp.title}`,
+      status_text: vp.content ? `📣 ${vp.title}\n\n${vp.content}` : `📣 ${vp.title}`,
       created_at: vp.created_at,
       expires_at: vp.ends_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       username: vp.venue?.name || 'Espaço Parceiro',
