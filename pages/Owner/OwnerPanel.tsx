@@ -1,5 +1,6 @@
 import React from 'react';
 import { Toaster } from 'react-hot-toast';
+import { ErrorBoundary } from "../../components/ErrorBoundary";
 import { OwnerLayout } from './OwnerLayout';
 
 export const OwnerPanel: React.FC = () => {
@@ -16,7 +17,7 @@ export const OwnerPanel: React.FC = () => {
                     },
                 }}
             />
-            <OwnerLayout />
+            <ErrorBoundary><OwnerLayout /></ErrorBoundary>
         </div>
     );
 };

@@ -67,6 +67,11 @@ export const useAdStore = create<AdState>((set, get) => ({
                     const isExpired = camp.duration_hours && camp.created_at ? new Date(camp.created_at).getTime() + (camp.duration_hours * 60 * 60 * 1000) < Date.now() : false;
                     
                     if (isExpired) return;
+                    
+                    // Ignore legacy hardcoded campaigns that confuse users with default text
+                    if (camp.title === 'Destaque: Pino Dourado' || camp.title === 'Destaque: Banner no Feed') {
+                        return;
+                    }
 
                     const defaultImage = 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600';
                     const imageUrl = camp.image_url ? camp.image_url : defaultImage;

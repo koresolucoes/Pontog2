@@ -595,6 +595,8 @@ const ConversationItem = React.memo(({
     );
 });
 
+import { Ad } from "../types";
+
 interface InboxAdCardProps {
     ad: Ad;
 }
