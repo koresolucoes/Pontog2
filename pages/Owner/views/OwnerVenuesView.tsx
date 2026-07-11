@@ -4,6 +4,7 @@ import { useAuthStore } from '../../../stores/authStore';
 import { Venue } from '../../../types';
 import { supabase } from '../../../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { OwnerClaimVenueView } from './OwnerClaimVenueView';
 
 export const OwnerVenuesView: React.FC = () => {
     const { user } = useAuthStore();
@@ -23,6 +24,9 @@ export const OwnerVenuesView: React.FC = () => {
     const [promoImageFile, setPromoImageFile] = useState<File | null>(null);
     const [uploadingPromoImage, setUploadingPromoImage] = useState(false);
     
+    // Add venue state
+    const [isAddingVenue, setIsAddingVenue] = useState(false);
+
     // Safety feedback state
     const [venueSafetyReviews, setVenueSafetyReviews] = useState<any[]>([]);
     const [safetyAverages, setSafetyAverages] = useState<{
@@ -583,49 +587,135 @@ export const OwnerVenuesView: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6">
-            <h2 className="text-3xl font-bold font-outfit text-white">Meus Locais</h2>
-            <p className="text-slate-400">Gerencie seus estabelecimentos ou eventos.</p>
-
-            {managedVenues.length === 0 ? (
-                <div className="bg-slate-800/30 border border-white/5 rounded-2xl p-8 text-center">
-                    <span className="material-symbols-rounded text-4xl text-slate-500 mb-2">store_off</span>
-                    <h3 className="text-xl font-bold text-white mb-2">Nenhum local</h3>
-                    <p className="text-slate-400 text-sm">Você ainda não gerencia nenhum local.</p>
+        <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
+                <div>
+                    <h2 className="text-3xl font-bold font-outfit text-white">Meu Negócio</h2>
+                    <p className="text-slate-400 text-sm mt-1">Visão geral e gestão operacional dos seus estabelecimentos.</p>
                 </div>
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {managedVenues.map(venue => (
-                        <div 
-                            key={venue.id} 
-                            className="bg-slate-800/50 border border-white/10 rounded-2xl overflow-hidden hover:border-primary-500/50 transition-colors cursor-pointer group flex flex-col"
-                            onClick={() => handleSelectVenue(venue)}
+                <button 
+                    onClick={() => setIsAddingVenue(true)}
+                    className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-2 transition-all text-sm whitespace-nowrap shadow-lg shadow-primary-900/20"
+                >
+                    <span className="material-symbols-rounded text-lg">add_business</span>
+                    Adicionar Local
+                </button>
+            </div>
+
+            {/* Dashboard KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-slate-800/50 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="w-12 h-12 rounded-full bg-primary-500/20 text-primary-500 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-rounded">store</span>
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-400 font-medium">Locais Gerenciados</p>
+                            <p className="text-3xl font-black text-white font-outfit">{managedVenues.length}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-slate-800/50 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="w-12 h-12 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-rounded">qr_code_scanner</span>
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-400 font-medium">QR Codes Ativos</p>
+                            <p className="text-3xl font-black text-white font-outfit">{managedVenues.length}</p>
+                        </div>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">Imprima os QRs e coleque nos seus locais.</p>
+                </div>
+                <div className="bg-slate-800/50 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-rounded">people</span>
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-400 font-medium">Capacidade Média</p>
+                            <p className="text-3xl font-black text-white font-outfit">
+                                {managedVenues.length > 0 ? Math.round(managedVenues.reduce((a, b) => a + (b.capacity || 0), 0) / managedVenues.length) : 0}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                <h3 className="text-xl font-bold font-outfit text-white">Seus Estabelecimentos</h3>
+                {managedVenues.length === 0 ? (
+                    <div className="bg-slate-800/30 border border-white/5 rounded-2xl p-10 text-center">
+                        <span className="material-symbols-rounded text-5xl text-slate-600 mb-3">store_off</span>
+                        <h3 className="text-xl font-bold text-white mb-2">Nenhum local ativo</h3>
+                        <p className="text-slate-400 text-sm max-w-sm mx-auto">Você ainda não gerencia nenhum local. Reivindique seu estabelecimento para começar.</p>
+                        <button 
+                            onClick={() => setIsAddingVenue(true)}
+                            className="mt-6 px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-colors border border-white/10"
                         >
-                            <div className="h-32 bg-slate-700 relative">
-                                {venue.image_url ? (
-                                    <img src={venue.image_url} alt={venue.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-500">Sem Imagem</div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent"></div>
-                                <div className="absolute bottom-3 left-3 flex gap-2">
-                                    <span className="bg-primary-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">
-                                        {venue.type}
+                            Encontrar Meu Local
+                        </button>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {managedVenues.map(venue => (
+                            <div 
+                                key={venue.id} 
+                                className="bg-slate-800/50 border border-white/10 rounded-2xl overflow-hidden hover:border-primary-500/50 hover:shadow-[0_0_20px_rgba(245,12,105,0.1)] transition-all cursor-pointer group flex flex-col"
+                                onClick={() => handleSelectVenue(venue)}
+                            >
+                                <div className="h-36 bg-slate-700 relative">
+                                    {venue.image_url ? (
+                                        <img src={venue.image_url} alt={venue.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                            <span className="material-symbols-rounded text-3xl">image</span>
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent"></div>
+                                    <div className="absolute bottom-3 left-3 flex gap-2">
+                                        <span className="bg-primary-500 text-white text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold">
+                                            {venue.type}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-5 flex-1">
+                                    <h3 className="text-lg font-bold text-white group-hover:text-primary-400 transition-colors line-clamp-1">{venue.name}</h3>
+                                    <p className="text-xs text-slate-400 line-clamp-2 mt-1">{venue.address}</p>
+                                </div>
+                                <div className="p-4 border-t border-white/5 bg-slate-900/40 flex justify-between items-center text-sm">
+                                    <span className="text-slate-400 flex items-center gap-1.5 font-medium">
+                                        <span className="material-symbols-rounded text-[18px]">settings</span>
+                                        Gerenciar
                                     </span>
+                                    <span className="material-symbols-rounded text-slate-500 group-hover:text-primary-400 transition-colors">arrow_forward</span>
                                 </div>
                             </div>
-                            <div className="p-4 flex-1">
-                                <h3 className="text-lg font-bold text-white group-hover:text-primary-400 transition-colors">{venue.name}</h3>
-                                <p className="text-sm text-slate-400 line-clamp-2 mt-1">{venue.address}</p>
-                            </div>
-                            <div className="p-4 border-t border-white/5 bg-slate-900/30 flex justify-between items-center text-sm">
-                                <span className="text-slate-400 flex items-center gap-1">
-                                    <span className="material-symbols-rounded text-[16px]">qr_code</span> Gerenciar
-                                </span>
-                                <span className="material-symbols-rounded text-slate-500 group-hover:text-white transition-colors">arrow_forward</span>
-                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Modal for adding a venue (rendering OwnerClaimVenueView inside it) */}
+            {isAddingVenue && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-3xl relative overflow-hidden my-auto max-h-[90vh] flex flex-col">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center shrink-0">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <span className="material-symbols-rounded text-primary-500">add_business</span>
+                                Adicionar um Local
+                            </h3>
+                            <button 
+                                onClick={() => setIsAddingVenue(false)}
+                                className="text-slate-400 hover:text-white transition-colors bg-slate-800 w-8 h-8 rounded-full flex items-center justify-center"
+                            >
+                                <span className="material-symbols-rounded text-sm">close</span>
+                            </button>
                         </div>
-                    ))}
+                        <div className="p-6 overflow-y-auto">
+                            <OwnerClaimVenueView />
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

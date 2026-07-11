@@ -117,7 +117,7 @@ export const OwnerMarketingView: React.FC = () => {
     const { managedVenues, fetchManagedVenues } = useOwnerStore();
     
     // UI tabs
-    const [activeSubTab, setActiveSubTab] = useState<'geo' | 'copy' | 'analytics' | 'ads' | 'banner'>('geo');
+    const [activeSubTab, setActiveSubTab] = useState<'campaigns' | 'analytics' | 'wallet'>('campaigns');
     const [selectedVenueId, setSelectedVenueId] = useState<string>('');
 
     // State for Campaign
@@ -333,7 +333,7 @@ export const OwnerMarketingView: React.FC = () => {
     const handleApplyCopy = (title: string, message: string) => {
         setCampaignTitle(title);
         setCampaignMessage(message);
-        setActiveSubTab('geo');
+        setActiveSubTab('campaigns');
         toast.success("Texto copiado para o editor de Campanha!");
     };
 
@@ -703,48 +703,32 @@ export const OwnerMarketingView: React.FC = () => {
             {/* Main Tabs Navigation */}
             <div className="flex border-b border-white/5 gap-1 overflow-x-auto pb-px">
                 <button 
-                    onClick={() => setActiveSubTab('geo')}
-                    className={`flex items-center gap-2.5 px-5 py-4 font-bold text-sm border-b-2 transition-all shrink-0 ${activeSubTab === 'geo' ? 'border-primary-500 text-primary-500 bg-primary-500/5' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                    onClick={() => setActiveSubTab('campaigns')}
+                    className={`flex items-center gap-2.5 px-5 py-4 font-bold text-sm border-b-2 transition-all shrink-0 ${activeSubTab === 'campaigns' ? 'border-primary-500 text-primary-500 bg-primary-500/5' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
                 >
                     <Megaphone className="w-4 h-4" />
-                    Geo-Marketing
-                </button>
-                <button 
-                    onClick={() => setActiveSubTab('copy')}
-                    className={`flex items-center gap-2.5 px-5 py-4 font-bold text-sm border-b-2 transition-all shrink-0 ${activeSubTab === 'copy' ? 'border-primary-500 text-primary-500 bg-primary-500/5' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
-                >
-                    <Sparkles className="w-4 h-4" />
-                    Copiloto de Copy
+                    Nova Campanha
                 </button>
                 <button 
                     onClick={() => setActiveSubTab('analytics')}
                     className={`flex items-center gap-2.5 px-5 py-4 font-bold text-sm border-b-2 transition-all shrink-0 ${activeSubTab === 'analytics' ? 'border-primary-500 text-primary-500 bg-primary-500/5' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
                 >
                     <TrendingUp className="w-4 h-4" />
-                    Painel O2O Analytics
+                    Analytics O2O
                 </button>
                 <button 
-                    onClick={() => setActiveSubTab('ads')}
-                    className={`flex items-center gap-2.5 px-5 py-4 font-bold text-sm border-b-2 transition-all shrink-0 ${activeSubTab === 'ads' ? 'border-primary-500 text-primary-500 bg-primary-500/5' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                    onClick={() => setActiveSubTab('wallet')}
+                    className={`flex items-center gap-2.5 px-5 py-4 font-bold text-sm border-b-2 transition-all shrink-0 ${activeSubTab === 'wallet' ? 'border-primary-500 text-primary-500 bg-primary-500/5' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
                 >
-                    <Award className="w-4 h-4" />
-                    Anúncios & Destaques
-                </button>
-
-                <button 
-                    onClick={() => setActiveSubTab('banner')}
-                    className={`flex items-center gap-2.5 px-5 py-4 font-bold text-sm border-b-2 transition-all shrink-0 ${activeSubTab === 'banner' ? 'border-primary-500 text-primary-500 bg-primary-500/5' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
-                >
-                    <Image className="w-4 h-4" />
-                    Banner Promocional
+                    <Wallet className="w-4 h-4" />
+                    Carteira & Saldo
                 </button>
             </div>
-
             {/* TAB CONTENTS */}
             <div className="space-y-6">
                 
                 {/* 📡 1. GEO-MARKETING / CAMPANHAS */}
-                {activeSubTab === 'geo' && (
+                {activeSubTab === 'campaigns' && (
                     <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Google Ads style Builder Form */}
@@ -1205,253 +1189,12 @@ export const OwnerMarketingView: React.FC = () => {
                 )}
 
                 {/* 📝 2. COPILOTO DE COPYWRITING */}
-                {activeSubTab === 'copy' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Control Wizard */}
-                        <div className="space-y-6">
-                            <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6">
-                                <div>
-                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <Sparkles className="text-primary-500 w-5 h-5" />
-                                        Assistente de Redação Inteligente
-                                    </h3>
-                                    <p className="text-xs text-slate-500 mt-1">Selecione as diretrizes da sua oferta para receber ideias de títulos e mensagens prontas.</p>
-                                </div>
-
-                                {/* Step 1: Goal */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-300">1. Objetivo da Campanha</label>
-                                    <select
-                                        value={copyGoal}
-                                        onChange={(e) => setCopyGoal(e.target.value)}
-                                        className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary-500 text-white"
-                                    >
-                                        {GOAL_OPTIONS.map(opt => (
-                                            <option key={opt.id} value={opt.id}>{opt.label}</option>
-                                        ))}
-                                    </select>
-                                    <p className="text-[10px] text-slate-500 pl-1">
-                                        {GOAL_OPTIONS.find(o => o.id === copyGoal)?.desc}
-                                    </p>
-                                </div>
-
-                                {/* Step 2: Target Tribe */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-300">2. Público-alvo (Segmento)</label>
-                                    <select
-                                        value={copyTribe}
-                                        onChange={(e) => setCopyTribe(e.target.value)}
-                                        className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary-500 text-white"
-                                    >
-                                        {TRIBE_OPTIONS.map(opt => (
-                                            <option key={opt.id} value={opt.id}>{opt.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Step 3: Tone of Voice */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-slate-300">3. Tom de Voz</label>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {TONE_OPTIONS.map(opt => (
-                                            <button
-                                                key={opt.id}
-                                                type="button"
-                                                onClick={() => setCopyTone(opt.id)}
-                                                className={`w-full px-4 py-3 rounded-xl border text-left font-bold text-sm transition-all flex justify-between items-center ${copyTone === opt.id ? 'bg-primary-500/10 border-primary-500 text-primary-500' : 'bg-slate-950/30 border-white/5 text-slate-400 hover:bg-slate-850'}`}
-                                            >
-                                                <span>{opt.label}</span>
-                                                {copyTone === opt.id && <Check className="w-4 h-4 text-primary-500" />}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Generated Options Results */}
-                        <div className="lg:col-span-2 space-y-6">
-                            <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6 h-full">
-                                <div>
-                                    <h3 className="text-xl font-bold text-white">Variações de Texto Geradas</h3>
-                                    <p className="text-xs text-slate-500 mt-1">Nossos algoritmos estruturaram cópias otimizadas com base nos parâmetros acima. Escolha a que mais gostar para editar e enviar!</p>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {generatedOptions.map((opt, idx) => (
-                                        <div 
-                                            key={idx}
-                                            className="bg-slate-950/50 border border-white/5 rounded-2xl p-5 hover:border-primary-500/30 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
-                                        >
-                                            <div className="space-y-2 flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] bg-primary-500/10 text-primary-400 px-2 py-0.5 rounded-full font-bold">OPÇÃO {idx + 1}</span>
-                                                    <span className="text-xs text-slate-500 font-mono">Taxa conversão est: +3.8%</span>
-                                                </div>
-                                                <h4 className="text-base font-bold text-white">{opt.title}</h4>
-                                                <p className="text-sm text-slate-300 leading-relaxed">{opt.message}</p>
-                                            </div>
-                                            
-                                            <button
-                                                onClick={() => handleApplyCopy(opt.title, opt.message)}
-                                                className="bg-slate-800 hover:bg-primary-600 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all self-end sm:self-center border border-white/5 hover:border-transparent"
-                                            >
-                                                <span>Usar Oferta</span>
-                                                <ChevronRight className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                
-                {/* 🎨 5. BANNER PROMOCIONAL */}
-                {activeSubTab === 'banner' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Formulário */}
-                        <div className="space-y-6">
-                            <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6">
-                                <div>
-                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <Image className="text-primary-500 w-5 h-5" />
-                                        Criar Banner Promocional
-                                    </h3>
-                                    <p className="text-xs text-slate-500 mt-1">Configure a arte e o texto que aparecerão para os usuários no topo do Feed de novidades.</p>
-                                </div>
-                                
-                                <div className="space-y-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-slate-400">Título do Banner</label>
-                                        <input 
-                                            type="text" 
-                                            value={campaignTitle}
-                                            onChange={(e) => setCampaignTitle(e.target.value)}
-                                            placeholder="Ex: Sexta VIP Promocional"
-                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary-500 text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-slate-400">Texto Chamativo (Copy)</label>
-                                        <textarea 
-                                            value={campaignMessage}
-                                            onChange={(e) => setCampaignMessage(e.target.value)}
-                                            placeholder="Ex: Compre 1 drink e ganhe outro até a meia noite..."
-                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary-500 text-white h-24 resize-none"
-                                        ></textarea>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-slate-400">Imagem do Banner</label>
-                                        <div className="flex items-center gap-3">
-                                            {campaignImageUrl && (
-                                                <img src={campaignImageUrl} alt="preview" className="w-16 h-16 rounded-lg object-cover" />
-                                            )}
-                                            <div className="flex-1 bg-slate-950 border border-white/10 rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900 transition-colors relative">
-                                                {isUploadingImage ? (
-                                                    <span className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></span>
-                                                ) : (
-                                                    <Upload className="w-4 h-4 text-slate-400" />
-                                                )}
-                                                <span className="text-sm font-medium">
-                                                    {isUploadingImage ? "Enviando..." : "Anexar Imagem"}
-                                                </span>
-                                                <input 
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={handleImageUpload}
-                                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={async () => {
-                                        if (!selectedVenueId) return toast.error("Selecione um local.");
-                                        if (!campaignTitle || !campaignMessage) return toast.error("Preencha título e mensagem.");
-                                        const pushCost = 25.00;
-                                        if (adBalance < pushCost) return toast.error("Saldo insuficiente.");
-                                        const toastId = toast.loading("Publicando banner...");
-                                        try {
-                                            const { error } = await supabase.from('b2b_campaigns').insert({
-                                                venue_id: selectedVenueId,
-                                                title: campaignTitle,
-                                                message: campaignMessage,
-                                                target_tribe: 'Geral',
-                                                range_meters: 0,
-                                                estimated_reach: 0,
-                                                cost: pushCost,
-                                                image_url: campaignImageUrl || null,
-                                                status: 'approved',
-                                                placement: 'feed',
-                                                duration_hours: 24
-                                            });
-                                            if (error) throw error;
-                                            await supabase.from('b2b_wallets').update({ balance: adBalance - pushCost }).eq('id', walletId);
-                                            toast.success("Banner publicado com sucesso!", { id: toastId });
-                                            window.location.reload();
-                                        } catch (err: any) {
-                                            toast.error(err.message, { id: toastId });
-                                        }
-                                    }}
-                                    className="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all"
-                                >
-                                    Publicar Banner (R$ 25,00)
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Preview */}
-                        <div className="space-y-6">
-                            <div className="bg-slate-900/50 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6 sticky top-24">
-                                <div>
-                                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                        <Eye className="text-slate-400 w-4 h-4" />
-                                        Preview em Tempo Real
-                                    </h3>
-                                    <p className="text-xs text-slate-500 mt-1">Como seu banner aparecerá no Feed.</p>
-                                </div>
-                                
-                                {/* Banner Card Preview */}
-                                <div className="relative aspect-[3/1] cursor-pointer group overflow-hidden bg-slate-900 rounded-2xl border border-white/10 ring-1 ring-primary-500/50">
-                                    <img 
-                                        src={campaignImageUrl || 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600'} 
-                                        alt="preview" 
-                                        className="w-full h-full object-cover"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent flex flex-col justify-center p-6">
-                                        <div className="w-full max-w-[80%]">
-                                            <span className="bg-slate-900/70 text-slate-300 text-[9px] font-bold px-2 py-0.5 rounded-md mb-2 inline-block shadow-sm">
-                                                Patrocinado
-                                            </span>
-                                            <h3 className="font-bold text-xl text-white drop-shadow-lg leading-tight mb-1">
-                                                {campaignTitle || 'Título do seu Banner'}
-                                            </h3>
-                                            <p className="text-xs text-slate-200 drop-shadow-lg line-clamp-2 leading-relaxed">
-                                                {campaignMessage || 'Escreva uma mensagem chamativa para atrair clientes para o seu negócio.'}
-                                            </p>
-                                            <button className="mt-4 bg-primary-600 text-white font-bold py-2 px-5 rounded-xl text-xs shadow-lg shadow-primary-900/30">
-                                                Saiba Mais
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* 📊 3. ANALYTICS & FUNIL O2O */}
                 {activeSubTab === 'analytics' && (() => {
                     const totalReachReal = campaignsHistory.reduce((sum, c) => sum + (c.estimated_reach || 0), 0);
                     const totalCostReal = campaignsHistory.reduce((sum, c) => sum + Number(c.cost || 0), 0);
                     
-                    // We use real data from b2b_campaigns but populate logical baseline values for a sandbox feel if no campaigns are set up yet
-                    const displayReach = totalReachReal > 0 ? totalReachReal : 14850;
-                    const displayCost = totalCostReal > 0 ? totalCostReal : 350.00;
+                    const displayReach = totalReachReal;
+                    const displayCost = totalCostReal;
                     
                     const displayClicks = Math.round(displayReach * 0.046);
                     const displayCheckins = Math.round(displayClicks * 0.18);
@@ -1473,7 +1216,7 @@ export const OwnerMarketingView: React.FC = () => {
                         { day: 'Dom', views: 2380, clicks: 110, checkins: 20 }
                     ];
 
-                    const scaleFactor = totalReachReal > 0 ? (totalReachReal / 14850) : 1;
+                    const scaleFactor = totalReachReal > 0 ? (totalReachReal / 14850) : 0;
                     const weeklyDataset = chartBaseline.map(item => ({
                         ...item,
                         views: Math.round(item.views * scaleFactor),
@@ -1781,7 +1524,7 @@ export const OwnerMarketingView: React.FC = () => {
                 })()}
 
                 {/* 💎 4. ADS PATROCINADOS & BILLING */}
-                {activeSubTab === 'ads' && (
+                {activeSubTab === 'wallet' && (
                     <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* highlights widgets */}

@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
-import { OwnerDashboardView } from './views/OwnerDashboardView';
 import { OwnerVenuesView } from './views/OwnerVenuesView';
-import { OwnerClaimVenueView } from './views/OwnerClaimVenueView';
 import { OwnerMarketingView } from './views/OwnerMarketingView';
 
 export const OwnerLayout: React.FC = () => {
     const { user, session } = useAuthStore();
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'venues' | 'marketing' | 'claim'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'business' | 'marketing'>('business');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     if (!session || !user) {
@@ -20,11 +18,9 @@ export const OwnerLayout: React.FC = () => {
 
     const renderContent = () => {
         switch (activeTab) {
-            case 'dashboard': return <OwnerDashboardView />;
-            case 'venues': return <OwnerVenuesView />;
+            case 'business': return <OwnerVenuesView />;
             case 'marketing': return <OwnerMarketingView />;
-            case 'claim': return <OwnerClaimVenueView />;
-            default: return <OwnerDashboardView />;
+            default: return <OwnerVenuesView />;
         }
     };
 
@@ -58,32 +54,19 @@ export const OwnerLayout: React.FC = () => {
                 
                 <nav className="flex-1 p-4 space-y-2">
                     <button 
-                        onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'dashboard' ? 'bg-primary-500/10 text-primary-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                        onClick={() => { setActiveTab('business'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'business' ? 'bg-primary-500/10 text-primary-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
                     >
                         <span className="material-symbols-rounded">dashboard</span>
-                        <span className="font-medium">Dashboard</span>
+                        <span className="font-medium">Meu Negócio</span>
                     </button>
-                    <button 
-                        onClick={() => { setActiveTab('venues'); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'venues' ? 'bg-primary-500/10 text-primary-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-                    >
-                        <span className="material-symbols-rounded">store</span>
-                        <span className="font-medium">Meus Locais</span>
-                    </button>
+
                     <button 
                         onClick={() => { setActiveTab('marketing'); setIsMobileMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'marketing' ? 'bg-primary-500/10 text-primary-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
                     >
                         <span className="material-symbols-rounded">campaign</span>
                         <span className="font-medium">Hub de Marketing</span>
-                    </button>
-                    <button 
-                        onClick={() => { setActiveTab('claim'); setIsMobileMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'claim' ? 'bg-primary-500/10 text-primary-500' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-                    >
-                        <span className="material-symbols-rounded">add_business</span>
-                        <span className="font-medium">Reivindicar Local</span>
                     </button>
                 </nav>
 
