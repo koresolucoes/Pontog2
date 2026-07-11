@@ -595,6 +595,46 @@ const ConversationItem = React.memo(({
     );
 });
 
+interface InboxAdCardProps {
+    ad: Ad;
+}
+
+const InboxAdCard: React.FC<InboxAdCardProps> = ({ ad }) => {
+    const trackView = useAdStore(state => state.trackView);
+    const trackClick = useAdStore(state => state.trackClick);
+
+    useEffect(() => {
+        if (ad && ad.id) {
+            trackView(ad.id);
+        }
+    }, [ad?.id]);
+
+    const handleClick = () => {
+        if (ad && ad.id) {
+            trackClick(ad.id);
+        }
+        if (ad.cta_url && ad.cta_url !== '#') {
+            window.open(ad.cta_url, '_blank', 'noopener,noreferrer');
+        }
+    };
+
+    return (
+        <div className="py-1 px-1 h-full cursor-pointer" onClick={handleClick}>
+            <div className="relative rounded-xl overflow-hidden border border-primary-500/30 shadow-lg h-full bg-slate-800/80 hover:bg-slate-800 flex items-center p-2 gap-3 group hover:border-primary-500/60 transition-all duration-200">
+                <div className="absolute top-0 right-0 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-bl-lg z-10 shadow-sm border-l border-b border-white/10">PROMO</div>
+                <img src={ad.image_url} alt={ad.title} className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-white text-sm truncate leading-tight">{ad.title}</h3>
+                    <p className="text-xs text-slate-300 line-clamp-1 leading-snug mt-0.5">{ad.description}</p>
+                    <span className="text-[9px] text-primary-400 font-bold mt-1 inline-flex items-center gap-0.5">
+                        {ad.cta_text} <span className="material-symbols-rounded text-[10px]">arrow_forward</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 interface ConversationListProps {
     conversations: ConversationPreview[]; 
     loading: boolean;
@@ -671,16 +711,7 @@ const ConversationList: React.FC<ConversationListProps> = ({ conversations, load
                             }}
                         >
                             {'type' in item && item.type === 'custom_ad' ? (
-                                <div className="py-2 px-1 h-full cursor-pointer" onClick={() => { if(item.ad.cta_url !== '#') window.open(item.ad.cta_url, '_blank') }}>
-                                    <div className="relative rounded-xl overflow-hidden border border-primary-500/30 shadow-lg h-full bg-slate-800 flex items-center p-2 gap-3 group hover:border-primary-500/60 transition-colors">
-                                        <div className="absolute top-0 right-0 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-bl-lg z-10 shadow-sm border-l border-b border-white/10">PROMO</div>
-                                        <img src={item.ad.image_url} alt={item.ad.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-white text-sm truncate leading-tight">{item.ad.title}</h3>
-                                            <p className="text-xs text-slate-300 line-clamp-2 leading-snug mt-0.5">{item.ad.description}</p>
-                                        </div>
-                                    </div>
-                                </div>
+                                <InboxAdCard ad={item.ad} />
                             ) : 'type' in item && item.type === 'ad' ? (
                                 <div className="py-2 h-full">
                                     <div className="rounded-xl overflow-hidden border border-white/5 shadow-lg h-full bg-slate-800/10">

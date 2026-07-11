@@ -41,6 +41,43 @@ const itemVariants = {
     show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } }
 };
 
+interface HomeFeedAdCardProps {
+    ad: Ad;
+    onClick: () => void;
+}
+
+const HomeFeedAdCard: React.FC<HomeFeedAdCardProps> = ({ ad, onClick }) => {
+    const trackView = useAdStore(state => state.trackView);
+
+    useEffect(() => {
+        if (ad && ad.id) {
+            trackView(ad.id);
+        }
+    }, [ad?.id]);
+
+    return (
+        <div 
+            className="relative aspect-[3/4] bg-dark-800 rounded-3xl overflow-hidden cursor-pointer group shadow-lg ring-1 ring-primary-500/50 h-full w-full"
+            onClick={onClick}
+        >
+            <img 
+                src={ad.image_url} 
+                alt={ad.title} 
+                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110 opacity-80 group-hover:opacity-100"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+            <div className="absolute top-3 right-3 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white px-2 py-0.5 rounded-md text-[9px] font-bold tracking-widest shadow-lg border border-white/20">PROMO</div>
+            <div className="absolute bottom-4 left-4 right-4 z-10">
+                <h3 className="font-bold text-white text-lg leading-tight mb-1 drop-shadow-md truncate">{ad.title}</h3>
+                <p className="text-xs text-slate-300 line-clamp-2 leading-snug drop-shadow-md">{ad.description}</p>
+                <div className="mt-3 inline-flex items-center justify-center gap-1 bg-primary-600 text-white px-3 py-1.5 rounded-full text-xs font-bold w-full shadow-lg">
+                    {ad.cta_text} <span className="material-symbols-rounded text-[14px]">arrow_forward</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const HomeView: React.FC = () => {
     const { t } = useTranslation();
     const { popularUsers, loading, error, hasMore, loadingMore, fetchPopularUsers, fetchMorePopularUsers } = useHomeStore();
@@ -234,23 +271,8 @@ export const HomeView: React.FC = () => {
                                             variants={itemVariants}
                                             layout
                                             key={`custom-ad-${item.id}-${index}`} 
-                                            className="relative aspect-[3/4] bg-dark-800 rounded-3xl overflow-hidden cursor-pointer group shadow-lg ring-1 ring-primary-500/50"
-                                            onClick={() => setSelectedAd(item)}
                                         >
-                                            <img 
-                                                src={item.image_url} 
-                                                alt={item.title} 
-                                                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110 opacity-80 group-hover:opacity-100"
-                                            />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-                                            <div className="absolute top-3 right-3 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white px-2 py-0.5 rounded-md text-[9px] font-bold tracking-widest shadow-lg border border-white/20">PROMO</div>
-                                            <div className="absolute bottom-4 left-4 right-4 z-10">
-                                                <h3 className="font-bold text-white text-lg leading-tight mb-1 drop-shadow-md">{item.title}</h3>
-                                                <p className="text-xs text-slate-300 line-clamp-2 leading-snug drop-shadow-md">{item.description}</p>
-                                                <div className="mt-3 inline-flex items-center justify-center gap-1 bg-primary-600 text-white px-3 py-1.5 rounded-full text-xs font-bold w-full shadow-lg">
-                                                    {item.cta_text} <span className="material-symbols-rounded text-[14px]">arrow_forward</span>
-                                                </div>
-                                            </div>
+                                            <HomeFeedAdCard ad={item} onClick={() => setSelectedAd(item)} />
                                         </motion.div>
                                     );
                                 }

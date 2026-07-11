@@ -60,6 +60,7 @@ export const useAdStore = create<AdState>((set, get) => ({
 
             if (!error && data) {
                 const dynamicFeedAds: Ad[] = [];
+                const dynamicBannerAds: Ad[] = [];
                 const dynamicInboxAds: Ad[] = [];
 
                 data.forEach((camp: any) => {
@@ -70,48 +71,52 @@ export const useAdStore = create<AdState>((set, get) => ({
                     const defaultImage = 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600';
                     const imageUrl = camp.image_url ? camp.image_url : defaultImage;
 
+                    // Respect custom CTA and URL configurations from DB
+                    const customCtaText = camp.cta_text || (camp.placement === 'messages' ? 'Ver Agora' : 'Saiba Mais');
+                    const customCtaUrl = camp.cta_url || (camp.venue_id ? `/venue/${camp.venue_id}` : '#');
+
+                    const mappedAd: Ad = {
+                        id: camp.id,
+                        ad_type: camp.placement === 'messages' ? 'inbox' : camp.placement === 'banner' ? 'banner' : 'feed',
+                        title: camp.title || '🌟 Patrocinado',
+                        description: camp.message || '',
+                        image_url: imageUrl,
+                        cta_text: customCtaText,
+                        cta_url: customCtaUrl,
+                        venue_id: camp.venue_id
+                    };
+
                     if (camp.placement === 'map' || camp.title === 'Destaque: Pino Dourado') {
                         pinoVenueIds.push(camp.venue_id);
                     } 
-                    if (camp.placement === 'feed' || camp.placement === 'push' || camp.title === 'Destaque: Banner no Feed') {
-                        dynamicFeedAds.push({
-                            id: camp.id,
-                            ad_type: 'feed',
-                            title: camp.title || '🌟 Patrocinado',
-                            description: camp.message,
-                            image_url: imageUrl,
-                            cta_text: 'Saiba Mais',
-                            cta_url: camp.venue_id ? `/venue/${camp.venue_id}` : '#',
-                            venue_id: camp.venue_id
-                        });
+                    
+                    if (camp.placement === 'feed' || camp.placement === 'push' || camp.title === 'Destaque: Banner no Feed' || !camp.placement) {
+                        dynamicFeedAds.push(mappedAd);
                     }
-                    if (camp.placement === 'messages' || camp.placement === 'push' || camp.range_meters === 0) {
-                        dynamicInboxAds.push({
-                            id: camp.id,
-                            ad_type: 'inbox',
-                            title: camp.title || 'Destaque Local',
-                            description: camp.message,
-                            image_url: imageUrl,
-                            cta_text: 'Ver Agora',
-                            cta_url: camp.venue_id ? `/venue/${camp.venue_id}` : '#',
-                            venue_id: camp.venue_id
-                        });
+
+                    if (camp.placement === 'banner' || camp.title === 'Destaque: Banner no Feed') {
+                        dynamicBannerAds.push(mappedAd);
+                    }
+
+                    if (camp.placement === 'messages' || camp.placement === 'push') {
+                        dynamicInboxAds.push(mappedAd);
                     }
                 });
 
                 if (dynamicFeedAds.length > 0) {
                     feedAds = dynamicFeedAds;
-                    // Se a pessoa comprou banner, usamos o primeiro como banner no topo
-                    const banners = dynamicFeedAds.filter(ad => ad.title === 'Destaque: Banner no Feed' || ad.title.toLowerCase().includes('banner'));
-                    if (banners.length > 0) {
-                        bannerAds = banners;
-                    } else {
-                        // Se não tem banner específico, usa o feedAd mais recente no banner
-                        bannerAds = [dynamicFeedAds[0]];
-                    }
                 } else {
                     feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
-                    bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
+                }
+
+                if (dynamicBannerAds.length > 0) {
+                    bannerAds = dynamicBannerAds;
+                } else {
+                    if (dynamicFeedAds.length > 0) {
+                        bannerAds = [dynamicFeedAds[0]];
+                    } else {
+                        bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
+                    }
                 }
                 
                 if (dynamicInboxAds.length > 0) {
