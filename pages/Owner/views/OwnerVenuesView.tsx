@@ -8,7 +8,13 @@ import { OwnerClaimVenueView } from './OwnerClaimVenueView';
 
 export const OwnerVenuesView: React.FC = () => {
     const { user } = useAuthStore();
-    const { managedVenues, venueCheckins, fetchVenueCheckins, banUser } = useOwnerStore();
+    const { managedVenues, venueCheckins, fetchVenueCheckins, banUser, fetchManagedVenues } = useOwnerStore();
+
+    useEffect(() => {
+        if (user) {
+            fetchManagedVenues(user.id);
+        }
+    }, [user, fetchManagedVenues]);
     const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
     const [banReason, setBanReason] = useState('');
     const [banUserId, setBanUserId] = useState('');

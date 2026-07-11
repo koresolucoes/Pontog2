@@ -17,6 +17,7 @@ import {
     BarChart2, 
     HelpCircle, 
     Maximize,
+    Wallet,
     ChevronRight,
     Map,
     Upload,
