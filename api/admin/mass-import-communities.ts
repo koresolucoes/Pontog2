@@ -16,12 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const admin = enforceRoles(req, ['owner', 'moderator']);
     
-    // Obter um usuário para ser o "criador/autor"
-    const { data: users } = await supabaseAdmin.auth.admin.listUsers({ limit: 1 });
-    if (!users || users.users.length === 0) {
-      return res.status(400).json({ error: 'Nenhum usuário encontrado para ser o autor das comunidades.' });
+    // Obter um usuário válido na tabela de perfis para ser o "criador/autor"
+    const { data: profiles } = await supabaseAdmin.from('profiles').select('id').limit(1);
+    if (!profiles || profiles.length === 0) {
+      return res.status(400).json({ error: 'Nenhum perfil de usuário encontrado para ser o autor das comunidades.' });
     }
-    const defaultUserId = users.users[0].id;
+    const defaultUserId = profiles[0].id;
 
     const COMMUNITIES = [
       { name: 'Cultura Pop & Divas', description: 'Espaço para debater sobre as maiores divas do pop, lançamentos e charts.', is_private: false },
