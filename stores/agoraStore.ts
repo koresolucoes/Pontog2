@@ -25,7 +25,7 @@ interface AgoraState {
   hasMore: boolean;
   fetchAgoraPosts: (reset?: boolean) => Promise<void>;
   loadMorePosts: () => Promise<void>;
-  activateAgoraMode: (photoFile: File, statusText: string) => Promise<void>;
+  activateAgoraMode: (photoFile: File, statusText: string) => Promise<boolean>;
   deactivateAgoraMode: () => Promise<void>;
   toggleLikePost: (postId: number) => Promise<void>;
   addComment: (postId: number, content: string) => Promise<void>;

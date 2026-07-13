@@ -371,7 +371,8 @@ supabase.auth.onAuthStateChange(async (_event: string, session: Session) => {
             minAge: 18,
             maxAge: 99,
             positions: [],
-            tribes: []
+            tribes: [],
+            lookingFor: []
         } 
     });
     (await import('./agoraStore')).useAgoraStore.setState({ posts: [], agoraUserIds: [], isLoading: false, isActivating: false });

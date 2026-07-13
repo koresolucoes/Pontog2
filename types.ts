@@ -157,6 +157,8 @@ export interface AgoraPost {
     likes_count: number;
     comments_count: number;
     user_has_liked: boolean;
+    is_venue?: boolean;
+    venue?: Venue;
 }
 
 // Novo tipo para os comentários do modo 'Agora'
@@ -227,6 +229,11 @@ export interface Venue {
     osm_id?: string; // ID do OpenStreetMap
     source_type?: 'user' | 'osm' | 'admin'; // Origem do dado
     website?: string;
+    phone?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    city?: string;
+    capacity?: number;
     submitted_by?: string; // ID do usuário que sugeriu
 }
 
