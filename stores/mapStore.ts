@@ -258,10 +258,17 @@ export const useMapStore = create<MapState>((set, get) => ({
       let data, error;
 
       if (coords) {
-          const result = await supabase.rpc('get_nearby_venues', {
-              p_lat: coords.lat,
-              p_lng: coords.lng
-          });
+          const offset = 0.5; // Aproximadamente 55km de raio de busca
+          const result = await supabase
+              .from('venues')
+              .select('*')
+              .eq('is_verified', true)
+              .gte('lat', coords.lat - offset)
+              .lte('lat', coords.lat + offset)
+              .gte('lng', coords.lng - offset)
+              .lte('lng', coords.lng + offset)
+              .limit(300);
+          
           data = result.data;
           error = result.error;
       } 
