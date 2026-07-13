@@ -427,6 +427,39 @@ export const SettingsView: React.FC = () => {
                     </div>
                 </form>
 
+                <div className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6 mt-6">
+                    <h3 className="font-bold text-white text-lg flex items-center gap-2 pb-4 border-b border-white/5">
+                        <span className="material-symbols-rounded text-pink-500">database</span>
+                        Ações de Massa (Importação)
+                    </h3>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex-1 p-4 bg-slate-950/40 border border-white/5 rounded-xl">
+                            <h4 className="text-sm font-bold text-white">Comunidades Padrão</h4>
+                            <p className="text-xs text-slate-400 mt-1 mb-4">Popula o banco de dados com 10 comunidades iniciais, alguns posts e comentários.</p>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    if (!confirm('Deseja importar as comunidades iniciais?')) return;
+                                    try {
+                                        const res = await fetch('/api/admin/mass-import-communities', {
+                                            method: 'POST',
+                                            headers: { 'Authorization': `Bearer ${token}` }
+                                        });
+                                        const data = await res.json();
+                                        if (!res.ok) throw new Error(data.error);
+                                        toast.success(data.message || 'Importação de comunidades concluída.');
+                                    } catch (err: any) {
+                                        toast.error(err.message || 'Erro na importação');
+                                    }
+                                }}
+                                className="px-4 py-2 bg-pink-600/20 text-pink-400 hover:bg-pink-600/30 font-bold text-xs rounded-xl transition-all border border-pink-500/20"
+                            >
+                                Importar Comunidades
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Two-Factor Authentication (MFA) Section */}
                 <div className="bg-slate-900/40 border border-white/5 p-6 rounded-2xl shadow-xl space-y-6 mt-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-white/5">
