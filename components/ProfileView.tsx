@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { usePwaStore } from '../stores/pwaStore';
 import { useUiStore } from '../stores/uiStore';
 import { useNotificationStore } from '../stores/notificationStore';
-import { useInboxStore } from '../stores/inboxStore'; // Adicionado para estatísticas
+import { useInboxStore } from '../stores/inboxStore';
 import { EditProfileModal } from './EditProfileModal';
 import { MyAlbumsModal } from './MyAlbumsModal';
 import { NotificationType } from '../types';
@@ -118,7 +118,7 @@ export const ProfileView: React.FC = () => {
         fetchPreferences,
         updatePreference
     } = useNotificationStore();
-    const { winks, profileViews } = useInboxStore(); // Acessa dados da Inbox para o Dashboard
+    const { winks, profileViews } = useInboxStore();
 
     const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
     const [isMyAlbumsOpen, setIsMyAlbumsOpen] = useState(false);
@@ -138,52 +138,6 @@ export const ProfileView: React.FC = () => {
 
     if (!user) return null;
 
-    const renderSubscriptionSection = () => {
-        if (user.subscription_tier === 'plus') {
-            return (
-                <div className="p-1 rounded-2xl bg-gradient-to-r from-yellow-600 to-amber-600 shadow-lg shadow-yellow-900/20">
-                    <div className="bg-slate-900/95 rounded-xl p-5 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-                        <div className="flex items-center justify-between relative z-10">
-                            <div>
-                                <div className="flex items-center gap-2 text-yellow-400 mb-1">
-                                    <span className="material-symbols-rounded filled text-xl">auto_awesome</span>
-                                    <span className="font-black text-base tracking-wide">PONTO G PLUS</span>
-                                </div>
-                                <p className="text-xs text-slate-400 font-medium">{t('profile.subscription_active', { defaultValue: 'Assinatura ativa e operante.' })}</p>
-                            </div>
-                            {user.subscription_expires_at && (
-                                <div className="text-right">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold">{t('profile.valid_until', { defaultValue: 'Válida até' })}</p>
-                                    <p className="text-sm font-bold text-slate-200">{format(new Date(user.subscription_expires_at), 'dd/MM')}</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-        return (
-             <div onClick={() => setSubscriptionModalOpen(true)} className="group cursor-pointer relative overflow-hidden rounded-2xl">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary-500 to-secondary-500 opacity-90 group-hover:opacity-100 transition-opacity"></div>
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay"></div>
-                
-                <div className="relative p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center font-black text-2xl text-white shadow-inner border border-white/20">G+</div>
-                        <div>
-                            <h4 className="font-bold text-white text-lg leading-tight">{t('profile.be_plus', { defaultValue: 'Seja Plus' })}</h4>
-                            <p className="text-xs text-white/80 font-medium mt-0.5 opacity-90">{t('profile.discover_who_viewed', { defaultValue: 'Descubra quem te viu e mais.' })}</p>
-                        </div>
-                    </div>
-                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-primary-500 shadow-lg transform group-hover:scale-110 transition-transform">
-                        <span className="material-symbols-rounded filled text-xl">arrow_forward</span>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-    
     const renderPushSection = () => {
         switch (pushState) {
             case 'granted':
@@ -227,65 +181,226 @@ export const ProfileView: React.FC = () => {
         }
     }
 
+    const allPhotos = [user.avatar_url, ...(user.public_photos || [])].filter(Boolean);
+
     return (
         <>
-            <div className="bg-dark-900 h-full overflow-y-auto pb-24 no-scrollbar">
-                {/* Immersive Header */}
-                <div className="relative w-full h-72 overflow-hidden">
-                    {/* Blurred Background Image */}
-                    <div className="absolute inset-0">
-                        <img loading="lazy" src={user.avatar_url} className="w-full h-full object-cover blur-3xl opacity-40 scale-125" />
-                        <div className="absolute inset-0 bg-gradient-to-b from-dark-900/20 via-dark-900/60 to-dark-900"></div>
+            <div className="bg-[#0f0f13] h-full overflow-y-auto pb-24 no-scrollbar font-sans">
+                {/* Header (Logo & Bell) - As seen in the design */}
+                <div className="flex justify-between items-center px-6 pt-6 pb-2">
+                    <div className="flex items-center gap-2">
+                        <img src="/logo.png" className="w-8 h-8 rounded-full" alt="Ponto G" />
+                        <h1 className="text-xl font-bold text-pink-500 tracking-tight">Ponto G</h1>
                     </div>
+                    <button onClick={() => setActiveView('inbox')} className="text-white hover:text-pink-400 transition-colors">
+                        <span className="material-symbols-rounded">notifications</span>
+                    </button>
+                </div>
 
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pt-8 z-10">
-                        <div className="relative mb-4 group">
-                            <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-primary-500 to-secondary-500 shadow-2xl shadow-primary-900/50">
-                                <img loading="lazy" src={user.avatar_url} alt={user.username} className="w-full h-full rounded-full object-cover border-4 border-dark-900" />
-                            </div>
-                            <button 
-                                onClick={() => setIsEditProfileOpen(true)}
-                                className="absolute bottom-1 right-1 bg-dark-800 text-white p-2.5 rounded-full border border-white/10 shadow-lg hover:bg-primary-500 transition-colors active:scale-90"
-                            >
-                                <span className="material-symbols-rounded text-xl block">edit</span>
-                            </button>
+                {/* Avatar Section */}
+                <div className="flex justify-center mt-4">
+                    <div className="relative">
+                        <div className="w-32 h-32 rounded-full p-[3px] bg-gradient-to-tr from-pink-600 via-purple-500 to-indigo-500 shadow-xl shadow-pink-900/20">
+                            <img loading="lazy" src={user.avatar_url} alt={user.username} className="w-full h-full rounded-full object-cover border-4 border-[#0f0f13]" />
                         </div>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-lg">{user.display_name || user.username}</h1>
-                            {user.is_verified && (
-                                <div className="bg-primary-500/20 text-primary-500 rounded-full p-1 flex items-center justify-center" title={t('profile.verified_profile', { defaultValue: 'Perfil Verificado' })}>
-                                    <span className="material-symbols-rounded filled text-lg">verified</span>
-                                </div>
-                            )}
+                        <div className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 border-[3px] border-[#0f0f13] rounded-full flex items-center justify-center shadow-sm">
+                            <span className="material-symbols-rounded text-white text-[12px] font-bold">check</span>
                         </div>
-                        <p className="text-slate-300 text-sm font-medium mt-1 max-w-xs truncate opacity-80 px-6 text-center">
-                            {user.status_text || t('profile.add_status', { defaultValue: 'Adicione um status...' })}
-                        </p>
                     </div>
                 </div>
 
-                <div className="px-4 space-y-6 -mt-6 relative z-20">
-                    {/* Stats Dashboard */}
+                {/* Info Section */}
+                <div className="text-center mt-4 px-4">
+                    <h2 className="text-2xl font-black text-white flex items-center justify-center gap-2">
+                        {user.display_name || user.username}, {user.age || 'N/A'}
+                        {user.is_verified && (
+                            <span className="material-symbols-rounded text-pink-500 text-xl" title="Verificado">verified</span>
+                        )}
+                    </h2>
+                    <p className="text-sm text-orange-200/80 font-medium mt-1">
+                        {user.city || 'São Paulo'}, {user.state || 'SP'} • {user.distance_km ? `${user.distance_km.toFixed(1)}km away` : '2km away'}
+                    </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-center gap-3 mt-6 px-6">
+                    <button 
+                        onClick={() => setIsEditProfileOpen(true)}
+                        className="flex-1 bg-dark-800/80 border border-white/10 text-white font-semibold py-3 rounded-full flex justify-center items-center gap-2 hover:bg-dark-700 transition-colors"
+                    >
+                        <span className="material-symbols-rounded text-lg">edit</span> Editar Perfil
+                    </button>
+                    {user.subscription_tier !== 'plus' && (
+                        <button 
+                            onClick={() => setSubscriptionModalOpen(true)}
+                            className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-pink-900/30 hover:shadow-pink-900/50 transition-all"
+                        >
+                            <span className="material-symbols-rounded text-lg">stars</span> Seja Premium
+                        </button>
+                    )}
+                </div>
+
+                {/* Sobre Mim */}
+                <div className="mt-8 px-5">
+                    <h3 className="text-[11px] font-black text-orange-400/90 uppercase tracking-widest mb-3 ml-1">Sobre Mim</h3>
+                    <div className="bg-[#1a1a20] p-4 rounded-2xl text-slate-300 text-sm leading-relaxed border border-white/5">
+                        {user.status_text || 'Sem descrição.'}
+                    </div>
+                </div>
+
+                {/* Interesses */}
+                <div className="mt-6 px-5">
+                    <h3 className="text-[11px] font-black text-orange-400/90 uppercase tracking-widest mb-3 ml-1">Interesses</h3>
+                    <div className="bg-[#1a1a20] p-4 rounded-2xl flex flex-wrap gap-2 border border-white/5">
+                        {user.kinks && user.kinks.length > 0 ? (
+                            user.kinks.map((kink, idx) => {
+                                const colors = [
+                                    'bg-pink-500/10 text-pink-300 border-pink-500/20',
+                                    'bg-purple-500/10 text-purple-300 border-purple-500/20',
+                                    'bg-green-500/10 text-green-300 border-green-500/20',
+                                    'bg-blue-500/10 text-blue-300 border-blue-500/20',
+                                    'bg-orange-500/10 text-orange-300 border-orange-500/20'
+                                ];
+                                const colorClass = colors[idx % colors.length];
+                                return (
+                                    <span key={kink} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${colorClass}`}>
+                                        #{kink}
+                                    </span>
+                                );
+                            })
+                        ) : (
+                            <span className="text-slate-500 text-xs">Nenhum interesse listado.</span>
+                        )}
+                        {(user.tribes || []).map((tribe, idx) => (
+                             <span key={tribe} className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-800 text-slate-300 border-white/10">
+                                #{tribe}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Grid Detalhes */}
+                <div className="mt-6 px-5">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                        {user.gender_identity && (
+                        <InfoItem 
+                            icon="wc" 
+                            label={t('profile_modal.gender_identity', { defaultValue: 'Identidade' })} 
+                            value={t(`constants.options.${user.gender_identity}`, { defaultValue: user.gender_identity })} 
+                        />
+                        )}
+                        {user.pronouns && (
+                        <InfoItem 
+                            icon="match_case" 
+                            label={t('profile_modal.pronouns', { defaultValue: 'Pronomes' })} 
+                            value={t(`constants.options.${user.pronouns}`, { defaultValue: user.pronouns })} 
+                        />
+                        )}
+                        {user.sexual_orientation && (
+                        <InfoItem 
+                            icon="favorite" 
+                            label={t('profile_modal.sexual_orientation', { defaultValue: 'Orientação' })} 
+                            value={t(`constants.options.${user.sexual_orientation}`, { defaultValue: user.sexual_orientation })} 
+                        />
+                        )}
+                        {user.relationship_status && (
+                        <InfoItem 
+                            icon="diversity_1" 
+                            label={t('profile_modal.relationship_status', { defaultValue: 'Status' })} 
+                            value={t(`constants.options.${user.relationship_status}`, { defaultValue: user.relationship_status })} 
+                        />
+                        )}
+                        {user.height_cm && <InfoItem icon="height" label={t('profile_modal.height', { defaultValue: 'Altura' })} value={`${user.height_cm} cm`} />}
+                        {user.weight_kg && <InfoItem icon="monitor_weight" label={t('profile_modal.weight', { defaultValue: 'Peso' })} value={`${user.weight_kg} kg`} />}
+                        {user.position && (
+                        <InfoItem 
+                            icon="transgender" 
+                            label={t('profile_modal.position', { defaultValue: 'Posição' })} 
+                            value={t(`constants.positions.${user.position}`, { defaultValue: user.position })} 
+                        />
+                        )}
+                        {user.hiv_status && (
+                        <InfoItem 
+                            icon="health_and_safety" 
+                            label={t('profile_modal.hiv_status', { defaultValue: 'Status HIV' })} 
+                            value={t(`constants.hiv_statuses.${user.hiv_status}`, { defaultValue: user.hiv_status })} 
+                        />
+                        )}
+                    </div>
+                </div>
+
+                {/* Galeria Pública */}
+                <div className="mt-6 px-5">
+                    <h3 className="text-[11px] font-black text-orange-400/90 uppercase tracking-widest mb-3 ml-1">Galeria Pública</h3>
+                    {allPhotos.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2 auto-rows-[100px]">
+                            {allPhotos.slice(0, 5).map((photo, i) => {
+                                let colSpan = 'col-span-1';
+                                let rowSpan = 'row-span-1';
+                                
+                                // Emulate the masonry layout for 5 photos
+                                if (allPhotos.length >= 3 && i === 2) {
+                                    rowSpan = 'row-span-2';
+                                }
+                                
+                                const isLastAndMore = i === 4 && allPhotos.length > 5;
+                                
+                                return (
+                                    <div key={i} className={`relative rounded-xl overflow-hidden ${colSpan} ${rowSpan}`}>
+                                        <img src={photo} className="w-full h-full object-cover" alt="Gallery item" />
+                                        {isLastAndMore && (
+                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-black text-xl">
+                                                +{allPhotos.length - 5}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="bg-[#1a1a20] p-6 rounded-2xl text-center border border-white/5">
+                            <span className="material-symbols-rounded text-slate-500 text-3xl mb-2">no_photography</span>
+                            <p className="text-slate-400 text-sm">Sem fotos na galeria.</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Álbum Privado */}
+                <div className="mt-6 px-5 pb-6">
+                    <div onClick={() => setIsMyAlbumsOpen(true)} className="bg-[#2a171d] border border-pink-900/40 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-[#331c23] transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="w-11 h-11 bg-pink-900/40 rounded-full flex items-center justify-center shadow-inner">
+                                <span className="material-symbols-rounded text-pink-400">lock</span>
+                            </div>
+                            <div>
+                                <h4 className="text-white font-bold text-sm tracking-wide">Álbum Privado</h4>
+                                <p className="text-pink-200/50 text-xs font-medium mt-0.5">Gerenciar fotos ocultas</p>
+                            </div>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center">
+                            <span className="material-symbols-rounded text-pink-400/80">chevron_right</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Dashboard Stats */}
+                <div className="px-5 mt-2 space-y-6">
                     <div className="grid grid-cols-2 gap-3">
                         <StatCard 
                             icon="favorite" 
                             label="Winks" 
                             count={winks.length} 
-                            color="primary"
-                            onClick={() => useUiStore.getState().setActiveView('inbox')} 
+                            color="pink"
+                            onClick={() => setActiveView('inbox')} 
                         />
                         <StatCard 
                             icon="visibility" 
                             label={t('profile.views', { defaultValue: 'Visitas' })} 
                             count={profileViews.length} 
-                            color="secondary"
-                            onClick={() => useUiStore.getState().setActiveView('inbox')} 
+                            color="purple"
+                            onClick={() => setActiveView('inbox')} 
                         />
                     </div>
-
-                     <section>
-                        {renderSubscriptionSection()}
-                    </section>
 
                     <section className="space-y-3">
                          <h3 className="text-[10px] font-bold uppercase text-slate-500 ml-2 tracking-widest">{t('profile.my_account', { defaultValue: 'Minha Conta' })}</h3>
@@ -298,7 +413,6 @@ export const ProfileView: React.FC = () => {
                                     subtitle={t('profile.verify_profile_subtitle', { defaultValue: 'Ganhe o selo de verificado' })}
                                 />
                             )}
-                            <ActionButton icon="photo_library" label={t('profile.private_albums', { defaultValue: 'Álbuns Privados' })} onClick={() => setIsMyAlbumsOpen(true)} subtitle={t('profile.private_albums_subtitle', { defaultValue: 'Gerencie suas fotos ocultas' })} />
                             <ToggleSwitch
                                 label={t('profile.invisible_mode', { defaultValue: 'Modo Invisível' })}
                                 isChecked={user.is_incognito}
@@ -346,3 +460,16 @@ export const ProfileView: React.FC = () => {
         </>
     );
 };
+
+const InfoItem = ({ icon, label, value }: { icon: string, label: string, value: string }) => (
+    <div className="flex items-center space-x-3 bg-[#1a1a20] p-3 rounded-xl border border-white/5">
+        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0">
+             <span className="material-symbols-rounded text-lg text-slate-300">{icon}</span>
+        </div>
+        <div className="overflow-hidden">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide font-bold">{label}</p>
+            <p className="font-semibold text-slate-200 truncate">{value}</p>
+        </div>
+    </div>
+);
+
