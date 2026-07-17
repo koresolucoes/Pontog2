@@ -20,6 +20,7 @@ export const VideosView: React.FC = () => {
     const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [uploadStep, setUploadStep] = useState<number>(1);
     const [uploadCategory, setUploadCategory] = useState<string>('explicito');
+    const [uploadIsPorn, setUploadIsPorn] = useState<boolean>(true);
     const [agreedLawDisclaimer, setAgreedLawDisclaimer] = useState<boolean>(false);
     const [agreedConsentDisclaimer, setAgreedConsentDisclaimer] = useState<boolean>(false);
 
@@ -28,6 +29,7 @@ export const VideosView: React.FC = () => {
         setUploadDescription('');
         setUploadFile(null);
         setUploadCategory('explicito');
+        setUploadIsPorn(true);
         setUploadStep(1);
         setAgreedLawDisclaimer(false);
         setAgreedConsentDisclaimer(false);
@@ -36,7 +38,7 @@ export const VideosView: React.FC = () => {
 
     // Dynamic states for premium video filter and options
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
-    const [sortBy, setSortBy] = useState<'recent' | 'views' | 'rating'>('recent');
+    const [sortBy, setSortBy] = useState<'relevant' | 'recent' | 'views' | 'rating'>('relevant');
     const [globalNsfwBlur, setGlobalNsfwBlur] = useState<boolean>(() => {
         const saved = localStorage.getItem('globalNsfwBlur');
         return saved !== null ? JSON.parse(saved) : true;
@@ -68,7 +70,7 @@ export const VideosView: React.FC = () => {
             return;
         }
 
-        const finalDescription = `${uploadDescription} #${uploadCategory}`;
+        const finalDescription = `${uploadDescription} #${uploadCategory} ${uploadIsPorn ? '#nsfw' : '#sfw'}`;
         await addVideo(uploadTitle, finalDescription, uploadFile);
         setIsUploadOpen(false);
         setUploadTitle('');
@@ -106,7 +108,17 @@ export const VideosView: React.FC = () => {
         }
 
         // Sort by
-        if (sortBy === 'recent') {
+        if (sortBy === 'relevant') {
+            const now = Date.now();
+            const getScore = (v: any) => {
+                const daysOld = (now - new Date(v.created_at).getTime()) / (1000 * 60 * 60 * 24);
+                const recencyScore = Math.max(0, 30 - daysOld) / 30; // 0 to 1 (newer is better)
+                const engagementScore = ((v.likes_count || 0) * 2 + (v.comments_count || 0)) / (v.views_count || 1);
+                const ratingScore = (v.rating || 5) / 5; // 0 to 1
+                return (ratingScore * 0.4) + (recencyScore * 0.3) + (Math.min(engagementScore, 1) * 0.3);
+            };
+            list.sort((a, b) => getScore(b) - getScore(a));
+        } else if (sortBy === 'recent') {
             list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         } else if (sortBy === 'views') {
             list.sort((a, b) => (b.views_count || 0) - (a.views_count || 0));
@@ -247,9 +259,9 @@ export const VideosView: React.FC = () => {
                             {/* Step Indicator */}
                             <div className="flex items-center justify-between mb-6 px-1">
                                 {[
-                                    { step: 1, label: "Info" },
-                                    { step: 2, label: "Segurança" },
-                                    { step: 3, label: "Mídia" }
+                                    { step: 1, label: "Mídia" },
+                                    { step: 2, label: "Detalhes" },
+                                    { step: 3, label: "Publicar" }
                                 ].map((item, idx) => (
                                     <React.Fragment key={item.step}>
                                         <div className="flex flex-col items-center">
@@ -280,19 +292,90 @@ export const VideosView: React.FC = () => {
                             <form onSubmit={handleUploadSubmit} className="space-y-4">
                                 {uploadStep === 1 && (
                                     <div className="space-y-4 animate-fade-in">
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-slate-400 font-bold uppercase">Selecione seu Vídeo <span className="text-red-500">*</span></label>
+                                            <div className="relative border-2 border-dashed border-white/10 hover:border-red-500/50 transition-colors rounded-2xl bg-slate-850 p-6 flex flex-col items-center justify-center min-h-[140px]">
+                                                <input 
+                                                    type="file" 
+                                                    accept="video/mp4,video/quicktime,video/webm,video/*"
+                                                    onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                />
+                                                <div className="w-12 h-12 bg-red-600/20 text-red-500 rounded-full flex items-center justify-center mb-3">
+                                                    <span className="material-symbols-rounded text-2xl">upload</span>
+                                                </div>
+                                                <p className="text-xs text-white font-bold mb-1">Toque para escolher um vídeo</p>
+                                                <p className="text-[10px] text-slate-500">MP4, WebM ou QuickTime (Max 100MB)</p>
+                                            </div>
+                                            {uploadFile && (
+                                                <div className="p-3 mt-2 bg-slate-800/40 border border-white/5 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-300">
+                                                    <div className="flex items-center gap-2 truncate">
+                                                        <span className="material-symbols-rounded text-green-400 text-base">check_circle</span>
+                                                        <span className="truncate">{uploadFile.name}</span>
+                                                    </div>
+                                                    <span className="text-slate-500 flex-shrink-0 ml-2">{(uploadFile.size / (1024 * 1024)).toFixed(1)} MB</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex gap-3 pt-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setIsUploadOpen(false)}
+                                                className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                disabled={!uploadFile}
+                                                onClick={() => setUploadStep(2)}
+                                                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-500 transition-all shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
+                                            >
+                                                <span>Avançar</span>
+                                                <span className="material-symbols-rounded text-[18px]">arrow_forward</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {uploadStep === 2 && (
+                                    <div className="space-y-4 animate-fade-in max-h-[60vh] overflow-y-auto no-scrollbar pb-2 pr-1">
                                         <div className="space-y-1">
-                                            <label className="text-xs text-slate-400 font-bold uppercase">Título do Vídeo <span className="text-red-500">*</span></label>
+                                            <label className="text-xs text-slate-400 font-bold uppercase">Título <span className="text-red-500">*</span></label>
                                             <input 
                                                 type="text" 
-                                                placeholder="Ex: Brincadeira quente de ontem..." 
+                                                placeholder="Descreva seu vídeo..." 
                                                 value={uploadTitle}
                                                 onChange={(e) => setUploadTitle(e.target.value)}
-                                                className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm"
+                                                className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-red-500/50 text-sm"
                                             />
                                         </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-slate-400 font-bold uppercase">Descrição e Tags</label>
+                                            <textarea 
+                                                placeholder="Adicione hashtags e detalhes..." 
+                                                value={uploadDescription}
+                                                onChange={(e) => setUploadDescription(e.target.value)}
+                                                className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-red-500/50 min-h-[70px] text-sm resize-none"
+                                            />
+                                        </div>
+
+                                        <div className="bg-slate-850 border border-white/5 p-4 rounded-xl flex items-center justify-between cursor-pointer" onClick={() => setUploadIsPorn(!uploadIsPorn)}>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                                                    Conteúdo Pornô / NSFW <span className="text-red-500">*</span>
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 mt-0.5">Marque se o vídeo contém nudez explícita.</span>
+                                            </div>
+                                            <div className={`w-12 h-6 rounded-full transition-colors flex items-center px-1 ${uploadIsPorn ? 'bg-red-500' : 'bg-slate-700'}`}>
+                                                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${uploadIsPorn ? 'translate-x-6' : 'translate-x-0'}`} />
+                                            </div>
+                                        </div>
                                         
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs text-slate-400 font-bold uppercase">Categoria do Vídeo <span className="text-red-500">*</span></label>
+                                        <div className="space-y-2 pt-1">
+                                            <label className="text-xs text-slate-400 font-bold uppercase">Categoria <span className="text-red-500">*</span></label>
                                             <div className="grid grid-cols-3 gap-2">
                                                 {[
                                                     { id: 'explicito', label: '🌶️ Explícito' },
@@ -306,7 +389,7 @@ export const VideosView: React.FC = () => {
                                                         key={cat.id}
                                                         type="button"
                                                         onClick={() => setUploadCategory(cat.id)}
-                                                        className={`py-2 rounded-xl text-xs font-black transition-all border ${
+                                                        className={`py-2 rounded-xl text-[11px] font-black transition-all border ${
                                                             uploadCategory === cat.id
                                                                 ? 'bg-red-600/20 border-red-500/60 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.15)]'
                                                                 : 'bg-slate-800/60 border-white/5 text-slate-400 hover:text-white hover:bg-slate-800'
@@ -318,64 +401,28 @@ export const VideosView: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-slate-400 font-bold uppercase">Descrição (Opcional)</label>
-                                            <textarea 
-                                                placeholder="Adicione detalhes sobre o vídeo..." 
-                                                value={uploadDescription}
-                                                onChange={(e) => setUploadDescription(e.target.value)}
-                                                className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 min-h-[70px] text-sm resize-none"
-                                            />
-                                        </div>
-                                        
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Clique para adicionar Tags Rápidas:</label>
-                                            <div className="flex flex-wrap gap-1.5 py-1">
-                                                {[
-                                                    { tag: '#explicito', label: '🌶️ Explícito' },
-                                                    { tag: '#amador', label: '🔞 Amador' },
-                                                    { tag: '#solo', label: '👅 Solo' },
-                                                    { tag: '#casais', label: '👥 Casais' },
-                                                    { tag: '#bdsm', label: '⛓️ BDSM' },
-                                                    { tag: '#sensual', label: '✨ Sensual' }
-                                                ].map(item => (
-                                                    <button
-                                                        key={item.tag}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            if (!uploadDescription.includes(item.tag)) {
-                                                                setUploadDescription(prev => prev ? `${prev} ${item.tag}` : item.tag);
-                                                            }
-                                                        }}
-                                                        className="px-2.5 py-1.5 rounded-xl bg-slate-850 border border-white/5 hover:border-red-500/30 text-[10px] font-bold text-slate-300 hover:text-white transition-all active:scale-95 flex items-center gap-1"
-                                                    >
-                                                        {item.label}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
                                         <div className="flex gap-3 pt-2">
                                             <button 
                                                 type="button" 
-                                                onClick={() => setIsUploadOpen(false)}
+                                                onClick={() => setUploadStep(1)}
                                                 className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
                                             >
-                                                Cancelar
+                                                Voltar
                                             </button>
                                             <button 
                                                 type="button" 
                                                 disabled={!uploadTitle.trim()}
-                                                onClick={() => setUploadStep(2)}
-                                                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-505 transition-all shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                                                onClick={() => setUploadStep(3)}
+                                                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-500 transition-all shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
                                             >
-                                                Avançar
+                                                <span>Avançar</span>
+                                                <span className="material-symbols-rounded text-[18px]">arrow_forward</span>
                                             </button>
                                         </div>
                                     </div>
                                 )}
 
-                                {uploadStep === 2 && (
+                                {uploadStep === 3 && (
                                     <div className="space-y-4 animate-fade-in text-slate-200">
                                         <div className="p-4 bg-red-550/10 border border-red-500/20 rounded-2xl space-y-2">
                                             <div className="flex items-center gap-2 text-red-400 font-extrabold text-xs uppercase tracking-wide">
@@ -404,7 +451,7 @@ export const VideosView: React.FC = () => {
                                                 </li>
                                             </ul>
                                             <p className="text-[10px] text-red-400 font-bold leading-relaxed pt-1 border-t border-red-500/10">
-                                                ⚠️ ATENÇÃO: Enviar conteúdo proibido é crime federal. Cooperamos ativamente com investigações policiais enviando endereço IP e dados.
+                                                ⚠️ ATENÇÃO: Enviar conteúdo proibido é crime federal. Cooperamos ativamente com investigações policiais.
                                             </p>
                                         </div>
 
@@ -437,49 +484,6 @@ export const VideosView: React.FC = () => {
                                         <div className="flex gap-3 pt-2">
                                             <button 
                                                 type="button" 
-                                                onClick={() => setUploadStep(1)}
-                                                className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
-                                            >
-                                                Voltar
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                disabled={!agreedLawDisclaimer || !agreedConsentDisclaimer}
-                                                onClick={() => setUploadStep(3)}
-                                                className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-500 transition-all shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
-                                            >
-                                                Aceitar e Avançar
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {uploadStep === 3 && (
-                                    <div className="space-y-4 animate-fade-in">
-                                        <div className="space-y-2">
-                                            <label className="text-xs text-slate-400 font-bold uppercase">Arquivo de Vídeo <span className="text-red-500">*</span></label>
-                                            <div className="relative">
-                                                <input 
-                                                    type="file" 
-                                                    accept="video/mp4,video/quicktime,video/webm,video/*"
-                                                    onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
-                                                    className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-red-600 file:text-white hover:file:bg-red-500 text-xs cursor-pointer focus:outline-none"
-                                                />
-                                            </div>
-                                            {uploadFile && (
-                                                <div className="p-3 bg-slate-800/40 border border-white/5 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-300">
-                                                    <div className="flex items-center gap-2 truncate">
-                                                        <span className="material-symbols-rounded text-green-400 text-base">check_circle</span>
-                                                        <span className="truncate">{uploadFile.name}</span>
-                                                    </div>
-                                                    <span className="text-slate-500 flex-shrink-0 ml-2">{(uploadFile.size / (1024 * 1024)).toFixed(1)} MB</span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="flex gap-3 pt-2">
-                                            <button 
-                                                type="button" 
                                                 onClick={() => setUploadStep(2)}
                                                 className="flex-1 py-3 text-sm font-bold text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
                                             >
@@ -487,11 +491,11 @@ export const VideosView: React.FC = () => {
                                             </button>
                                             <button 
                                                 type="submit" 
-                                                disabled={!uploadFile}
+                                                disabled={!agreedLawDisclaimer || !agreedConsentDisclaimer}
                                                 className="flex-1 bg-gradient-to-r from-red-600 to-pink-600 text-white font-extrabold py-3 rounded-xl hover:opacity-95 transition-all shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 text-sm"
                                             >
                                                 <span className="material-symbols-rounded text-base">rocket_launch</span>
-                                                <span>Publicar Vídeo</span>
+                                                <span>Publicar</span>
                                             </button>
                                         </div>
                                     </div>
@@ -541,6 +545,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
 
     // Interactive comments display
     const [showCommentsSection, setShowCommentsSection] = useState(false);
+    const [showRatingMenu, setShowRatingMenu] = useState(false);
     const userRating = useVideoStore(state => state.userRatings[video.id]);
     const [starRating, setStarRating] = useState(userRating || 5);
     const [newCommentText, setNewCommentText] = useState('');
@@ -731,7 +736,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
             )}
 
             {/* Bottom-left Content (User, Description, Audio) */}
-            <div className="absolute bottom-6 left-4 right-16 z-10 flex flex-col justify-end pointer-events-none drop-shadow-md">
+            <div className="absolute bottom-20 left-4 right-16 z-10 flex flex-col justify-end pointer-events-none drop-shadow-md">
                 <div className="pointer-events-auto mb-2 inline-flex items-center gap-1.5 cursor-pointer" onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}>
                     <h3 className="text-white font-extrabold text-base hover:underline line-clamp-1">{video.user_profile?.username}</h3>
                     {video.user_profile?.subscription_tier === 'plus' && <span className="material-symbols-rounded text-[14px] text-yellow-400 filled drop-shadow">auto_awesome</span>}
@@ -759,7 +764,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
             </div>
 
             {/* Right-side Actions */}
-            <div className="absolute bottom-6 right-2 z-10 flex flex-col items-center justify-end gap-5 pb-2 pointer-events-auto">
+            <div className="absolute bottom-20 right-2 z-10 flex flex-col items-center justify-end gap-5 pb-2 pointer-events-auto">
                 {/* Avatar Profile */}
                 <div className="relative mb-3 cursor-pointer group" onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}>
                     <div className="w-[46px] h-[46px] rounded-full border-[1.5px] border-white overflow-hidden bg-slate-800 shadow-lg group-active:scale-95 transition-transform">
@@ -793,14 +798,37 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                 </div>
 
                 {/* Star Rating Modal trigger */}
-                <div className="flex flex-col items-center gap-1 group">
+                <div className="flex flex-col items-center gap-1 group relative">
                     <button 
-                        onClick={(e) => { e.stopPropagation(); handleStarClick(starRating === 5 ? 4 : 5); /* simple toggle for demo, real implementation could open a menu */ }}
+                        onClick={(e) => { e.stopPropagation(); setShowRatingMenu(!showRatingMenu); }}
                         className="w-[42px] h-[42px] rounded-full flex items-center justify-center transition-transform active:scale-75 group-hover:bg-white/10 text-white"
                     >
                         <span className="material-symbols-rounded text-[36px] filled drop-shadow-md text-yellow-400">star</span>
                     </button>
                     <span className="text-white text-[11px] font-semibold drop-shadow-md">{video.rating ? video.rating.toFixed(1) : '5.0'}</span>
+
+                    <AnimatePresence>
+                        {showRatingMenu && (
+                            <motion.div 
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: -10 }}
+                                exit={{ opacity: 0, x: 20 }}
+                                className="absolute right-12 top-0 flex flex-row-reverse gap-2 bg-black/60 backdrop-blur-md p-2 rounded-full border border-white/10"
+                            >
+                                {[5, 4, 3, 2, 1].map((star) => (
+                                    <motion.button
+                                        key={star}
+                                        whileHover={{ scale: 1.2 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        onClick={(e) => { e.stopPropagation(); handleStarClick(star); setShowRatingMenu(false); }}
+                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
+                                    >
+                                        <span className={`material-symbols-rounded text-2xl drop-shadow-md ${starRating >= star ? 'filled text-yellow-400' : 'text-slate-400'}`}>star</span>
+                                    </motion.button>
+                                ))}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 {/* Support/Donation */}
@@ -901,7 +929,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
                             )}
                         </div>
 
-                        <div className="p-4 bg-slate-950/80 border-t border-white/5 backdrop-blur-md">
+                        <div className="p-4 pb-[90px] bg-slate-950/80 border-t border-white/5 backdrop-blur-md">
                             <form onSubmit={handleCommentSubmit} className="flex gap-2 items-center bg-slate-900 border border-white/10 rounded-full px-1.5 py-1.5 pl-4">
                                 <input 
                                     type="text"

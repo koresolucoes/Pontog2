@@ -15,6 +15,7 @@ import { useCommunityStore } from '../stores/communityStore';
 import { ReportUserModal } from './ReportUserModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useTranslation } from 'react-i18next';
+import { useVideoStore } from '../stores/videoStore';
 
 interface ProfileModalProps {
   user: User;
@@ -56,6 +57,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
   const videoRef = useRef<HTMLVideoElement>(null);
   
   const agoraPost = posts.find(p => p.user_id === user.id);
+  const videos = useVideoStore((state) => state.videos);
+  const userVideos = videos.filter(v => v.user_id === user.id);
 
   const fetchConnection = async () => {
     if (!currentUser || !user || currentUser.id === user.id) return;
@@ -662,6 +665,40 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
                     <div className="bg-[#1a1a20] p-6 rounded-2xl text-center border border-white/5">
                         <span className="material-symbols-rounded text-slate-500 text-3xl mb-2">no_photography</span>
                         <p className="text-slate-400 text-sm">Sem fotos na galeria.</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Vídeos Públicos */}
+            <div className="mt-6 px-5 pb-2">
+                <h3 className="text-[11px] font-black text-red-500/90 uppercase tracking-widest mb-3 ml-1 flex items-center gap-1">
+                    <span className="material-symbols-rounded text-[14px]">play_circle</span> Vídeos ({userVideos.length})
+                </h3>
+                {userVideos.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2">
+                        {userVideos.map((video, i) => (
+                            <div key={video.id} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-slate-800 cursor-pointer group" onClick={() => {
+                                useUiStore.getState().setActiveView('videos');
+                                onClose();
+                            }}>
+                                {video.thumbnail_url ? (
+                                    <img src={video.thumbnail_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt={video.title} />
+                                ) : (
+                                    <video src={video.video_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2">
+                                    <div className="flex items-center gap-1 text-white/90">
+                                        <span className="material-symbols-rounded text-[12px]">play_arrow</span>
+                                        <span className="text-[10px] font-bold">{video.views_count || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="bg-[#1a1a20] p-6 rounded-2xl text-center border border-white/5">
+                        <span className="material-symbols-rounded text-slate-500 text-3xl mb-2">videocam_off</span>
+                        <p className="text-slate-400 text-sm">Nenhum vídeo publicado.</p>
                     </div>
                 )}
             </div>

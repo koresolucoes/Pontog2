@@ -116,7 +116,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
                 get().fetchMessageRequests();
                 updateTotalUnreadCount();
             } catch (err: any) {
-                console.error('Error fetching conversations:', err);
+                console.warn('Fallback: get_my_conversations RPC failed, using manual fetch:', err.message || err);
                 
                 // Fallback manual JS fetch para contornar falhas de RPC devido a alterações de esquema
                 try {
@@ -191,8 +191,8 @@ export const useInboxStore = create<InboxState>((set, get) => {
                     avatar_url: getPublicImageUrl(wink.avatar_url),
                     public_photos: Array.isArray(wink.public_photos) ? wink.public_photos.map(getPublicImageUrl) : [],
                 }));
-            } catch (err) {
-                console.error('Error fetching winks:', err);
+            } catch (err: any) {
+                console.warn('Fallback: get_my_winks RPC failed, using manual fetch:', err.message || err);
                 
                 try {
                     const currentUser = useAuthStore.getState().user;
