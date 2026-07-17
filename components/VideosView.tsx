@@ -118,111 +118,84 @@ export const VideosView: React.FC = () => {
     }, [videos, selectedCategory, sortBy, likedVideos]);
 
     return (
-        <div className="h-full w-full bg-dark-950 flex flex-col text-slate-100 overflow-hidden relative">
-            {/* Custom Red Header with premium Adult branding */}
-            <header className="bg-slate-900 border-b border-white/10 text-white h-16 px-4 flex items-center justify-between shadow-lg z-20 flex-shrink-0">
-                <div className="flex items-center gap-2">
+        <div className="h-full w-full bg-black flex flex-col text-slate-100 overflow-hidden relative">
+            {/* Floating Header */}
+            <header className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent pt-4 pb-8 px-4 flex items-center justify-between pointer-events-none">
+                <div className="flex items-center gap-2 pointer-events-auto">
                     <button 
                         onClick={() => setActiveView('home')} 
-                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
+                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors shadow-lg"
                         title="Voltar"
                     >
-                        <span className="material-symbols-rounded text-2xl text-slate-300">arrow_back</span>
+                        <span className="material-symbols-rounded text-2xl text-white drop-shadow-md">arrow_back</span>
                     </button>
-                    <div className="flex flex-col text-left">
-                        <h1 className="text-sm font-black tracking-wide bg-gradient-to-r from-red-500 to-pink-500 bg-clip-text text-transparent flex items-center gap-1.5 leading-none">
-                            <span>VÍDEOS ADULTOS</span>
+                    <div className="flex flex-col text-left drop-shadow-md">
+                        <h1 className="text-lg font-black tracking-wide text-white flex items-center gap-1.5 leading-none">
+                            <span>VÍDEOS</span>
                             <span className="text-[9px] font-black bg-red-600 text-white px-1 py-0.5 rounded border border-red-500/20 shadow-sm leading-none">18+</span>
                         </h1>
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Rede Social de Conteúdo Quente</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                    {/* NSFW Blur Shield Toggle */}
+                <div className="flex items-center gap-3 pointer-events-auto">
                     <button 
                         onClick={toggleNsfwBlur}
-                        className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all border ${globalNsfwBlur ? 'bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'bg-slate-800 border-white/5 text-slate-400 hover:text-white'}`}
+                        className={`w-10 h-10 flex items-center justify-center rounded-full transition-all border shadow-lg ${globalNsfwBlur ? 'bg-red-500/80 border-red-400 text-white' : 'bg-black/50 border-white/20 text-white hover:bg-black/70'}`}
                         title={globalNsfwBlur ? "Ocultar miniaturas (Blur Ativo)" : "Mostrar tudo sem blur"}
                     >
-                        <span className="material-symbols-rounded text-lg">
+                        <span className="material-symbols-rounded text-xl">
                             {globalNsfwBlur ? 'visibility_off' : 'visibility'}
                         </span>
                     </button>
 
                     <button 
                         onClick={openUploadModal}
-                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gradient-to-tr from-red-600 to-pink-600 text-white hover:opacity-90 transition-all shadow-md shadow-red-900/40"
+                        className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-tr from-red-600 to-pink-600 text-white hover:opacity-90 transition-all shadow-lg"
                         title="Enviar Vídeo"
                     >
-                        <span className="material-symbols-rounded text-lg">add</span>
+                        <span className="material-symbols-rounded text-xl">add</span>
                     </button>
                     
                     {user && (
                         <img 
                             src={user.avatar_url} 
                             alt={user.username} 
-                            className="w-8 h-8 rounded-full object-cover border border-white/10 cursor-pointer hover:border-red-500/50 transition-colors"
+                            className="w-9 h-9 rounded-full object-cover border-2 border-white/80 cursor-pointer shadow-lg"
                             onClick={() => setActiveView('profile')}
                         />
                     )}
                 </div>
             </header>
 
-            {/* Quick Categories Bar & Sort Controls */}
-            <div className="bg-slate-900/50 backdrop-blur-md border-b border-white/5 px-4 py-2 flex flex-col gap-2 z-15 flex-shrink-0">
-                {/* Horizontal scrolling Categories */}
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+            {/* Quick Categories Bar (Floating) */}
+            <div className="absolute top-20 left-0 right-0 z-20 px-4 pointer-events-none">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 pointer-events-auto mask-fade-edges">
                     {categories.map(cat => (
                         <button
                             key={cat.id}
                             onClick={() => setSelectedCategory(cat.id)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 border ${
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 border shadow-lg backdrop-blur-sm ${
                                 selectedCategory === cat.id
-                                ? 'bg-red-600/10 border-red-500/40 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
-                                : 'bg-slate-800/60 border-white/5 text-slate-400 hover:text-slate-200 hover:border-white/10'
+                                ? 'bg-white/20 border-white/40 text-white shadow-[0_0_12px_rgba(255,255,255,0.1)]'
+                                : 'bg-black/40 border-white/10 text-slate-200 hover:bg-black/60'
                             }`}
                         >
-                            {cat.icon && <span className="material-symbols-rounded text-sm">{cat.icon}</span>}
-                            <span>{cat.label}</span>
+                            {cat.icon && <span className="material-symbols-rounded text-sm drop-shadow-md">{cat.icon}</span>}
+                            <span className="drop-shadow-md">{cat.label}</span>
                         </button>
                     ))}
                 </div>
-
-                {/* Filter and sorting options */}
-                <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold uppercase tracking-wider px-1">
-                    <span>{filteredAndSortedVideos.length} Vídeos Encontrados</span>
-                    <div className="flex items-center gap-3">
-                        <span className="text-[10px] text-slate-500">Ordenar por:</span>
-                        <div className="flex gap-2">
-                            {[
-                                { id: 'recent', label: 'Recentes' },
-                                { id: 'views', label: 'Populares' },
-                                { id: 'rating', label: 'Avaliados' }
-                            ].map(opt => (
-                                <button
-                                    key={opt.id}
-                                    onClick={() => setSortBy(opt.id as any)}
-                                    className={`transition-colors hover:text-white ${sortBy === opt.id ? 'text-red-400 underline underline-offset-4' : ''}`}
-                                >
-                                    {opt.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
             </div>
 
-            {/* Main scrollable body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24 no-scrollbar">
+            {/* Main scrollable body (Snap Container) */}
+            <div className="flex-1 overflow-y-scroll snap-y snap-mandatory no-scrollbar bg-black pb-0 relative z-0">
                 {filteredAndSortedVideos.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-500 bg-slate-900/20 rounded-3xl border border-white/5">
+                    <div className="h-full flex flex-col items-center justify-center py-20 text-slate-500">
                         <span className="material-symbols-rounded text-5xl animate-pulse mb-3 text-red-500/40">videocam_off</span>
                         <p className="text-sm font-bold text-slate-400">Nenhum vídeo nesta categoria.</p>
-                        <p className="text-xs text-slate-500 mt-1">Seja o primeiro a enviar um vídeo caliente!</p>
                         <button 
                             onClick={openUploadModal}
-                            className="mt-4 px-4 py-2 bg-slate-850 hover:bg-slate-800 text-xs font-bold text-slate-200 rounded-xl border border-white/5 transition-all"
+                            className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white rounded-xl border border-white/10 transition-all"
                         >
                             Publicar Vídeo
                         </button>
@@ -558,8 +531,9 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
     const toggleCommentLike = useVideoStore(state => state.toggleCommentLike);
 
     const videoRef = useRef<HTMLVideoElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isMuted, setIsMuted] = useState(true);
+    const [isMuted, setIsMuted] = useState(false);
     const [hasIncrementedView, setHasIncrementedView] = useState(false);
 
     // Click to bypass NSFW blur shield
@@ -593,6 +567,35 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
         }
     }, [userRating]);
 
+    // Intersection Observer for autoplay
+    useEffect(() => {
+        const observer = new IntersectionObserver((entries) => {
+            const entry = entries[0];
+            if (entry.isIntersecting) {
+                if (videoRef.current && (!globalNsfwBlur || isRevealed)) {
+                    videoRef.current.play().catch(() => {});
+                    setIsPlaying(true);
+                    if (!hasIncrementedView) {
+                        onIncrementViews();
+                        setHasIncrementedView(true);
+                    }
+                }
+            } else {
+                if (videoRef.current) {
+                    videoRef.current.pause();
+                    setIsPlaying(false);
+                }
+                setShowCommentsSection(false); // hide comments when scrolled away
+            }
+        }, { threshold: 0.6 });
+
+        if (containerRef.current) {
+            observer.observe(containerRef.current);
+        }
+
+        return () => observer.disconnect();
+    }, [globalNsfwBlur, isRevealed, hasIncrementedView, onIncrementViews]);
+
     const handleVideoClick = () => {
         if (!videoRef.current) return;
         if (isPlaying) {
@@ -611,10 +614,12 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
     const handleStarClick = (rating: number) => {
         setStarRating(rating);
         useVideoStore.getState().addRating(video.id, rating);
+        toast.success(`Você avaliou com ${rating} estrelas!`);
     };
 
     const handleCommentSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!newCommentText.trim()) return;
         onAddComment(newCommentText);
         setNewCommentText('');
     };
@@ -626,347 +631,297 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
         setIsEditing(false);
     };
 
-    // Format human-friendly dates
     const formatDateLabel = (isoString: string) => {
         const date = new Date(isoString);
         const diffMs = Date.now() - date.getTime();
         const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-        if (diffDays === 0) return 'Hoy';
-        if (diffDays === 1) return 'Ayer';
-        return `Hace ${diffDays} días`;
+        if (diffDays === 0) return 'Hoje';
+        if (diffDays === 1) return 'Ontem';
+        return `Há ${diffDays} dias`;
     };
 
     return (
-        <div className="bg-slate-900 rounded-3xl border border-white/5 overflow-hidden shadow-xl flex flex-col">
-            {/* Video Player Box */}
-            <div className="relative aspect-video w-full bg-black cursor-pointer group overflow-hidden" onClick={globalNsfwBlur && !isRevealed ? undefined : handleVideoClick}>
-                <video 
-                    ref={videoRef}
-                    src={video.video_url} 
-                    poster={video.thumbnail_url}
-                    className={`w-full h-full object-cover transition-all duration-500 ${globalNsfwBlur && !isRevealed ? 'blur-2xl scale-105 saturate-50' : ''}`} 
-                    loop 
-                    muted={isMuted}
-                    playsInline
-                />
-                
-                {/* Blur Shield / NSFW Confirmation Overlay */}
-                {globalNsfwBlur && !isRevealed && (
-                    <div 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsRevealed(true);
-                            // Auto-play on reveal
-                            setTimeout(() => {
-                                if (videoRef.current) {
-                                    videoRef.current.play().catch(err => console.log('Autoplay blocked:', err));
-                                    setIsPlaying(true);
-                                    if (!hasIncrementedView) {
-                                        onIncrementViews();
-                                        setHasIncrementedView(true);
-                                    }
+        <div ref={containerRef} className="w-full h-full snap-start snap-always relative bg-black flex justify-center items-center overflow-hidden z-0">
+            <video 
+                ref={videoRef}
+                src={video.video_url} 
+                poster={video.thumbnail_url}
+                className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ${globalNsfwBlur && !isRevealed ? 'blur-2xl scale-110 saturate-50' : ''}`} 
+                loop 
+                muted={isMuted}
+                playsInline
+                onClick={globalNsfwBlur && !isRevealed ? undefined : handleVideoClick}
+            />
+
+            {/* NSFW Shield */}
+            {globalNsfwBlur && !isRevealed && (
+                <div 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsRevealed(true);
+                        setTimeout(() => {
+                            if (videoRef.current) {
+                                videoRef.current.play().catch(err => console.log('Autoplay blocked:', err));
+                                setIsPlaying(true);
+                                if (!hasIncrementedView) {
+                                    onIncrementViews();
+                                    setHasIncrementedView(true);
                                 }
-                            }, 50);
-                        }}
-                        className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 p-4 z-10 transition-colors hover:bg-black/80"
-                    >
-                        <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-500 flex items-center justify-center shadow-lg mb-2.5 animate-pulse">
-                            <span className="material-symbols-rounded text-2xl">no_adult_content</span>
-                        </div>
-                        <h4 className="text-xs font-black text-white uppercase tracking-wider mb-0.5">CONTEÚDO ADULTO EXPLICÍTO</h4>
-                        <p className="text-[10px] text-slate-400 text-center max-w-[260px] mb-3">Este vídeo pode conter nudez ou conteúdo explícito. Toque para assistir.</p>
-                        <button className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-pink-600 hover:opacity-95 text-white text-[10px] font-black tracking-wider uppercase transition-all shadow-md shadow-red-900/30 active:scale-95">
-                            Revelar (18+)
-                        </button>
+                            }
+                        }, 50);
+                    }}
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-4 z-10 transition-colors cursor-pointer"
+                >
+                    <div className="w-16 h-16 rounded-full bg-red-500/20 border border-red-500/50 text-red-500 flex items-center justify-center shadow-lg mb-4 animate-pulse backdrop-blur-sm">
+                        <span className="material-symbols-rounded text-3xl">no_adult_content</span>
                     </div>
-                )}
-
-                {/* Custom Overlay Controls */}
-                {(!globalNsfwBlur || isRevealed) && !isPlaying && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] transition-opacity">
-                        <div className="w-16 h-16 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
-                            <span className="material-symbols-rounded text-4xl filled pl-1">play_arrow</span>
-                        </div>
-                    </div>
-                )}
-
-                <div className="absolute bottom-3 right-3 flex gap-2">
-                    <button 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsMuted(!isMuted);
-                        }}
-                        className="w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm"
-                    >
-                        <span className="material-symbols-rounded text-lg">
-                            {isMuted ? 'volume_off' : 'volume_up'}
-                        </span>
+                    <h4 className="text-sm font-black text-white uppercase tracking-wider mb-2">CONTEÚDO ADULTO</h4>
+                    <p className="text-xs text-slate-300 text-center max-w-[260px] mb-5 font-medium leading-relaxed">Este vídeo contém nudez ou conteúdo explícito.</p>
+                    <button className="px-6 py-2.5 rounded-full bg-white text-black text-xs font-black tracking-wider uppercase shadow-lg shadow-white/20 active:scale-95 transition-transform">
+                        Toque para Revelar
                     </button>
-                    <div className="bg-black/60 px-2 py-1 rounded-md text-white text-[10px] font-bold backdrop-blur-sm flex items-center justify-center">
-                        HD
+                </div>
+            )}
+
+            {/* Play Button Overlay (when paused) */}
+            {(!globalNsfwBlur || isRevealed) && !isPlaying && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity z-10">
+                    <div className="w-20 h-20 rounded-full bg-black/40 text-white/90 flex items-center justify-center backdrop-blur-md shadow-lg">
+                        <span className="material-symbols-rounded text-5xl filled pl-2">play_arrow</span>
                     </div>
                 </div>
+            )}
 
-                {/* Edit and Delete Buttons for Owner */}
-                {isOwner && (
-                    <div className="absolute top-3 right-3 flex gap-2">
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setIsEditing(true);
-                            }}
-                            className="w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 backdrop-blur-sm transition-colors"
-                            title="Editar"
-                        >
-                            <span className="material-symbols-rounded text-sm">edit</span>
-                        </button>
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (window.confirm('Excluir este vídeo? Esta ação não pode ser desfeita.')) {
-                                    if (onDeleteVideo) onDeleteVideo();
-                                }
-                            }}
-                            className="w-8 h-8 rounded-full bg-black/60 text-red-500 flex items-center justify-center hover:bg-black/80 backdrop-blur-sm transition-colors"
-                            title="Deletar"
-                        >
-                            <span className="material-symbols-rounded text-sm">delete</span>
-                        </button>
-                    </div>
-                )}
-            </div>
+            {/* Top Bar for Owner Edit/Delete */}
+            {isOwner && (
+                <div className="absolute top-24 right-4 flex flex-col gap-3 z-10">
+                    <button onClick={() => setIsEditing(true)} className="w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center backdrop-blur-md shadow-lg border border-white/10 transition-transform active:scale-90">
+                        <span className="material-symbols-rounded text-lg">edit</span>
+                    </button>
+                    <button onClick={() => { if(window.confirm('Excluir este vídeo?')) { if (onDeleteVideo) onDeleteVideo(); } }} className="w-10 h-10 rounded-full bg-black/40 text-red-500 flex items-center justify-center backdrop-blur-md shadow-lg border border-white/10 transition-transform active:scale-90">
+                        <span className="material-symbols-rounded text-lg">delete</span>
+                    </button>
+                </div>
+            )}
 
-            {/* Title / Description */}
-            <div className="p-4 flex-1 flex flex-col justify-between text-left border-b border-white/5">
-                {isEditing ? (
-                    <div className="space-y-2 mt-1">
+            {/* Edit Modal Overlay */}
+            {isEditing && (
+                <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-md">
+                    <div className="w-full max-w-sm bg-slate-900 rounded-3xl border border-white/10 p-5 space-y-3">
+                        <h3 className="text-white font-bold text-lg mb-2">Editar Vídeo</h3>
                         <input 
                             type="text"
                             value={editTitle}
                             onChange={e => setEditTitle(e.target.value)}
-                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-red-500"
+                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500"
                             placeholder="Título do vídeo"
                         />
                         <textarea 
                             value={editDesc}
                             onChange={e => setEditDesc(e.target.value)}
-                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-red-500 min-h-[80px]"
+                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 min-h-[100px] resize-none"
                             placeholder="Descrição"
                         />
-                        <div className="flex gap-2 justify-end">
-                            <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-xs font-bold text-slate-400 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors">Cancelar</button>
-                            <button onClick={handleSaveEdit} className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-colors">Salvar</button>
+                        <div className="flex gap-2 justify-end pt-2">
+                            <button onClick={() => setIsEditing(false)} className="px-4 py-2.5 text-xs font-bold text-slate-300 hover:text-white transition-colors">Cancelar</button>
+                            <button onClick={handleSaveEdit} className="px-6 py-2.5 text-xs font-bold text-black bg-white rounded-full hover:bg-slate-200 transition-colors">Salvar</button>
                         </div>
-                    </div>
-                ) : (
-                    <div>
-                        <div className="flex justify-between items-start">
-                            <h3 className="text-lg font-bold text-white line-clamp-1">{video.title}</h3>
-                        </div>
-                        {video.description && (
-                            <p className="text-sm text-slate-300 mt-1 line-clamp-2">{video.description}</p>
-                        )}
-                        
-                        {/* Interactive Star Rating Selector - Placed right under the video details */}
-                        <div className="mt-3 p-2.5 bg-slate-950/40 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Avalie este vídeo:</span>
-                                <div className="flex gap-1.5">
-                                    {[1, 2, 3, 4, 5].map(star => (
-                                        <button 
-                                            key={star}
-                                            type="button"
-                                            onClick={() => handleStarClick(star)}
-                                            className="transition-transform hover:scale-120 cursor-pointer active:scale-90 focus:outline-none"
-                                            title={`Avaliar com ${star} estrelas`}
-                                        >
-                                            <span className={`material-symbols-rounded text-lg ${star <= starRating ? 'text-yellow-400 filled' : 'text-slate-600'}`}>
-                                                star
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            {/* Global dynamic average rating */}
-                            <div className="flex items-center gap-1.5 self-start sm:self-auto bg-slate-900/60 px-2.5 py-1 rounded-xl border border-white/5">
-                                <span className="material-symbols-rounded text-xs text-yellow-400 filled">star</span>
-                                <span className="text-xs font-black text-slate-200">{video.rating ? video.rating.toFixed(1) : '5.0'}</span>
-                                <span className="text-[10px] text-slate-400 font-bold">({video.ratings_count || 0} avaliações)</span>
-                            </div>
-                        </div>
-
-                        {/* Video engagement counts */}
-                        <div className="flex items-center gap-2 mt-2.5 text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">
-                            <span>{video.likes_count || 0} curtidas</span>
-                            <span>•</span>
-                            <span>{comments.length} comentários</span>
-                            <span>•</span>
-                            <span>{video.views_count || 0} visualizações</span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Profile detail card below like the screenshot */}
-                <div 
-                    onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}
-                    className="bg-slate-950/40 border border-white/5 rounded-2xl p-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-950/60 transition-all mt-3 gap-3"
-                >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <div className="relative w-10 h-10 flex-shrink-0">
-                            <img 
-                                src={video.user_profile?.avatar_url} 
-                                alt={video.user_profile?.username} 
-                                className="w-full h-full rounded-full object-cover border border-white/10"
-                            />
-                            <div className="absolute bottom-0 right-0 bg-green-500 w-2.5 h-2.5 rounded-full border border-slate-950 flex items-center justify-center"></div>
-                        </div>
-                        
-                        <div className="text-left min-w-0 flex-1">
-                            <div className="flex items-center gap-1 text-sm font-bold text-slate-100 min-w-0">
-                                <span className="truncate hover:underline">{video.user_profile?.display_name || video.user_profile?.username}</span>
-                                {video.user_profile?.subscription_tier === 'plus' && (
-                                    <span className="material-symbols-rounded text-xs text-yellow-400 filled flex-shrink-0">auto_awesome</span>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-400 font-medium">
-                                <span className="material-symbols-rounded text-xs text-slate-500 flex-shrink-0">location_on</span>
-                                <span className="truncate">{video.user_profile?.location || 'Brasil'}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {/* Creator Support Tip Button */}
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                useUiStore.getState().setDonationModalOpen(true);
-                                toast.success(`Apoie o criador ${video.user_profile?.display_name || video.user_profile?.username}!`);
-                            }}
-                            className="w-9 h-9 flex items-center justify-center rounded-full bg-amber-500/10 hover:bg-amber-500/15 text-amber-400 active:bg-amber-500/20 border border-amber-500/10 transition-all active:scale-95"
-                            title="Apoiar Criador"
-                        >
-                            <span className="material-symbols-rounded text-[18px] filled">volunteer_activism</span>
-                        </button>
-
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onLike();
-                            }}
-                            className={`w-9 h-9 flex items-center justify-center rounded-full border transition-all active:scale-95 ${
-                                isLiked 
-                                    ? 'bg-pink-500/15 text-pink-400 border-pink-500/20 hover:bg-pink-500/20' 
-                                    : 'bg-slate-800/40 text-slate-400 border-white/5 hover:bg-slate-800/60 hover:text-white'
-                            }`}
-                            title="Curtir"
-                        >
-                            <span className={`material-symbols-rounded text-[18px] ${isLiked ? 'filled' : ''}`}>favorite</span>
-                        </button>
-                        
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onChatClick({ id: video.user_id, username: video.user_profile?.username, avatar_url: video.user_profile?.avatar_url });
-                            }}
-                            className="w-9 h-9 flex items-center justify-center rounded-full bg-red-500/10 hover:bg-red-500/15 text-red-400 active:bg-red-500/20 border border-red-500/10 transition-all active:scale-95"
-                            title="Chat"
-                        >
-                            <span className="material-symbols-rounded text-[18px] filled">chat_bubble</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Comments Header Bar */}
-            <div className="px-4 py-3 bg-slate-900/50 flex items-center justify-between cursor-pointer border-b border-white/5" onClick={() => setShowCommentsSection(!showCommentsSection)}>
-                <div className="flex items-center gap-2 text-sm font-bold text-slate-300">
-                    <span className="material-symbols-rounded text-lg">forum</span>
-                    <span>{comments.length} comentários</span>
-                </div>
-                <span className="material-symbols-rounded text-slate-500 transition-transform">
-                    {showCommentsSection ? 'expand_less' : 'expand_more'}
-                </span>
-            </div>
-
-            {/* Expandable comments list */}
-            {showCommentsSection && (
-                <div className="bg-slate-950 p-4 space-y-4 animate-fade-in">
-                    {/* Add comment box */}
-                    <div className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 space-y-3">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Escreva um comentário:</p>
-                        
-                        <form onSubmit={handleCommentSubmit} className="flex gap-2 items-center">
-                            <input 
-                                type="text"
-                                placeholder="Escreva um comentário..."
-                                value={newCommentText}
-                                onChange={(e) => setNewCommentText(e.target.value)}
-                                className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500/50"
-                                required
-                            />
-                            <button 
-                                type="submit"
-                                className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-bold shadow-md shadow-red-900/30 active:scale-95 flex-shrink-0"
-                            >
-                                <span className="material-symbols-rounded text-lg">send</span>
-                            </button>
-                        </form>
-                    </div>
-
-                    {/* Individual comments list */}
-                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1 no-scrollbar">
-                        {comments.length === 0 ? (
-                            <p className="text-xs text-slate-500 text-center py-2">Seja o primeiro a comentar.</p>
-                        ) : (
-                            comments.map((comment, index) => (
-                                <div key={comment.id || index} className="flex gap-3 bg-slate-900/30 p-3 rounded-2xl border border-white/5">
-                                    <img 
-                                        src={comment.user_profile?.avatar_url} 
-                                        alt={comment.user_profile?.username} 
-                                        className="w-9 h-9 rounded-xl object-cover border border-white/5 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                                        onClick={() => handleUserClick({ id: comment.user_id, ...comment.user_profile })}
-                                    />
-                                    <div className="flex-1 text-left">
-                                        <div className="flex items-center justify-between">
-                                            <div 
-                                                className="flex items-center gap-1 text-xs font-bold text-slate-300 cursor-pointer hover:underline"
-                                                onClick={() => handleUserClick({ id: comment.user_id, ...comment.user_profile })}
-                                            >
-                                                <span className="text-red-500">●</span>
-                                                <span>{comment.user_profile?.username}</span>
-                                                <span className="text-[10px] text-slate-500 font-medium">, {comment.user_profile?.age || 22}</span>
-                                            </div>
-                                        </div>
-                                        <p className="text-xs text-slate-300 mt-1">{comment.comment_text}</p>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <span className="text-[9px] text-slate-500 font-medium">
-                                                {formatDateLabel(comment.created_at)}
-                                            </span>
-                                            
-                                            {/* Botão de Curtir Comentário */}
-                                            <button 
-                                                type="button"
-                                                onClick={() => comment.id && toggleCommentLike(video.id, comment.id)}
-                                                className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-red-400 transition-colors cursor-pointer group active:scale-95"
-                                                title={comment.liked_by_me ? 'Descurtir comentário' : 'Curtir comentário'}
-                                            >
-                                                <span className={`material-symbols-rounded text-xs ${comment.liked_by_me ? 'text-red-500 filled animate-pulse' : 'text-slate-500 group-hover:text-red-400'}`}>
-                                                    favorite
-                                                </span>
-                                                <span className={comment.liked_by_me ? 'text-red-400' : 'text-slate-400'}>
-                                                    {comment.likes_count || 0}
-                                                </span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
                     </div>
                 </div>
             )}
+
+            {/* Bottom-left Content (User, Description, Audio) */}
+            <div className="absolute bottom-6 left-4 right-16 z-10 flex flex-col justify-end pointer-events-none drop-shadow-md">
+                <div className="pointer-events-auto mb-2 inline-flex items-center gap-1.5 cursor-pointer" onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}>
+                    <h3 className="text-white font-extrabold text-base hover:underline line-clamp-1">{video.user_profile?.username}</h3>
+                    {video.user_profile?.subscription_tier === 'plus' && <span className="material-symbols-rounded text-[14px] text-yellow-400 filled drop-shadow">auto_awesome</span>}
+                </div>
+                
+                {/* Title */}
+                <h4 className="text-white font-bold text-sm mb-1 pointer-events-auto leading-tight">{video.title}</h4>
+                
+                {/* Description */}
+                {video.description && (
+                    <div className="pointer-events-auto max-h-[60px] overflow-y-auto no-scrollbar mask-fade-edges-vertical">
+                        <p className="text-slate-200 text-[13px] font-medium leading-snug pr-2">{video.description}</p>
+                    </div>
+                )}
+                
+                {/* Audio track info */}
+                <div className="flex items-center gap-2 mt-3 text-white pointer-events-auto overflow-hidden">
+                    <span className="material-symbols-rounded text-sm animate-pulse">music_note</span>
+                    <div className="whitespace-nowrap overflow-hidden relative w-3/4">
+                        <span className="text-xs font-semibold inline-block animate-marquee drop-shadow">
+                            Som original - @{video.user_profile?.username} • {video.views_count || 0} visualizações
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right-side Actions */}
+            <div className="absolute bottom-6 right-2 z-10 flex flex-col items-center justify-end gap-5 pb-2 pointer-events-auto">
+                {/* Avatar Profile */}
+                <div className="relative mb-3 cursor-pointer group" onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}>
+                    <div className="w-[46px] h-[46px] rounded-full border-[1.5px] border-white overflow-hidden bg-slate-800 shadow-lg group-active:scale-95 transition-transform">
+                        <img src={video.user_profile?.avatar_url} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-red-600 text-white w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-black shadow-md shadow-red-900/50 group-hover:bg-red-500">
+                        +
+                    </div>
+                </div>
+
+                {/* Like */}
+                <div className="flex flex-col items-center gap-1 group">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onLike(); }}
+                        className="w-[42px] h-[42px] rounded-full flex items-center justify-center transition-transform active:scale-75 group-hover:bg-white/10"
+                    >
+                        <span className={`material-symbols-rounded text-[38px] drop-shadow-md transition-colors ${isLiked ? 'text-red-500 filled' : 'text-white'}`}>favorite</span>
+                    </button>
+                    <span className="text-white text-[11px] font-semibold drop-shadow-md">{video.likes_count || 0}</span>
+                </div>
+
+                {/* Comments */}
+                <div className="flex flex-col items-center gap-1 group">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); setShowCommentsSection(true); }}
+                        className="w-[42px] h-[42px] rounded-full flex items-center justify-center transition-transform active:scale-75 group-hover:bg-white/10 text-white"
+                    >
+                        <span className="material-symbols-rounded text-[34px] filled drop-shadow-md">chat_bubble</span>
+                    </button>
+                    <span className="text-white text-[11px] font-semibold drop-shadow-md">{comments.length}</span>
+                </div>
+
+                {/* Star Rating Modal trigger */}
+                <div className="flex flex-col items-center gap-1 group">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleStarClick(starRating === 5 ? 4 : 5); /* simple toggle for demo, real implementation could open a menu */ }}
+                        className="w-[42px] h-[42px] rounded-full flex items-center justify-center transition-transform active:scale-75 group-hover:bg-white/10 text-white"
+                    >
+                        <span className="material-symbols-rounded text-[36px] filled drop-shadow-md text-yellow-400">star</span>
+                    </button>
+                    <span className="text-white text-[11px] font-semibold drop-shadow-md">{video.rating ? video.rating.toFixed(1) : '5.0'}</span>
+                </div>
+
+                {/* Support/Donation */}
+                <div className="flex flex-col items-center gap-1 group">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); useUiStore.getState().setDonationModalOpen(true); }}
+                        className="w-[42px] h-[42px] rounded-full flex items-center justify-center transition-transform active:scale-75 group-hover:bg-white/10 text-white"
+                    >
+                        <span className="material-symbols-rounded text-[34px] filled drop-shadow-md text-amber-500">volunteer_activism</span>
+                    </button>
+                    <span className="text-white text-[11px] font-semibold drop-shadow-md">Apoiar</span>
+                </div>
+
+                {/* Chat direct */}
+                <div className="flex flex-col items-center gap-1 group">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onChatClick({ id: video.user_id, username: video.user_profile?.username, avatar_url: video.user_profile?.avatar_url }); }}
+                        className="w-[42px] h-[42px] rounded-full flex items-center justify-center transition-transform active:scale-75 group-hover:bg-white/10 text-white"
+                    >
+                        <span className="material-symbols-rounded text-[30px] drop-shadow-md">forum</span>
+                    </button>
+                    <span className="text-white text-[11px] font-semibold drop-shadow-md">Chat</span>
+                </div>
+
+                {/* Mute/Unmute */}
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
+                    className="w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center backdrop-blur-md mt-1 border border-white/10 active:scale-95"
+                >
+                    <span className="material-symbols-rounded text-sm">
+                        {isMuted ? 'volume_off' : 'volume_up'}
+                    </span>
+                </button>
+            </div>
+
+            {/* Comments Bottom Sheet */}
+            <AnimatePresence>
+                {showCommentsSection && (
+                    <motion.div 
+                        initial={{ y: '100%' }}
+                        animate={{ y: 0 }}
+                        exit={{ y: '100%' }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                        className="absolute bottom-0 left-0 right-0 h-[65%] bg-slate-950/95 backdrop-blur-xl rounded-t-3xl z-40 flex flex-col shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/10"
+                    >
+                        {/* Drag handle */}
+                        <div className="w-full flex justify-center pt-3 pb-1 cursor-pointer" onClick={() => setShowCommentsSection(false)}>
+                            <div className="w-10 h-1.5 bg-slate-600 rounded-full"></div>
+                        </div>
+
+                        <div className="px-4 pb-3 flex items-center justify-between border-b border-white/10 mt-1">
+                            <h3 className="text-white font-bold text-sm text-center flex-1">{comments.length} comentários</h3>
+                            <button onClick={() => setShowCommentsSection(false)} className="text-slate-400 hover:text-white transition-colors">
+                                <span className="material-symbols-rounded text-xl">close</span>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+                            {comments.length === 0 ? (
+                                <p className="text-xs text-slate-500 text-center py-10">Nenhum comentário ainda. Seja o primeiro!</p>
+                            ) : (
+                                comments.map((comment, index) => (
+                                    <div key={comment.id || index} className="flex gap-3">
+                                        <img 
+                                            src={comment.user_profile?.avatar_url} 
+                                            alt={comment.user_profile?.username} 
+                                            className="w-8 h-8 rounded-full object-cover border border-white/10 flex-shrink-0 cursor-pointer"
+                                            onClick={() => handleUserClick({ id: comment.user_id, ...comment.user_profile })}
+                                        />
+                                        <div className="flex-1 text-left">
+                                            <div className="flex items-center gap-1 mb-0.5">
+                                                <span 
+                                                    className="text-[13px] font-bold text-slate-300 cursor-pointer hover:underline"
+                                                    onClick={() => handleUserClick({ id: comment.user_id, ...comment.user_profile })}
+                                                >
+                                                    {comment.user_profile?.username}
+                                                </span>
+                                                <span className="text-[10px] text-slate-500 font-medium"> • {formatDateLabel(comment.created_at)}</span>
+                                            </div>
+                                            <p className="text-sm text-white leading-snug">{comment.comment_text}</p>
+                                            <div className="flex items-center mt-2">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => comment.id && toggleCommentLike(video.id, comment.id)}
+                                                    className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-red-400 transition-colors active:scale-95"
+                                                >
+                                                    <span className={`material-symbols-rounded text-[14px] ${comment.liked_by_me ? 'text-red-500 filled' : 'text-slate-500'}`}>
+                                                        favorite
+                                                    </span>
+                                                    <span className={comment.liked_by_me ? 'text-red-400' : 'text-slate-400'}>
+                                                        {comment.likes_count || 0}
+                                                    </span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="p-4 bg-slate-950/80 border-t border-white/5 backdrop-blur-md">
+                            <form onSubmit={handleCommentSubmit} className="flex gap-2 items-center bg-slate-900 border border-white/10 rounded-full px-1.5 py-1.5 pl-4">
+                                <input 
+                                    type="text"
+                                    placeholder="Adicione um comentário..."
+                                    value={newCommentText}
+                                    onChange={(e) => setNewCommentText(e.target.value)}
+                                    className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+                                />
+                                <button 
+                                    type="submit"
+                                    disabled={!newCommentText.trim()}
+                                    className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-90 transition-transform"
+                                >
+                                    <span className="material-symbols-rounded text-[18px]">arrow_upward</span>
+                                </button>
+                            </form>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
