@@ -52,6 +52,64 @@ export const calculateAge = (dob: string | null): number => {
 };
 
 /**
+ * Limpa uma tag/tribo/kink individual removendo chaves, aspas, colchetes, barras de escape e espaços extras.
+ * Ex: '{"tag"}' -> 'tag', '"tag"' -> 'tag', '{tag}' -> 'tag'
+ */
+export const cleanTag = (tag: any): string => {
+  if (tag === null || tag === undefined) return '';
+  let str = String(tag).trim();
+  str = str.replace(/^[\{\[\"\'\\]+|[\}\]\"\'\\]+$/g, '').trim();
+  str = str.replace(/^[\"\'`]+|[\"\'`]+$/g, '').trim();
+  str = str.replace(/\\"/g, '"').replace(/^["']|["']$/g, '').trim();
+  return str;
+};
+
+/**
+ * Converte qualquer entrada de tags/tribos/kinks (string, array, JSON, formato Postgres) em um array limpo de strings.
+ */
+export const parseTags = (input: any): string[] => {
+  if (!input) return [];
+  
+  let list: string[] = [];
+
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      if (typeof item === 'string') {
+        if (item.includes('{') || item.includes(',') || item.includes('[')) {
+          list.push(...parseTags(item));
+        } else {
+          const cleaned = cleanTag(item);
+          if (cleaned) list.push(cleaned);
+        }
+      } else if (item) {
+        const cleaned = cleanTag(item);
+        if (cleaned) list.push(cleaned);
+      }
+    }
+  } else if (typeof input === 'string') {
+    let raw = input.trim();
+    if ((raw.startsWith('[') && raw.endsWith(']')) || (raw.startsWith('{') && raw.endsWith('}'))) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parseTags(parsed);
+        }
+      } catch (e) {
+        // Ignora erro de JSON e processa como string delimitada por vírgula/chaves
+      }
+    }
+    raw = raw.replace(/^[\{\[]|[\}\]]$/g, '');
+    const parts = raw.split(',');
+    for (const part of parts) {
+      const cleaned = cleanTag(part);
+      if (cleaned) list.push(cleaned);
+    }
+  }
+
+  return Array.from(new Set(list));
+};
+
+/**
  * Transforms a raw profile object from a Supabase RPC into a typed User object.
  * Processes image URLs and calculates age.
  * @param profile The raw profile data from the database.
@@ -60,9 +118,12 @@ export const calculateAge = (dob: string | null): number => {
 export const transformProfileToUser = (profile: any): User => {
   // Handles tribe data from get_nearby_profiles (simple array)
   // and get_popular_profiles (nested object array)
-  const tribesArray = profile.tribes 
+  const rawTribes = profile.tribes 
     ? profile.tribes
-    : (profile.profile_tribes?.map((pt: any) => pt.tribes.name) || []);
+    : (profile.profile_tribes?.map((pt: any) => pt.tribes?.name).filter(Boolean) || []);
+
+  const tribesArray = parseTags(rawTribes);
+  const kinksArray = parseTags(profile.kinks);
 
   // OTIMIZAÇÃO: Solicita imagens com largura máxima de 500px.
   // Isso é suficiente para a grade e o modal de perfil em dispositivos móveis,
@@ -78,7 +139,7 @@ export const transformProfileToUser = (profile: any): User => {
     avatar_url: getPublicImageUrl(profile.avatar_url, { width: 500, height: 500 }), // Avatar quadrado
     public_photos: (profile.public_photos || []).map((path: string) => getPublicImageUrl(path, imageOptions)),
     tribes: tribesArray,
-    kinks: profile.kinks || [],
+    kinks: kinksArray,
     can_host: canHost,
   };
   delete user.profile_tribes; // Clean up the raw joined data to match the User type.

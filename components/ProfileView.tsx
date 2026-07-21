@@ -13,6 +13,7 @@ import { BlockedUsersModal } from './BlockedUsersModal';
 import { AdSenseUnit } from './AdSenseUnit';
 import { VerificationModal } from './VerificationModal';
 import { useTranslation } from 'react-i18next';
+import { cleanTag, parseTags } from '../lib/utils';
 import { useVideoStore } from '../stores/videoStore';
 
 const ToggleSwitch: React.FC<{
@@ -255,30 +256,43 @@ export const ProfileView: React.FC = () => {
                 <div className="mt-6 px-5">
                     <h3 className="text-[11px] font-black text-orange-400/90 uppercase tracking-widest mb-3 ml-1">Interesses</h3>
                     <div className="bg-[#1a1a20] p-4 rounded-2xl flex flex-wrap gap-2 border border-white/5">
-                        {user.kinks && user.kinks.length > 0 ? (
-                            user.kinks.map((kink, idx) => {
-                                const colors = [
-                                    'bg-pink-500/10 text-pink-300 border-pink-500/20',
-                                    'bg-purple-500/10 text-purple-300 border-purple-500/20',
-                                    'bg-green-500/10 text-green-300 border-green-500/20',
-                                    'bg-blue-500/10 text-blue-300 border-blue-500/20',
-                                    'bg-orange-500/10 text-orange-300 border-orange-500/20'
-                                ];
-                                const colorClass = colors[idx % colors.length];
-                                return (
-                                    <span key={kink} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${colorClass}`}>
-                                        #{kink}
-                                    </span>
-                                );
-                            })
-                        ) : (
-                            <span className="text-slate-500 text-xs">Nenhum interesse listado.</span>
-                        )}
-                        {(user.tribes || []).map((tribe, idx) => (
-                             <span key={tribe} className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-800 text-slate-300 border-white/10">
-                                #{tribe}
-                            </span>
-                        ))}
+                        {(() => {
+                            const validKinks = parseTags(user.kinks);
+                            const validTribes = parseTags(user.tribes);
+                            
+                            if (validKinks.length === 0 && validTribes.length === 0) {
+                                return <span className="text-slate-500 text-xs">Nenhum interesse listado.</span>;
+                            }
+
+                            return (
+                                <>
+                                    {validKinks.map((rawKink, idx) => {
+                                        const kink = cleanTag(rawKink);
+                                        const colors = [
+                                            'bg-pink-500/10 text-pink-300 border-pink-500/20',
+                                            'bg-purple-500/10 text-purple-300 border-purple-500/20',
+                                            'bg-green-500/10 text-green-300 border-green-500/20',
+                                            'bg-blue-500/10 text-blue-300 border-blue-500/20',
+                                            'bg-orange-500/10 text-orange-300 border-orange-500/20'
+                                        ];
+                                        const colorClass = colors[idx % colors.length];
+                                        return (
+                                            <span key={kink} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${colorClass}`}>
+                                                #{kink}
+                                            </span>
+                                        );
+                                    })}
+                                    {validTribes.map((rawTribe) => {
+                                        const tribe = cleanTag(rawTribe);
+                                        return (
+                                            <span key={tribe} className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-800 text-slate-300 border-white/10">
+                                                #{tribe}
+                                            </span>
+                                        );
+                                    })}
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
 

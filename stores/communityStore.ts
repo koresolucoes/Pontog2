@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
 import { Community, CommunityPost, CommunityComment, UserConnection } from '../types';
 
 interface CommunityState {
@@ -262,9 +263,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         
         try {
             if (isLiked) {
-                await supabase.from('community_post_likes').delete().eq('post_id', postId).eq('user_id', userId);
+                const { error } = await supabase.from('community_post_likes').delete().eq('post_id', postId).eq('user_id', userId);
+                if (error) throw error;
             } else {
-                await supabase.from('community_post_likes').insert({ post_id: postId, user_id: userId });
+                const { error } = await supabase.from('community_post_likes').insert({ post_id: postId, user_id: userId });
+                if (error) throw error;
 
                 // Send push notification to post author if liker is not the author
                 if (post.author_id && post.author_id !== userId) {
@@ -289,10 +292,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                     });
                 }
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error toggling like:', error);
             // Revert on error
             set({ currentCommunityPosts: posts });
+            if (error?.code === '42501' || error?.message?.includes('row-level security') || error?.message?.includes('RLS')) {
+                toast.error('Você precisa fazer parte da comunidade para curtir.');
+            } else {
+                toast.error('Erro ao curtir publicação.');
+            }
         }
     },
 
@@ -374,6 +382,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             get().fetchCommunityPosts(communityId);
         } catch (error: any) {
             console.error('Error reposting:', error);
+            if (error?.code === '42501' || error?.message?.includes('row-level security') || error?.message?.includes('RLS')) {
+                toast.error('Você precisa fazer parte da comunidade para repostar.');
+            } else {
+                toast.error('Erro ao repostar publicação.');
+            }
             throw error;
         }
     },
@@ -390,6 +403,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             await get().fetchCommunityPosts(communityId);
         } catch (error: any) {
             console.error('Error creating post in communityStore:', error);
+            if (error?.code === '42501' || error?.message?.includes('row-level security') || error?.message?.includes('RLS')) {
+                toast.error('Você precisa fazer parte da comunidade para publicar.');
+            } else {
+                toast.error('Erro ao criar publicação.');
+            }
             throw error;
         }
     },

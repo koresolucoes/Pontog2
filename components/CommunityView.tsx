@@ -10,6 +10,7 @@ import { Community, CommunityPost } from '../types';
 import { toast } from 'react-hot-toast';
 import { CommunityPostDetailModal } from './CommunityPostDetailModal';
 import { supabase } from '../lib/supabase';
+import { cleanTag, parseTags } from '../lib/utils';
 import { handleUserClick, renderContent } from './postUtils';
 
 export const CommunityView: React.FC = () => {
@@ -147,9 +148,9 @@ export const CommunityView: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between items-center mt-2">
                                     <div className="flex flex-wrap gap-2">
-                                        {community.tags?.slice(0,2).map(tag => (
-                                            <span key={tag} className="text-[10px] uppercase tracking-wider font-bold bg-white/10 px-2 py-0.5 rounded-full text-slate-300">
-                                                {tag}
+                                        {parseTags(community.tags).slice(0, 2).map((tag, idx) => (
+                                            <span key={idx} className="text-[10px] uppercase tracking-wider font-bold bg-white/10 px-2 py-0.5 rounded-full text-slate-300">
+                                                {cleanTag(tag)}
                                             </span>
                                         ))}
                                     </div>
@@ -507,244 +508,278 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-primary-500/10 text-primary-400 p-4 text-center text-sm border-b border-primary-500/20">
-                        Participe da comunidade para interagir e postar.
+                    <div className="bg-primary-500/10 text-primary-400 p-4 text-center text-sm border-b border-primary-500/20 flex items-center justify-between gap-2 px-6">
+                        <span>Participe da comunidade para interagir, publicar e comentar.</span>
+                        <button
+                            onClick={() => {
+                                if (activeCommunity.is_private) {
+                                    setIsJoinModalOpen(true);
+                                } else {
+                                    onJoinLeave();
+                                }
+                            }}
+                            className="px-4 py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-bold rounded-full transition-all shrink-0"
+                        >
+                            {activeCommunity.is_private ? 'Solicitar Entrada' : 'Participar'}
+                        </button>
                     </div>
                 )}
 
-                {/* Trending section */}
-                <div className="p-4 border-b border-white/10">
-                    <h3 className="font-bold text-white text-lg mb-3">Assuntos do momento</h3>
-                    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-                        {['#Orgulho', 'Festas SP', 'Dicas Culturais', '#Diversidade', 'Encontros'].map((trend, i) => (
-                            <div key={i} className="flex-shrink-0 bg-slate-800/50 border border-white/5 rounded-xl p-3 min-w-[120px]">
-                                <p className="text-xs text-slate-400 mb-1">Trending</p>
-                                <p className="font-bold text-white text-sm">{trend}</p>
-                            </div>
-                        ))}
+                {activeCommunity.is_private && !isMember ? (
+                    <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-800/20 border border-white/5 rounded-3xl mx-4 my-8">
+                        <div className="w-16 h-16 rounded-full bg-primary-500/10 text-primary-400 flex items-center justify-center mb-4 border border-primary-500/20 shadow-lg">
+                            <span className="material-symbols-rounded text-3xl">lock</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white font-outfit mb-2">Comunidade Privada</h3>
+                        <p className="text-slate-400 text-sm max-w-md mb-6 leading-relaxed">
+                            Esta comunidade é privada. Solicite sua entrada para visualizar as postagens, os membros e participar das conversas.
+                        </p>
+                        <button
+                            onClick={() => setIsJoinModalOpen(true)}
+                            className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold text-sm rounded-full shadow-lg shadow-primary-500/30 transition-all flex items-center gap-2"
+                        >
+                            <span className="material-symbols-rounded text-lg">group_add</span>
+                            Solicitar Participação
+                        </button>
                     </div>
-                </div>
+                ) : (
+                    <>
+                        {/* Trending section */}
+                        <div className="p-4 border-b border-white/10">
+                            <h3 className="font-bold text-white text-lg mb-3">Assuntos do momento</h3>
+                            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                                {['#Orgulho', 'Festas SP', 'Dicas Culturais', '#Diversidade', 'Encontros'].map((trend, i) => (
+                                    <div key={i} className="flex-shrink-0 bg-slate-800/50 border border-white/5 rounded-xl p-3 min-w-[120px]">
+                                        <p className="text-xs text-slate-400 mb-1">Trending</p>
+                                        <p className="font-bold text-white text-sm">{trend}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
-                {/* Feed */}
-                <div className="flex flex-col">
-                    {loading ? (
-                        <div className="text-center text-slate-400 py-10">Carregando postagens...</div>
-                    ) : currentCommunityPosts.length > 0 ? (
-                        currentCommunityPosts.map(post => (
-                            <div key={post.id} className="p-4 border-b border-white/5 hover:bg-slate-800/20 transition-colors flex gap-3">
-                                <div 
-                                    onClick={() => handleUserClick(post.author)} 
-                                    className="w-12 h-12 rounded-full bg-slate-700 overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                                >
-                                    {post.author?.avatar_url ? (
-                                        <img src={post.author.avatar_url} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-slate-500">person</span>
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex flex-wrap items-baseline gap-1.5 mb-1">
-                                            <span 
-                                                onClick={() => handleUserClick(post.author)} 
-                                                className="font-bold text-white text-base truncate cursor-pointer hover:underline"
-                                            >
-                                                {post.author?.display_name || post.author?.username || 'Usuário'}
-                                            </span>
-                                            <span 
-                                                onClick={() => handleUserClick(post.author)} 
-                                                className="text-slate-500 text-sm truncate cursor-pointer hover:underline"
-                                            >
-                                                @{post.author?.username || 'user'}
-                                            </span>
-                                            <span className="text-slate-500 text-sm">·</span>
-                                            <span className="text-slate-500 text-sm hover:underline cursor-pointer">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric'})}</span>
+                        {/* Feed */}
+                        <div className="flex flex-col">
+                            {loading ? (
+                                <div className="text-center text-slate-400 py-10">Carregando postagens...</div>
+                            ) : currentCommunityPosts.length > 0 ? (
+                                currentCommunityPosts.map(post => (
+                                    <div key={post.id} className="p-4 border-b border-white/5 hover:bg-slate-800/20 transition-colors flex gap-3">
+                                        <div 
+                                            onClick={() => handleUserClick(post.author)} 
+                                            className="w-12 h-12 rounded-full bg-slate-700 overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                        >
+                                            {post.author?.avatar_url ? (
+                                                <img src={post.author.avatar_url} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-slate-500">person</span>
+                                            )}
                                         </div>
-                                        <div className="relative">
-                                            <button 
-                                                onClick={() => setActivePostMenu(activePostMenu === post.id ? null : post.id)} 
-                                                className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0 p-1 rounded-full hover:bg-white/5"
-                                                title="Opções"
-                                            >
-                                                <span className="material-symbols-rounded text-lg">more_horiz</span>
-                                            </button>
-                                            {activePostMenu === post.id && (
-                                                <>
-                                                    {/* Backdrop overlay for closing menu */}
-                                                    <div className="fixed inset-0 z-[60]" onClick={() => setActivePostMenu(null)} />
-                                                    <div className="absolute right-0 mt-1 w-36 bg-slate-900 border border-white/10 rounded-xl shadow-xl z-[70] py-1 overflow-hidden">
-                                                        <button 
-                                                            onClick={() => {
-                                                                setActivePostMenu(null);
-                                                                toast.success('Denúncia enviada à moderação.');
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-white/5 flex items-center gap-2 font-medium"
-                                                        >
-                                                            <span className="material-symbols-rounded text-sm text-red-400">report</span>
-                                                            Denunciar
-                                                        </button>
-                                                        {canEditOrDelete(post) && (
-                                                            <>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex flex-wrap items-baseline gap-1.5 mb-1">
+                                                    <span 
+                                                        onClick={() => handleUserClick(post.author)} 
+                                                        className="font-bold text-white text-base truncate cursor-pointer hover:underline"
+                                                    >
+                                                        {post.author?.display_name || post.author?.username || 'Usuário'}
+                                                    </span>
+                                                    <span 
+                                                        onClick={() => handleUserClick(post.author)} 
+                                                        className="text-slate-500 text-sm truncate cursor-pointer hover:underline"
+                                                    >
+                                                        @{post.author?.username || 'user'}
+                                                    </span>
+                                                    <span className="text-slate-500 text-sm">·</span>
+                                                    <span className="text-slate-500 text-sm hover:underline cursor-pointer">{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric'})}</span>
+                                                </div>
+                                                <div className="relative">
+                                                    <button 
+                                                        onClick={() => setActivePostMenu(activePostMenu === post.id ? null : post.id)} 
+                                                        className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0 p-1 rounded-full hover:bg-white/5"
+                                                        title="Opções"
+                                                    >
+                                                        <span className="material-symbols-rounded text-lg">more_horiz</span>
+                                                    </button>
+                                                    {activePostMenu === post.id && (
+                                                        <>
+                                                            {/* Backdrop overlay for closing menu */}
+                                                            <div className="fixed inset-0 z-[60]" onClick={() => setActivePostMenu(null)} />
+                                                            <div className="absolute right-0 mt-1 w-36 bg-slate-900 border border-white/10 rounded-xl shadow-xl z-[70] py-1 overflow-hidden">
                                                                 <button 
                                                                     onClick={() => {
                                                                         setActivePostMenu(null);
-                                                                        handleEditPost(post);
+                                                                        toast.success('Denúncia enviada à moderação.');
                                                                     }}
                                                                     className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-white/5 flex items-center gap-2 font-medium"
                                                                 >
-                                                                    <span className="material-symbols-rounded text-sm text-blue-400">edit</span>
-                                                                    Editar
+                                                                    <span className="material-symbols-rounded text-sm text-red-400">report</span>
+                                                                    Denunciar
                                                                 </button>
-                                                                <button 
-                                                                    onClick={() => {
-                                                                        setActivePostMenu(null);
-                                                                        handleDeletePost(post.id);
-                                                                    }}
-                                                                    className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-white/5 flex items-center gap-2 font-medium border-t border-white/5"
-                                                                >
-                                                                    <span className="material-symbols-rounded text-sm text-red-500">delete</span>
-                                                                    Eliminar
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <p className="text-slate-100 text-[15px] leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
-                                    {post.tags && post.tags.length > 0 && (
-                                        <div className="flex flex-wrap gap-2 mt-2 mb-2">
-                                            {post.tags.map((tag: string, idx: number) => {
-                                                if (tag.startsWith('privacy:')) return null;
-                                                if (tag.startsWith('feeling:')) {
-                                                    const feel = tag.split(':')[1];
-                                                    let colorClasses = 'bg-slate-800 text-yellow-400 border-yellow-400/20';
-                                                    const text = feel.toLowerCase();
-                                                    if (text.includes('feliz')) {
-                                                        colorClasses = 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20';
-                                                    } else if (text.includes('quente')) {
-                                                        colorClasses = 'bg-red-500/10 text-red-300 border-red-500/20';
-                                                    } else if (text.includes('ousado') || text.includes('😈')) {
-                                                        colorClasses = 'bg-purple-500/10 text-purple-300 border-purple-500/20';
-                                                    } else if (text.includes('focado') || text.includes('💪')) {
-                                                        colorClasses = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
-                                                    } else if (text.includes('confiante')) {
-                                                        colorClasses = 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20';
-                                                    } else if (text.includes('festeiro') || text.includes('festa') || text.includes('🎉')) {
-                                                        colorClasses = 'bg-pink-500/10 text-pink-300 border-pink-500/20';
-                                                    } else if (text.includes('cansado') || text.includes('😴')) {
-                                                        colorClasses = 'bg-slate-500/10 text-slate-300 border-slate-500/20';
-                                                    } else if (text.includes('orgulhoso') || text.includes('🏳️‍🌈')) {
-                                                        colorClasses = 'bg-gradient-to-r from-red-500/10 via-yellow-500/10 to-blue-500/10 text-pink-300 border-pink-500/30';
-                                                    }
-                                                    return (
-                                                        <span key={idx} className={`text-xs px-2.5 py-0.5 rounded-full font-medium border flex items-center gap-1 ${colorClasses}`}>
-                                                            {feel}
-                                                        </span>
-                                                    );
-                                                }
-                                                if (tag.startsWith('location:')) return <span key={idx} className="bg-slate-800 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium border border-green-400/20 flex items-center"><span className="material-symbols-rounded text-[14px] mr-1">location_on</span>{tag.split(':')[1]}</span>;
-                                                return <span key={idx} className="bg-slate-800 text-primary-400 text-xs px-2 py-0.5 rounded-full font-medium border border-primary-500/20">#{tag}</span>;
-                                            })}
-                                        </div>
-                                    )}
-                                    {post.image_url && (
-                                        <div className="mt-3 rounded-2xl overflow-hidden border border-white/10">
-                                            {post.image_url.match(/\.(mp4|webm|ogg|mov|mkv)$/i) ? (
-                                                <video src={post.image_url} controls className="w-full h-auto max-h-[400px] bg-black" />
-                                            ) : (
-                                                <img src={post.image_url} alt="Post media" className="w-full h-auto object-cover max-h-[400px]" />
-                                            )}
-                                        </div>
-                                    )}
-                                    {post.repost && (
-                                        <div className="mt-3 border border-white/10 rounded-xl p-3 bg-slate-800/30">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div 
-                                                    onClick={() => handleUserClick(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)} 
-                                                    className="w-6 h-6 rounded-full bg-slate-700 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
-                                                >
-                                                    {(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.avatar_url ? (
-                                                        <img src={(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.avatar_url} alt="" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-[14px] text-slate-500">person</span>
+                                                                {canEditOrDelete(post) && (
+                                                                    <>
+                                                                        <button 
+                                                                            onClick={() => {
+                                                                                setActivePostMenu(null);
+                                                                                handleEditPost(post);
+                                                                            }}
+                                                                            className="w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-white/5 flex items-center gap-2 font-medium"
+                                                                        >
+                                                                            <span className="material-symbols-rounded text-sm text-blue-400">edit</span>
+                                                                            Editar
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => {
+                                                                                setActivePostMenu(null);
+                                                                                handleDeletePost(post.id);
+                                                                            }}
+                                                                            className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-white/5 flex items-center gap-2 font-medium border-t border-white/5"
+                                                                        >
+                                                                            <span className="material-symbols-rounded text-sm text-red-500">delete</span>
+                                                                            Eliminar
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </div>
-                                                <span 
-                                                    onClick={() => handleUserClick(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)} 
-                                                    className="font-bold text-white text-sm cursor-pointer hover:underline"
-                                                >
-                                                    {(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.display_name || (Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.username}
-                                                </span>
                                             </div>
-                                            <p className="text-slate-300 text-sm leading-relaxed">{renderContent((Array.isArray(post.repost) ? post.repost[0]?.content : post.repost?.content))}</p>
-                                        </div>
-                                    )}
+                                            <p className="text-slate-100 text-[15px] leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
+                                            {post.tags && parseTags(post.tags).length > 0 && (
+                                                <div className="flex flex-wrap gap-2 mt-2 mb-2">
+                                                    {parseTags(post.tags).map((rawTag: string, idx: number) => {
+                                                        const tag = cleanTag(rawTag);
+                                                        if (tag.startsWith('privacy:')) return null;
+                                                        if (tag.startsWith('feeling:')) {
+                                                            const feel = tag.split(':')[1];
+                                                            let colorClasses = 'bg-slate-800 text-yellow-400 border-yellow-400/20';
+                                                            const text = feel.toLowerCase();
+                                                            if (text.includes('feliz')) {
+                                                                colorClasses = 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20';
+                                                            } else if (text.includes('quente')) {
+                                                                colorClasses = 'bg-red-500/10 text-red-300 border-red-500/20';
+                                                            } else if (text.includes('ousado') || text.includes('😈')) {
+                                                                colorClasses = 'bg-purple-500/10 text-purple-300 border-purple-500/20';
+                                                            } else if (text.includes('focado') || text.includes('💪')) {
+                                                                colorClasses = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
+                                                            } else if (text.includes('confiante')) {
+                                                                colorClasses = 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20';
+                                                            } else if (text.includes('festeiro') || text.includes('festa') || text.includes('🎉')) {
+                                                                colorClasses = 'bg-pink-500/10 text-pink-300 border-pink-500/20';
+                                                            } else if (text.includes('cansado') || text.includes('😴')) {
+                                                                colorClasses = 'bg-slate-500/10 text-slate-300 border-slate-500/20';
+                                                            } else if (text.includes('orgulhoso') || text.includes('🏳️‍🌈')) {
+                                                                colorClasses = 'bg-gradient-to-r from-red-500/10 via-yellow-500/10 to-blue-500/10 text-pink-300 border-pink-500/30';
+                                                            }
+                                                            return (
+                                                                <span key={idx} className={`text-xs px-2.5 py-0.5 rounded-full font-medium border flex items-center gap-1 ${colorClasses}`}>
+                                                                    {feel}
+                                                                </span>
+                                                            );
+                                                        }
+                                                        if (tag.startsWith('location:')) return <span key={idx} className="bg-slate-800 text-green-400 text-xs px-2 py-0.5 rounded-full font-medium border border-green-400/20 flex items-center"><span className="material-symbols-rounded text-[14px] mr-1">location_on</span>{tag.split(':')[1]}</span>;
+                                                        return <span key={idx} className="bg-slate-800 text-primary-400 text-xs px-2 py-0.5 rounded-full font-medium border border-primary-500/20">#{tag}</span>;
+                                                    })}
+                                                </div>
+                                            )}
+                                            {post.image_url && (
+                                                <div className="mt-3 rounded-2xl overflow-hidden border border-white/10">
+                                                    {post.image_url.match(/\.(mp4|webm|ogg|mov|mkv)$/i) ? (
+                                                        <video src={post.image_url} controls className="w-full h-auto max-h-[400px] bg-black" />
+                                                    ) : (
+                                                        <img src={post.image_url} alt="Post media" className="w-full h-auto object-cover max-h-[400px]" />
+                                                    )}
+                                                </div>
+                                            )}
+                                            {post.repost && (
+                                                <div className="mt-3 border border-white/10 rounded-xl p-3 bg-slate-800/30">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <div 
+                                                            onClick={() => handleUserClick(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)} 
+                                                            className="w-6 h-6 rounded-full bg-slate-700 overflow-hidden cursor-pointer hover:opacity-85 transition-opacity"
+                                                        >
+                                                            {(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.avatar_url ? (
+                                                                <img src={(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="material-symbols-rounded w-full h-full flex items-center justify-center text-[14px] text-slate-500">person</span>
+                                                            )}
+                                                        </div>
+                                                        <span 
+                                                            onClick={() => handleUserClick(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)} 
+                                                            className="font-bold text-white text-sm cursor-pointer hover:underline"
+                                                        >
+                                                            {(Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.display_name || (Array.isArray(post.repost) ? post.repost[0]?.author : post.repost?.author)?.username}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-slate-300 text-sm leading-relaxed">{renderContent((Array.isArray(post.repost) ? post.repost[0]?.content : post.repost?.content))}</p>
+                                                </div>
+                                            )}
 
-                                    
-                                    {/* Action bar */}
-                                    <div className="flex justify-between items-center mt-3 pr-8 text-slate-500 max-w-md">
-                                        <button onClick={() => setSelectedPost(post)} className="flex items-center gap-1.5 hover:text-blue-400 transition-colors group">
-                                            <div className="w-8 h-8 rounded-full flex items-center justify-center group-hover:bg-blue-400/10 transition-colors">
-                                                <span className="material-symbols-rounded text-[18px]">chat_bubble</span>
+                                            
+                                            {/* Action bar */}
+                                            <div className="flex justify-between items-center mt-3 pr-8 text-slate-500 max-w-md">
+                                                <button onClick={() => setSelectedPost(post)} className="flex items-center gap-1.5 hover:text-blue-400 transition-colors group">
+                                                    <div className="w-8 h-8 rounded-full flex items-center justify-center group-hover:bg-blue-400/10 transition-colors">
+                                                        <span className="material-symbols-rounded text-[18px]">chat_bubble</span>
+                                                    </div>
+                                                    <span className="text-xs font-medium">{post.comments_count || 0}</span>
+                                                </button>
+                                                <button onClick={async () => {
+                                                    try {
+                                                        await useCommunityStore.getState().repostPost(post.id, community.id);
+                                                        toast.success('Repostado com sucesso!');
+                                                    } catch (e: any) {
+                                                        toast.error(e?.message || 'Erro ao repostar');
+                                                    }
+                                                }} className="flex items-center gap-1.5 hover:text-green-400 transition-colors group">
+                                                    <div className="w-8 h-8 rounded-full flex items-center justify-center group-hover:bg-green-400/10 transition-colors">
+                                                        <span className="material-symbols-rounded text-[18px]">cached</span>
+                                                    </div>
+                                                </button>
+                                                <button 
+                                                    onClick={() => useCommunityStore.getState().toggleLikePost(post.id)}
+                                                    className={`flex items-center gap-1.5 transition-colors group ${post.user_has_liked ? 'text-pink-500' : 'hover:text-pink-500'}`}
+                                                >
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${post.user_has_liked ? 'bg-pink-500/10' : 'group-hover:bg-pink-500/10'}`}>
+                                                        <span className={`material-symbols-rounded text-[18px] ${post.user_has_liked ? 'filled' : ''}`}>favorite</span>
+                                                    </div>
+                                                    <span className="text-xs font-medium">{post.likes_count || 0}</span>
+                                                </button>
+                                                <button 
+                                                    onClick={() => {
+                                                        const shareText = `Confira esta publicação na comunidade ${activeCommunity.name}: "${post.content.slice(0, 100)}${post.content.length > 100 ? '...' : ''}"`;
+                                                        if (navigator.share) {
+                                                            navigator.share({
+                                                                title: activeCommunity.name,
+                                                                text: shareText,
+                                                                url: window.location.href
+                                                             }).catch(() => {});
+                                                        } else {
+                                                            navigator.clipboard.writeText(`${shareText}\n${window.location.href}`);
+                                                            toast.success('Link e conteúdo copiados para a área de transferência!');
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-1.5 hover:text-primary-400 transition-colors group"
+                                                    title="Compartilhar"
+                                                >
+                                                    <div className="w-8 h-8 rounded-full flex items-center justify-center group-hover:bg-primary-500/10 transition-colors">
+                                                        <span className="material-symbols-rounded text-[18px]">ios_share</span>
+                                                    </div>
+                                                </button>
                                             </div>
-                                            <span className="text-xs font-medium">{post.comments_count || 0}</span>
-                                        </button>
-                                        <button onClick={async () => {
-                                            try {
-                                                await useCommunityStore.getState().repostPost(post.id, community.id);
-                                                toast.success('Repostado com sucesso!');
-                                            } catch (e) {
-                                                toast.error('Erro ao repostar');
-                                            }
-                                        }} className="flex items-center gap-1.5 hover:text-green-400 transition-colors group">
-                                            <div className="w-8 h-8 rounded-full flex items-center justify-center group-hover:bg-green-400/10 transition-colors">
-                                                <span className="material-symbols-rounded text-[18px]">cached</span>
-                                            </div>
-                                        </button>
-                                        <button 
-                                            onClick={() => useCommunityStore.getState().toggleLikePost(post.id)}
-                                            className={`flex items-center gap-1.5 transition-colors group ${post.user_has_liked ? 'text-pink-500' : 'hover:text-pink-500'}`}
-                                        >
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${post.user_has_liked ? 'bg-pink-500/10' : 'group-hover:bg-pink-500/10'}`}>
-                                                <span className={`material-symbols-rounded text-[18px] ${post.user_has_liked ? 'filled' : ''}`}>favorite</span>
-                                            </div>
-                                            <span className="text-xs font-medium">{post.likes_count || 0}</span>
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                const shareText = `Confira esta publicação na comunidade ${activeCommunity.name}: "${post.content.slice(0, 100)}${post.content.length > 100 ? '...' : ''}"`;
-                                                if (navigator.share) {
-                                                    navigator.share({
-                                                        title: activeCommunity.name,
-                                                        text: shareText,
-                                                        url: window.location.href
-                                                     }).catch(() => {});
-                                                } else {
-                                                    navigator.clipboard.writeText(`${shareText}\n${window.location.href}`);
-                                                    toast.success('Link e conteúdo copiados para a área de transferência!');
-                                                }
-                                            }}
-                                            className="flex items-center gap-1.5 hover:text-primary-400 transition-colors group"
-                                            title="Compartilhar"
-                                        >
-                                            <div className="w-8 h-8 rounded-full flex items-center justify-center group-hover:bg-primary-500/10 transition-colors">
-                                                <span className="material-symbols-rounded text-[18px]">ios_share</span>
-                                            </div>
-                                        </button>
+                                        </div>
                                     </div>
+                                ))
+                            ) : (
+                                <div className="text-center text-slate-500 py-20 flex flex-col items-center">
+                                    <span className="material-symbols-rounded text-6xl text-slate-700 mb-4">forum</span>
+                                    <h3 className="text-xl font-bold text-slate-300 mb-2">Seja o primeiro a postar!</h3>
+                                    <p className="text-sm">Inicie uma conversa nesta comunidade.</p>
                                 </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="text-center text-slate-500 py-20 flex flex-col items-center">
-                            <span className="material-symbols-rounded text-6xl text-slate-700 mb-4">forum</span>
-                            <h3 className="text-xl font-bold text-slate-300 mb-2">Seja o primeiro a postar!</h3>
-                            <p className="text-sm">Inicie uma conversa nesta comunidade.</p>
+                            )}
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
             </div>
 
             {/* Floating Action Button (Mobile) */}
@@ -1357,7 +1392,7 @@ const EditCommunityModal: React.FC<{ community: Community, onClose: () => void }
     const { updateCommunity } = useCommunityStore();
     const [name, setName] = useState(community.name);
     const [description, setDescription] = useState(community.description || '');
-    const [tags, setTags] = useState(community.tags?.join(', ') || '');
+    const [tags, setTags] = useState(parseTags(community.tags).join(', '));
     const [isPrivate, setIsPrivate] = useState(community.is_private);
     
     // Parse rules for join questions

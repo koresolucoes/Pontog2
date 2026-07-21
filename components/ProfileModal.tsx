@@ -8,7 +8,7 @@ import { useAlbumStore } from '../stores/albumStore';
 import { useAgoraStore } from '../stores/agoraStore';
 import { useUiStore } from '../stores/uiStore';
 import toast from 'react-hot-toast';
-import { formatLastSeen } from '../lib/utils';
+import { formatLastSeen, cleanTag, parseTags } from '../lib/utils';
 import { AlbumGalleryModal } from './AlbumGalleryModal';
 import { useUserActionsStore } from '../stores/userActionsStore';
 import { useCommunityStore } from '../stores/communityStore';
@@ -502,31 +502,43 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
                 
                 <h3 className="text-[11px] font-black text-orange-400/90 uppercase tracking-widest mb-3 ml-1">Interesses e Tribos</h3>
                 <div className="bg-[#1a1a20] p-4 rounded-2xl flex flex-wrap gap-2 border border-white/5">
-                    {user.kinks && user.kinks.length > 0 ? (
-                        user.kinks.map((kink, idx) => {
-                            const colors = [
-                                'bg-pink-500/10 text-pink-300 border-pink-500/20',
-                                'bg-purple-500/10 text-purple-300 border-purple-500/20',
-                                'bg-green-500/10 text-green-300 border-green-500/20',
-                                'bg-blue-500/10 text-blue-300 border-blue-500/20',
-                                'bg-orange-500/10 text-orange-300 border-orange-500/20'
-                            ];
-                            const colorClass = colors[idx % colors.length];
-                            return (
-                                <span key={kink} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${colorClass}`}>
-                                    #{t(`constants.kinks.${kink}`, { defaultValue: kink })}
-                                </span>
-                            );
-                        })
-                    ) : null}
-                    {(user.tribes || []).map(tribe => (
-                            <span key={tribe} className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-800 text-slate-300 border-white/10">
-                            #{t(`constants.tribes.${tribe}`, { defaultValue: tribe })}
-                        </span>
-                    ))}
-                    {(!user.kinks?.length && !user.tribes?.length) && (
-                        <span className="text-slate-500 text-xs">Nenhum interesse listado.</span>
-                    )}
+                    {(() => {
+                        const validKinks = parseTags(user.kinks);
+                        const validTribes = parseTags(user.tribes);
+
+                        if (validKinks.length === 0 && validTribes.length === 0) {
+                            return <span className="text-slate-500 text-xs">Nenhum interesse listado.</span>;
+                        }
+
+                        return (
+                            <>
+                                {validKinks.map((rawKink, idx) => {
+                                    const kink = cleanTag(rawKink);
+                                    const colors = [
+                                        'bg-pink-500/10 text-pink-300 border-pink-500/20',
+                                        'bg-purple-500/10 text-purple-300 border-purple-500/20',
+                                        'bg-green-500/10 text-green-300 border-green-500/20',
+                                        'bg-blue-500/10 text-blue-300 border-blue-500/20',
+                                        'bg-orange-500/10 text-orange-300 border-orange-500/20'
+                                    ];
+                                    const colorClass = colors[idx % colors.length];
+                                    return (
+                                        <span key={kink} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${colorClass}`}>
+                                            #{t(`constants.kinks.${kink}`, { defaultValue: kink })}
+                                        </span>
+                                    );
+                                })}
+                                {validTribes.map(rawTribe => {
+                                    const tribe = cleanTag(rawTribe);
+                                    return (
+                                        <span key={tribe} className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-800 text-slate-300 border-white/10">
+                                            #{t(`constants.tribes.${tribe}`, { defaultValue: tribe })}
+                                        </span>
+                                    );
+                                })}
+                            </>
+                        );
+                    })()}
                 </div>
             </div>
 

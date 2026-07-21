@@ -10,6 +10,7 @@ import { ptBR, enUS, es } from 'date-fns/locale';
 import { NewsReaderModal } from './NewsReaderModal';
 import { AdSenseUnit } from './AdSenseUnit';
 import { useTranslation } from 'react-i18next';
+import { cleanTag, parseTags } from '../lib/utils';
 
 export const NewsView: React.FC = () => {
     const { articles, loading, fetchArticles } = useNewsStore();
@@ -95,7 +96,7 @@ export const NewsView: React.FC = () => {
                 <div className="flex items-center gap-2 mb-2">
                     <span className={`w-2 h-2 rounded-full ${article.type === 'blog' ? 'bg-primary-500' : 'bg-blue-500'}`}></span>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">
-                        {article.tags[0] || t('news.general', { defaultValue: 'Geral' })}
+                        {cleanTag(parseTags(article.tags)[0]) || t('news.general', { defaultValue: 'Geral' })}
                     </span>
                 </div>
                 <h3 className="text-lg font-bold text-white font-outfit leading-tight mb-2 group-hover:text-primary-400 transition-colors">

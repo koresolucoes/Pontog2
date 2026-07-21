@@ -8,6 +8,7 @@ import { AnimatedBackground } from './AnimatedBackground';
 import { useNewsStore } from '../stores/newsStore';
 import { useAuthStore } from '../stores/authStore';
 import { useTranslation } from 'react-i18next';
+import { cleanTag, parseTags } from '../lib/utils';
 
 interface NewsReaderModalProps {
     article: NewsArticle;
@@ -67,9 +68,9 @@ export const NewsReaderModal: React.FC<NewsReaderModalProps> = ({ article, onClo
                         <span className="bg-primary-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide shadow-lg">
                             {article.type === 'blog' ? t('news.type_blog', { defaultValue: 'Blog Ponto G' }) : t('news.type_news', { defaultValue: 'Notícia' })}
                         </span>
-                        {article.tags.map(tag => (
-                            <span key={tag} className="bg-slate-800/80 backdrop-blur-md text-slate-300 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide border border-white/10">
-                                {tag}
+                        {parseTags(article.tags).map((tag, idx) => (
+                            <span key={idx} className="bg-slate-800/80 backdrop-blur-md text-slate-300 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide border border-white/10">
+                                {cleanTag(tag)}
                             </span>
                         ))}
                     </div>

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Venue, VenueCheckin, VenueReview, VenueReviewReply } from '../types';
 import { supabase } from '../lib/supabase';
+import { cleanTag, parseTags } from '../lib/utils';
 import { useAuthStore } from '../stores/authStore';
 import { useMapStore } from '../stores/mapStore';
 import { useAgoraStore } from '../stores/agoraStore';
@@ -976,13 +977,13 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
                 </div>
 
                 {/* Tags */}
-                {venue.tags && venue.tags.length > 0 && (
+                {venue.tags && parseTags(venue.tags).length > 0 && (
                     <div>
                         <h3 className="text-sm font-bold text-white mb-2">Tags</h3>
                         <div className="flex flex-wrap gap-2">
-                            {venue.tags.map(tag => (
-                                <span key={tag} className="px-3 py-1 rounded-full bg-slate-800 border border-white/10 text-xs text-slate-300 font-medium">
-                                    {tag}
+                            {parseTags(venue.tags).map((tag, idx) => (
+                                <span key={idx} className="px-3 py-1 rounded-full bg-slate-800 border border-white/10 text-xs text-slate-300 font-medium">
+                                    {cleanTag(tag)}
                                 </span>
                             ))}
                         </div>

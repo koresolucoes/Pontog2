@@ -37,6 +37,7 @@ interface MessageContentProps {
   message: MessageType;
   onViewOnceClick: (message: MessageType) => void;
   t: any;
+  isOwn?: boolean;
 }
 
 // AudioPreviewPlayer component for reviewing voice messages before sending
@@ -119,7 +120,7 @@ const AudioPreviewPlayer: React.FC<{ src: string }> = ({ src }) => {
 };
 
 // Memoized MessageContent to prevent unnecessary re-renders
-const MessageContent: React.FC<MessageContentProps> = React.memo(({ message, onViewOnceClick, t }) => {
+const MessageContent: React.FC<MessageContentProps> = React.memo(({ message, onViewOnceClick, t, isOwn }) => {
     if (message.is_view_once) {
         let isAudio = false;
         try {
@@ -129,6 +130,35 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(({ message, onV
             }
         } catch (e) {}
 
+        if (isOwn) {
+            if (message.viewed_at) {
+                return (
+                    <div className="flex items-center gap-2 text-sm italic font-semibold opacity-90 select-none text-emerald-300">
+                        <span className="material-symbols-rounded text-lg">visibility</span>
+                        <span>
+                            {isAudio
+                                ? t('chat.audio_opened', { defaultValue: 'Áudio aberto pelo destinatário' })
+                                : t('chat.photo_opened', { defaultValue: 'Foto aberta pelo destinatário' })}
+                        </span>
+                    </div>
+                );
+            }
+
+            return (
+                <button
+                    onClick={() => onViewOnceClick(message)}
+                    className="flex items-center gap-2 text-sm font-bold bg-white/20 px-4 py-2 rounded-lg hover:bg-white/30 transition-colors cursor-pointer select-none"
+                >
+                    <span className="material-symbols-rounded filled text-lg animate-pulse text-orange-400">local_fire_department</span>
+                    <span>
+                        {isAudio
+                            ? t('chat.view_audio_sent', { defaultValue: 'Áudio (1x) enviado - Clique p/ ouvir' })
+                            : t('chat.view_photo_sent', { defaultValue: 'Foto (1x) enviada - Clique p/ ver' })}
+                    </span>
+                </button>
+            );
+        }
+
         if (message.viewed_at) {
             return (
                 <div className="flex items-center gap-2 text-sm italic opacity-60 select-none">
@@ -137,6 +167,7 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(({ message, onV
                 </div>
             );
         }
+
         return (
             <button
                 onClick={() => onViewOnceClick(message)}
@@ -701,7 +732,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   };
 
   const handleViewOnceClick = useCallback(async (message: MessageType) => {
-    if (message.viewed_at) return;
+    const isOwn = currentUser && message.sender_id === currentUser.id;
+
+    if (message.viewed_at && !isOwn) return;
+    if (isOwn && message.viewed_at) return;
 
     let isAudio = false;
     let audioUrl = null;
@@ -715,26 +749,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
 
     if (!isAudio && !message.image_url) return;
 
-    const nowStr = new Date().toISOString();
+    if (!isOwn && !message.viewed_at) {
+        const nowStr = new Date().toISOString();
 
-    // 1. Immediately update database to mark as viewed
-    const { error } = await supabase
-        .from('messages')
-        .update({ viewed_at: nowStr })
-        .eq('id', message.id);
-        
-    if (error) {
-        console.error("Failed to mark media as viewed in database", error);
-        toast.error(t('chat.error_opening_media', { defaultValue: 'Não foi possível abrir a mídia.' }));
-        return;
+        // 1. Immediately update database to mark as viewed
+        const { error } = await supabase
+            .from('messages')
+            .update({ viewed_at: nowStr })
+            .eq('id', message.id);
+            
+        if (error) {
+            console.error("Failed to mark media as viewed in database", error);
+            toast.error(t('chat.error_opening_media', { defaultValue: 'Não foi possível abrir a mídia.' }));
+            return;
+        }
+
+        // 2. Immediately update local state to avoid race conditions or double-clicking
+        setMessages(prevMessages =>
+            prevMessages.map(msg =>
+                msg.id === message.id ? { ...msg, viewed_at: nowStr } : msg
+            )
+        );
     }
-
-    // 2. Immediately update local state to avoid race conditions or double-clicking
-    setMessages(prevMessages =>
-        prevMessages.map(msg =>
-            msg.id === message.id ? { ...msg, viewed_at: nowStr } : msg
-        )
-    );
 
     // 3. Open appropriate view-once modal
     if (isAudio && audioUrl) {
@@ -742,7 +778,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
     } else if (message.image_url) {
         setViewingOncePhoto(message);
     }
-  }, [t]);
+  }, [t, currentUser]);
 
   if (!currentUser) return null;
   
@@ -859,7 +895,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
                         ? 'bg-gradient-to-br from-primary-500 to-secondary-500 text-white rounded-2xl rounded-tr-none' 
                         : 'bg-slate-800/80 text-slate-100 rounded-2xl rounded-tl-none'
                     }`}>
-                        <MessageContent message={msg} onViewOnceClick={handleViewOnceClick} t={t} />
+                        <MessageContent message={msg} onViewOnceClick={handleViewOnceClick} t={t} isOwn={msg.sender_id === currentUser.id} />
                     </div>
                  )}
                 
@@ -1093,11 +1129,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
         <ViewOncePhotoModal
             imageUrl={viewingOncePhoto.image_url ? getPublicImageUrl(viewingOncePhoto.image_url) : ''}
             onClose={async () => {
+                const isOwn = currentUser && viewingOncePhoto.sender_id === currentUser.id;
                 const pathToDelete = viewingOncePhoto.image_url;
                 const msgId = viewingOncePhoto.id;
                 setViewingOncePhoto(null);
 
-                // 1. Permanently erase image_url from database row
+                // If the sender viewed their own sent image, DO NOT expire or delete it!
+                if (isOwn) return;
+
+                // 1. Permanently erase image_url from database row for recipient
                 const { error: dbError } = await supabase
                     .from('messages')
                     .update({ image_url: null, viewed_at: new Date().toISOString() })
@@ -1137,6 +1177,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
                 }
             })()}
             onClose={async () => {
+                const isOwn = currentUser && viewingOnceAudio.sender_id === currentUser.id;
                 let pathToDelete = null;
                 try {
                     const parsed = JSON.parse(viewingOnceAudio.content);
@@ -1147,6 +1188,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
 
                 const msgId = viewingOnceAudio.id;
                 setViewingOnceAudio(null);
+
+                // If the sender listened to their own sent audio, DO NOT expire or delete it!
+                if (isOwn) return;
 
                 // 1. Permanently erase audio URL reference from message content JSON in DB
                 const { error: dbError } = await supabase

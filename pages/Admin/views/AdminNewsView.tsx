@@ -6,6 +6,7 @@ import { NewsArticle, ArticleType } from '../../../types';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { supabase } from '../../../lib/supabase';
+import { cleanTag, parseTags } from '../../../lib/utils';
 
 const ARTICLE_TYPES: { value: ArticleType; label: string }[] = [
     { value: 'news', label: 'Notícia Externa (Link)' },
@@ -45,7 +46,7 @@ const ArticleModal: React.FC<{
                 ...DEFAULT_ARTICLE_STATE,
                 ...article
             });
-            setTagsInput(article.tags ? article.tags.join(', ') : '');
+            setTagsInput(parseTags(article.tags).join(', '));
             setPreviewUrl(article.image_url || null);
         }
     }, [article]);
@@ -374,8 +375,8 @@ export const AdminNewsView: React.FC = () => {
                                                 <div className="text-sm font-bold text-white mb-1 line-clamp-1">{article.title}</div>
                                                 <div className="text-xs text-gray-400 line-clamp-1">{article.summary}</div>
                                                 <div className="flex flex-wrap gap-1 mt-1">
-                                                    {article.tags.map((t, idx) => (
-                                                        <span key={idx} className="text-[10px] bg-slate-900 px-1.5 py-0.5 rounded text-slate-300 border border-white/5">{t}</span>
+                                                    {parseTags(article.tags).map((t, idx) => (
+                                                        <span key={idx} className="text-[10px] bg-slate-900 px-1.5 py-0.5 rounded text-slate-300 border border-white/5">{cleanTag(t)}</span>
                                                     ))}
                                                 </div>
                                             </td>

@@ -12,8 +12,12 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [likes, setLikes] = useState<any[]>([]);
-    const { fetchCommunityPosts } = useCommunityStore();
+    const { fetchCommunityPosts, myCommunities, communities, joinCommunity } = useCommunityStore();
     const { user: currentUser } = useAuthStore();
+
+    const activeCommunity = communities.find(c => c.id === communityId) || myCommunities.find(c => c.id === communityId);
+    const isMember = myCommunities.some(c => c.id === communityId);
+    const isPrivate = activeCommunity?.is_private ?? false;
 
     useEffect(() => {
         loadComments();
@@ -106,10 +110,19 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newComment.trim()) return;
+
+        if (!isMember) {
+            toast.error('Você precisa participar da comunidade para comentar.');
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('Not logged in');
+            if (!user) {
+                toast.error('Você precisa estar logado para comentar.');
+                return;
+            }
             
             const commentText = newComment;
             const { error } = await supabase.from('community_comments').insert({
@@ -117,7 +130,14 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
                 author_id: user.id,
                 content: commentText
             });
-            if (error) throw error;
+            if (error) {
+                if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('RLS')) {
+                    toast.error('Você precisa fazer parte da comunidade para comentar.');
+                } else {
+                    toast.error(error.message || 'Erro ao enviar comentário.');
+                }
+                return;
+            }
             
             setNewComment('');
             await loadComments();
@@ -145,9 +165,13 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
                     }).catch(err => console.error("Error sending comment push:", err));
                 }
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            toast.error('Erro ao enviar comentário');
+            if (e?.code === '42501' || e?.message?.includes('row-level security') || e?.message?.includes('RLS')) {
+                toast.error('Você precisa fazer parte da comunidade para comentar.');
+            } else {
+                toast.error(e?.message || 'Erro ao enviar comentário.');
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -272,11 +296,52 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
                     )}
                 </div>
 
-                <div className="p-4 border-t border-white/10 shrink-0 bg-dark-900/50">
-                    <form onSubmit={handleSubmit} className="flex gap-2">
-                        <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Adicione um comentário..." className="flex-1 bg-dark-900 border border-white/10 rounded-full px-4 py-3 text-white text-sm focus:border-primary-500 outline-none" />
-                        <button type="submit" disabled={!newComment.trim() || isSubmitting} className="w-12 h-12 bg-primary-500 text-white rounded-full flex items-center justify-center hover:bg-primary-600 disabled:opacity-50 shrink-0"><span className="material-symbols-rounded">send</span></button>
-                    </form>
+                <div className="p-4 border-t border-white/10 shrink-0 bg-dark-900/80 backdrop-blur-md">
+                    {isMember ? (
+                        <form onSubmit={handleSubmit} className="flex gap-2">
+                            <input 
+                                type="text" 
+                                value={newComment} 
+                                onChange={e => setNewComment(e.target.value)} 
+                                placeholder="Adicione um comentário..." 
+                                className="flex-1 bg-dark-900 border border-white/10 rounded-full px-4 py-3 text-white text-sm focus:border-primary-500 outline-none" 
+                            />
+                            <button 
+                                type="submit" 
+                                disabled={!newComment.trim() || isSubmitting} 
+                                className="w-12 h-12 bg-primary-500 text-white rounded-full flex items-center justify-center hover:bg-primary-600 disabled:opacity-50 shrink-0 transition-all shadow-md shadow-primary-500/20"
+                            >
+                                <span className="material-symbols-rounded">send</span>
+                            </button>
+                        </form>
+                    ) : (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-800/60 p-3.5 rounded-2xl border border-white/10">
+                            <div className="flex items-center gap-2.5 text-xs text-slate-300">
+                                <span className="material-symbols-rounded text-lg text-primary-400">group_add</span>
+                                <span>Entre na comunidade para participar da conversa e comentar.</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    try {
+                                        if (activeCommunity?.is_private) {
+                                            onClose();
+                                            toast('Por favor, solicite entrada na página da comunidade.', { icon: '🔒' });
+                                        } else {
+                                            await joinCommunity(communityId);
+                                            toast.success('Você entrou na comunidade!');
+                                        }
+                                    } catch (err: any) {
+                                        toast.error('Erro ao entrar na comunidade.');
+                                    }
+                                }}
+                                className="w-full sm:w-auto px-5 py-2 bg-primary-500 hover:bg-primary-600 text-white font-bold text-xs rounded-full shadow-lg transition-all shrink-0 flex items-center justify-center gap-1"
+                            >
+                                <span className="material-symbols-rounded text-sm">add</span>
+                                Participar
+                            </button>
+                        </div>
+                    )}
                 </div>
             </motion.div>
         </motion.div>
