@@ -37,18 +37,11 @@ export const getPublicImageUrl = (path: string | null | undefined, options?: Ima
         return path;
     }
     
-    // Configurações de transformação para otimização
-    const transformOptions = options ? {
-        transform: {
-            width: options.width,
-            height: options.height,
-            resize: options.resize || 'cover',
-            quality: 80, // Otimização de qualidade padrão
-            format: 'origin', // Tenta manter o formato ou usar WebP se suportado pelo browser
-        }
-    } : undefined;
+    // Configurações de transformação desativadas para evitar erros no tier gratuito do Supabase.
+    // O Supabase Image Transformations (como resize, quality) é um recurso pago.
+    // const transformOptions = options ? { ... } : undefined;
 
-    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path, transformOptions);
+    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
 
     // OTIMIZAÇÃO DE PERFORMANCE:
     // Removemos o timestamp (?t=...) para permitir que o navegador faça cache das imagens.
