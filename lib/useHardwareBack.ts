@@ -22,6 +22,7 @@ const handleGlobalPopState = (e: PopStateEvent) => {
 
 export function useHardwareBack(isOpen: boolean, onClose: CloseHandler) {
     const wasOpen = useRef(false);
+    const modalIdRef = useRef<number | null>(null);
     
     // Stable reference to the onClose callback so we don't have to update the stack array constantly
     const onCloseRef = useRef(onClose);
@@ -32,6 +33,7 @@ export function useHardwareBack(isOpen: boolean, onClose: CloseHandler) {
     // The function we will actually put in the stack
     const stackCloseHandler = useCallback(() => {
         wasOpen.current = false;
+        modalIdRef.current = null;
         onCloseRef.current();
     }, []);
 
@@ -43,7 +45,9 @@ export function useHardwareBack(isOpen: boolean, onClose: CloseHandler) {
 
         if (isOpen && !wasOpen.current) {
             // Push a dummy state to history so the back button can be intercepted
-            window.history.pushState({ modalId: Date.now() }, '');
+            const id = Date.now() + Math.random();
+            modalIdRef.current = id;
+            window.history.pushState({ modalId: id }, '');
             modalStack.push(stackCloseHandler);
             wasOpen.current = true;
         } else if (!isOpen && wasOpen.current) {
@@ -54,10 +58,12 @@ export function useHardwareBack(isOpen: boolean, onClose: CloseHandler) {
                 modalStack.splice(index, 1);
             }
             
-            // We also need to consume the history state we pushed, IF it is currently the active state.
-            // If the user opened multiple modals and closed the top one, history.back() is correct.
-            // But checking this perfectly is tricky. A safe heuristic is to check if the state has our signature.
-            if (window.history.state && window.history.state.modalId) {
+            const currentModalId = modalIdRef.current;
+            modalIdRef.current = null;
+            wasOpen.current = false;
+
+            // We only consume the history state if it is still the active state for THIS exact modal instance
+            if (currentModalId && window.history.state && window.history.state.modalId === currentModalId) {
                 // Remove our event listener temporarily so we don't accidentally close another modal when we go back
                 window.removeEventListener('popstate', handleGlobalPopState);
                 window.history.back();
@@ -67,8 +73,6 @@ export function useHardwareBack(isOpen: boolean, onClose: CloseHandler) {
                     window.addEventListener('popstate', handleGlobalPopState);
                 }, 50);
             }
-            
-            wasOpen.current = false;
         }
     }, [isOpen, stackCloseHandler]);
     
@@ -81,6 +85,7 @@ export function useHardwareBack(isOpen: boolean, onClose: CloseHandler) {
                     modalStack.splice(index, 1);
                 }
                 wasOpen.current = false;
+                modalIdRef.current = null;
             }
         };
     }, [stackCloseHandler]);
