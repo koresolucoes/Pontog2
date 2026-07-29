@@ -45,6 +45,12 @@ export const Auth: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
 
+  // Anti-bot & Security measures
+  const [honeypot, setHoneypot] = useState('');
+  const [num1] = useState(() => Math.floor(Math.random() * 8) + 1);
+  const [num2] = useState(() => Math.floor(Math.random() * 8) + 1);
+  const [captchaInput, setCaptchaInput] = useState('');
+
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
@@ -67,16 +73,54 @@ export const Auth: React.FC = () => {
 
     try {
         if (isSignUp) {
+            // 1. Honeypot check (trap automated scripts)
+            if (honeypot) {
+                console.warn("Bot submission detected");
+                toast.error("Erro no cadastro.");
+                setLoading(false);
+                return;
+            }
+
+            // 2. Anti-bot Challenge Check
+            if (parseInt(captchaInput.trim(), 10) !== num1 + num2) {
+                toast.error(`Verificação humana incorreta. Quanto é ${num1} + ${num2}?`);
+                setLoading(false);
+                return;
+            }
+
+            // 3. Device Rate Limiting (max 1 signup per 5 minutes per device)
+            const lastSignup = localStorage.getItem('ponto_g_last_signup');
+            if (lastSignup && Date.now() - parseInt(lastSignup, 10) < 5 * 60 * 1000) {
+                toast.error("Muitas tentativas de cadastro neste dispositivo. Por favor, aguarde 5 minutos.");
+                setLoading(false);
+                return;
+            }
+
+            // 4. Perform SignUp
             const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
             });
+
             if (error) throw error;
-            if (data.user && !data.session) {
-                toast.success(t('auth.account_created_check_email', { defaultValue: 'Conta criada! Verifique seu email para confirmar.' }), { duration: 6000, icon: '📧' });
-                setIsSignUp(false);
-            } else {
+
+            // Mark last signup timestamp
+            localStorage.setItem('ponto_g_last_signup', Date.now().toString());
+
+            if (data.session) {
                 toast.success(t('auth.welcome', { defaultValue: 'Bem-vindo ao Ponto G!' }));
+            } else if (data.user) {
+                // Instantly sign in with password so user never has to wait or check email
+                const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
+
+                if (!signInErr && signInData.session) {
+                    toast.success(t('auth.welcome', { defaultValue: 'Bem-vindo ao Ponto G!' }));
+                } else {
+                    toast.success('Conta criada com sucesso! Acesso liberado sem necessidade de verificação por e-mail.', { duration: 6000, icon: '🔒' });
+                }
             }
         } else {
             const { data, error } = await supabase.auth.signInWithPassword({
@@ -155,6 +199,18 @@ export const Auth: React.FC = () => {
             </div>
 
             <form onSubmit={handleEmailAuth} className="space-y-4">
+                {/* Honeypot field - hidden from humans */}
+                <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} aria-hidden="true">
+                    <input 
+                        type="text" 
+                        name="website_honeypot" 
+                        tabIndex={-1} 
+                        value={honeypot} 
+                        onChange={e => setHoneypot(e.target.value)} 
+                        autoComplete="off" 
+                    />
+                </div>
+
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 ml-1 uppercase">Email</label>
                     <div className="relative">
@@ -184,6 +240,40 @@ export const Auth: React.FC = () => {
                         />
                     </div>
                 </div>
+
+                {/* Verification Challenge for Signup */}
+                {isSignUp && (
+                    <div className="space-y-2 bg-slate-800/50 border border-primary-500/20 p-3.5 rounded-xl animate-fade-in">
+                        <div className="flex items-center justify-between text-xs text-slate-300 font-semibold">
+                            <span className="flex items-center gap-1 text-primary-400">
+                                <span className="material-symbols-rounded text-sm">security</span>
+                                Verificação Anti-Bot:
+                            </span>
+                            <span className="text-white font-bold bg-primary-950/60 px-2 py-0.5 rounded border border-primary-500/30">
+                                {num1} + {num2} = ?
+                            </span>
+                        </div>
+                        <input 
+                            type="number"
+                            placeholder="Sua resposta"
+                            value={captchaInput}
+                            onChange={e => setCaptchaInput(e.target.value)}
+                            className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                            required
+                        />
+                    </div>
+                )}
+
+                {/* Discretion Guarantee Notice */}
+                {isSignUp && (
+                    <div className="flex items-start gap-2 bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl text-xs text-emerald-300">
+                        <span className="material-symbols-rounded text-base text-emerald-400 shrink-0 mt-0.5">verified_user</span>
+                        <span>
+                            <strong>Garantia de Sigilo:</strong> Nenhum e-mail de verificação será enviado. Seu cadastro é 100% discreto e imediato.
+                        </span>
+                    </div>
+                )}
+
                 <button 
                     type="submit" 
                     disabled={loading}
