@@ -309,7 +309,7 @@ export const VideosView: React.FC = () => {
                                     <div className="space-y-4 animate-fade-in">
                                         <div className="space-y-2">
                                             <label className="text-xs text-slate-400 font-bold uppercase">Selecione seu Vídeo <span className="text-red-500">*</span></label>
-                                            <div className="relative border-2 border-dashed border-white/10 hover:border-red-500/50 transition-colors rounded-2xl bg-slate-850 p-6 flex flex-col items-center justify-center min-h-[140px]">
+                                            <div className="relative border-2 border-dashed border-white/10 hover:border-red-500/50 transition-colors rounded-2xl bg-slate-800 p-6 flex flex-col items-center justify-center min-h-[140px]">
                                                 <input 
                                                     type="file" 
                                                     accept="video/mp4,video/quicktime,video/webm,video/*"
@@ -363,7 +363,7 @@ export const VideosView: React.FC = () => {
                                                 placeholder="Descreva seu vídeo..." 
                                                 value={uploadTitle}
                                                 onChange={(e) => setUploadTitle(e.target.value)}
-                                                className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-red-500/50 text-sm"
+                                                className="w-full bg-slate-800 text-white placeholder-slate-400 border border-slate-700/80 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm"
                                             />
                                         </div>
 
@@ -373,11 +373,11 @@ export const VideosView: React.FC = () => {
                                                 placeholder="Adicione hashtags e detalhes..." 
                                                 value={uploadDescription}
                                                 onChange={(e) => setUploadDescription(e.target.value)}
-                                                className="w-full bg-slate-850 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-red-500/50 min-h-[70px] text-sm resize-none"
+                                                className="w-full bg-slate-800 text-white placeholder-slate-400 border border-slate-700/80 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 min-h-[70px] text-sm resize-none"
                                             />
                                         </div>
 
-                                        <div className="bg-slate-850 border border-white/5 p-4 rounded-xl flex items-center justify-between cursor-pointer" onClick={() => setUploadIsPorn(!uploadIsPorn)}>
+                                        <div className="bg-slate-800 border border-white/5 p-4 rounded-xl flex items-center justify-between cursor-pointer" onClick={() => setUploadIsPorn(!uploadIsPorn)}>
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-bold text-white flex items-center gap-1.5">
                                                     Conteúdo Pornô / NSFW <span className="text-red-500">*</span>
@@ -729,17 +729,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                 </div>
             )}
 
-            {/* Top Bar for Owner Edit/Delete */}
-            {isOwner && (
-                <div className="absolute top-24 right-4 flex flex-col gap-3 z-10">
-                    <button onClick={() => setIsEditing(true)} className="w-10 h-10 rounded-full bg-black/40 text-white flex items-center justify-center backdrop-blur-md shadow-lg border border-white/10 transition-transform active:scale-90">
-                        <span className="material-symbols-rounded text-lg">edit</span>
-                    </button>
-                    <button onClick={() => { if(window.confirm('Excluir este vídeo?')) { if (onDeleteVideo) onDeleteVideo(); } }} className="w-10 h-10 rounded-full bg-black/40 text-red-500 flex items-center justify-center backdrop-blur-md shadow-lg border border-white/10 transition-transform active:scale-90">
-                        <span className="material-symbols-rounded text-lg">delete</span>
-                    </button>
-                </div>
-            )}
+            {/* Remove floating top-24 owner controls to avoid blocking video content */}
 
             {/* Edit Modal Overlay */}
             {isEditing && (
@@ -750,13 +740,13 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                             type="text"
                             value={editTitle}
                             onChange={e => setEditTitle(e.target.value)}
-                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500"
+                            className="w-full bg-slate-800 text-white placeholder-slate-400 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
                             placeholder="Título do vídeo"
                         />
                         <textarea 
                             value={editDesc}
                             onChange={e => setEditDesc(e.target.value)}
-                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 min-h-[100px] resize-none"
+                            className="w-full bg-slate-800 text-white placeholder-slate-400 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 min-h-[100px] resize-none"
                             placeholder="Descrição"
                         />
                         <div className="flex gap-2 justify-end pt-2">
@@ -769,9 +759,32 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
 
             {/* Bottom-left Content (User, Description, Audio) */}
             <div className="absolute bottom-20 left-4 right-16 z-10 flex flex-col justify-end pointer-events-none drop-shadow-md">
-                <div className="pointer-events-auto mb-2 inline-flex items-center gap-1.5 cursor-pointer" onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}>
-                    <h3 className="text-white font-extrabold text-base hover:underline line-clamp-1">{video.user_profile?.username}</h3>
-                    {video.user_profile?.subscription_tier === 'plus' && <span className="material-symbols-rounded text-[14px] text-yellow-400 filled drop-shadow">auto_awesome</span>}
+                <div className="pointer-events-auto mb-2 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="inline-flex items-center gap-1.5 cursor-pointer" onClick={() => handleUserClick({ id: video.user_id, ...video.user_profile })}>
+                        <h3 className="text-white font-extrabold text-base hover:underline line-clamp-1">{video.user_profile?.username}</h3>
+                        {video.user_profile?.subscription_tier === 'plus' && <span className="material-symbols-rounded text-[14px] text-yellow-400 filled drop-shadow">auto_awesome</span>}
+                    </div>
+
+                    {isOwner && (
+                        <div className="flex items-center gap-1.5">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+                                className="px-2.5 py-1 rounded-full bg-black/60 hover:bg-slate-800 text-white text-[11px] font-bold border border-white/20 backdrop-blur-md flex items-center gap-1 active:scale-95 transition-all shadow-md"
+                                title="Editar Vídeo"
+                            >
+                                <span className="material-symbols-rounded text-xs">edit</span>
+                                <span>Editar</span>
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); if(window.confirm('Excluir este vídeo?')) { if (onDeleteVideo) onDeleteVideo(); } }}
+                                className="px-2.5 py-1 rounded-full bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-bold border border-red-400/30 backdrop-blur-md flex items-center gap-1 active:scale-95 transition-all shadow-md"
+                                title="Excluir Vídeo"
+                            >
+                                <span className="material-symbols-rounded text-xs">delete</span>
+                                <span>Apagar</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
                 
                 {/* Title */}
@@ -884,6 +897,32 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                     </button>
                     <span className="text-white text-[11px] font-semibold drop-shadow-md">Chat</span>
                 </div>
+
+                {/* Edit & Delete for Owner in Right Bar */}
+                {isOwner && (
+                    <>
+                        <div className="flex flex-col items-center gap-1 group">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+                                className="w-[42px] h-[42px] rounded-full flex items-center justify-center transition-transform active:scale-75 hover:bg-white/10 bg-black/40 backdrop-blur-md text-white border border-white/10"
+                                title="Editar Vídeo"
+                            >
+                                <span className="material-symbols-rounded text-[22px]">edit</span>
+                            </button>
+                            <span className="text-white text-[10px] font-semibold drop-shadow-md">Editar</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-1 group">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); if(window.confirm('Excluir este vídeo?')) { if (onDeleteVideo) onDeleteVideo(); } }}
+                                className="w-[42px] h-[42px] rounded-full flex items-center justify-center transition-transform active:scale-75 hover:bg-red-500/20 bg-black/40 backdrop-blur-md text-red-400 border border-red-500/30"
+                                title="Excluir Vídeo"
+                            >
+                                <span className="material-symbols-rounded text-[22px]">delete</span>
+                            </button>
+                            <span className="text-red-400 text-[10px] font-semibold drop-shadow-md">Apagar</span>
+                        </div>
+                    </>
+                )}
 
                 {/* Mute/Unmute */}
                 <button 
