@@ -40,8 +40,12 @@ export const VideosView: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [sortBy, setSortBy] = useState<'relevant' | 'recent' | 'views' | 'rating'>('relevant');
     const [globalNsfwBlur, setGlobalNsfwBlur] = useState<boolean>(() => {
-        const saved = localStorage.getItem('globalNsfwBlur');
-        return saved !== null ? JSON.parse(saved) : true;
+        try {
+            const saved = localStorage.getItem('globalNsfwBlur');
+            return saved !== null ? JSON.parse(saved) : true;
+        } catch(e) {
+            return true;
+        }
     });
 
     useEffect(() => {
@@ -572,7 +576,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
     useEffect(() => {
         const visibilityObserver = new IntersectionObserver((entries) => {
             const entry = entries[0];
-            setIsInViewport(entry.isIntersecting);
+            setIsInViewport(entry ? entry.isIntersecting : false);
         }, { rootMargin: '100% 0px' });
         
         if (containerRef.current) {
@@ -603,7 +607,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
     useEffect(() => {
         const observer = new IntersectionObserver((entries) => {
             const entry = entries[0];
-            if (entry.isIntersecting) {
+            if (entry && entry.isIntersecting) {
                 if (videoRef.current && (!globalNsfwBlur || isRevealed)) {
                     videoRef.current.play().catch(() => {});
                     setIsPlaying(true);
