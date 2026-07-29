@@ -114,6 +114,18 @@ export const Sidebar: React.FC = () => {
                             />
                         )}
                         <SidebarLink 
+                            icon="grid_view" 
+                            label={t('nav.grid', { defaultValue: 'Grade de Usuários' })} 
+                            onClick={() => handleNavClick('grid')}
+                            iconColor="text-teal-400"
+                        />
+                        <SidebarLink 
+                            icon="groups" 
+                            label={t('nav.communities', { defaultValue: 'Comunidades' })} 
+                            onClick={() => handleNavClick('communities')}
+                            iconColor="text-orange-400"
+                        />
+                        <SidebarLink 
                             icon="newspaper" 
                             label="G News & Blog" 
                             onClick={() => handleNavClick('news')}

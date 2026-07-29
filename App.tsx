@@ -262,15 +262,11 @@ const App: React.FC = () => {
 
                     {!isSuggestVenueModalOpen && !isCommunityPostCreateOpen && (
                         <div className="fixed bottom-4 left-4 right-4 z-20 flex justify-center pointer-events-none">
-                            <nav className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 pointer-events-auto max-w-lg w-full overflow-x-auto no-scrollbar">
-                                <div className="flex justify-between items-center p-1.5 min-w-max sm:min-w-0 sm:grid sm:grid-cols-9 gap-1">
+                            <nav className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 pointer-events-auto max-w-lg w-full">
+                                <div className="flex justify-between items-center p-1.5 sm:grid sm:grid-cols-5 gap-1">
                                     <NavButton icon="home" label={t('nav.home', { defaultValue: 'Início' })} isActive={activeView === 'home'} onClick={() => setActiveView('home')} />
-                                    <NavButton icon="grid_view" label={t('nav.grid', { defaultValue: 'Grade' })} isActive={activeView === 'grid'} onClick={() => setActiveView('grid')} />
                                     <NavButton icon="map" label={t('nav.map', { defaultValue: 'Mapa' })} isActive={activeView === 'map'} onClick={() => setActiveView('map')} className="tour-step-map" />
-                                    <NavButton icon="groups" label={t('nav.communities', { defaultValue: 'Comunidades' })} isActive={activeView === 'communities'} onClick={() => setActiveView('communities')} />
-                                    <NavButton icon="play_circle" label={t('nav.videos', { defaultValue: 'Vídeos' })} isActive={activeView === 'videos'} onClick={() => setActiveView('videos')} />
                                     <NavButton icon="local_fire_department" label={t('nav.agora', { defaultValue: 'Agora' })} isActive={activeView === 'agora'} onClick={() => setActiveView('agora')} isFire />
-                                    <NavButton icon="newspaper" label={t('nav.news', { defaultValue: 'News' })} isActive={activeView === 'news'} onClick={() => setActiveView('news')} />
                                     <NavButton icon="chat_bubble" label={t('nav.inbox', { defaultValue: 'Chat' })} isActive={activeView === 'inbox'} onClick={() => setActiveView('inbox')} notificationCount={totalUnreadCount} className="tour-step-inbox" />
                                     <NavButton icon="person" label={t('nav.profile', { defaultValue: 'Perfil' })} isActive={activeView === 'profile'} onClick={() => setActiveView('profile')} isPlus={user.subscription_tier === 'plus'} className="tour-step-profile" />
                                 </div>
