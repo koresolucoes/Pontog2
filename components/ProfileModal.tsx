@@ -61,6 +61,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
   const [connection, setConnection] = useState<any>(null);
   const [firstMessage, setFirstMessage] = useState('');
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [showConnectionInfo, setShowConnectionInfo] = useState(false);
   
   // Video Control
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
@@ -774,79 +775,149 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
         {/* Action Bar (Bottom Fixed) */}
         {user.id !== currentUser?.id && (
           <div className="p-4 border-t border-white/5 bg-[#14141a] flex-shrink-0 flex flex-col gap-3 pb-8 sm:pb-4 z-20">
-            {currentUser?.subscription_tier === 'free' && winkCount !== null && connection?.status === 'accepted' && (
+            {currentUser?.subscription_tier === 'free' && winkCount !== null && (
                 <div className="text-center text-[11px] text-slate-400 font-medium">
                     {10 - winkCount > 0 ? (
-                        <p>{t('profile_modal.you_have', { defaultValue: 'Você tem' })} <span className="font-bold text-white">{10 - winkCount}</span> {t('profile_modal.winks_today', { defaultValue: 'chamados hoje.' })}</p>
+                        <p>{t('profile_modal.you_have', { defaultValue: 'Você tem' })} <span className="font-bold text-white">{10 - winkCount}</span> {t('profile_modal.winks_today', { defaultValue: 'winks hoje.' })}</p>
                     ) : (
-                        <p>{t('profile_modal.no_winks', { defaultValue: 'Acabaram os chamados.' })} <button onClick={() => { onClose(); setSubscriptionModalOpen(true); }} className="text-pink-400 hover:underline font-bold">{t('profile_modal.get_plus', { defaultValue: 'Vire Plus' })}</button></p>
+                        <p>{t('profile_modal.no_winks', { defaultValue: 'Acabaram os winks.' })} <button onClick={() => { onClose(); setSubscriptionModalOpen(true); }} className="text-pink-400 hover:underline font-bold">{t('profile_modal.get_plus', { defaultValue: 'Vire Plus' })}</button></p>
                     )}
                 </div>
             )}
             
-            {connection === null ? (
-                <div className="space-y-3 bg-[#1a1a20] p-4 rounded-2xl border border-white/5">
-                    <p className="text-[11px] text-orange-400/90 font-black tracking-widest uppercase">Solicitação de Conexão</p>
-                    <textarea
-                        value={firstMessage}
-                        onChange={(e) => setFirstMessage(e.target.value)}
-                        placeholder="Envie uma mensagem inicial para conectar..."
-                        maxLength={150}
-                        className="w-full bg-[#0f0f13] border border-white/5 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-pink-500/50 transition-colors resize-none h-18"
-                    />
-                    <button
-                        onClick={handleRequestConnection}
-                        disabled={isSendingRequest || !firstMessage.trim()}
-                        className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-pink-900/30 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
-                    >
-                        {isSendingRequest ? (
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                            <>
-                                <span className="material-symbols-rounded text-xl">handshake</span>
-                                <span>Solicitar Conexão</span>
-                            </>
-                        )}
-                    </button>
-                </div>
-            ) : connection.status === 'pending' ? (
-                connection.follower_id === currentUser?.id ? (
-                    <div className="text-center p-4 bg-[#1a1a20] rounded-2xl border border-white/5 space-y-2">
-                        <span className="material-symbols-rounded text-slate-500 text-3xl mb-1 animate-pulse">hourglass_empty</span>
-                        <p className="text-sm font-bold text-white">Solicitação Pendente</p>
-                        <p className="text-xs text-slate-400">Aguardando a resposta de {user.display_name || user.username}.</p>
-                    </div>
-                ) : (
-                    <div className="p-4 bg-[#1a1a20] rounded-2xl border border-white/5 space-y-3 shadow-inner">
-                        <div className="text-center">
-                            <span className="material-symbols-rounded text-pink-500 text-3xl mb-1 animate-bounce">handshake</span>
-                            <p className="text-sm font-bold text-white">Solicitação Recebida</p>
-                            <p className="text-xs text-slate-400 mt-1">{user.display_name || user.username} quer se conectar!</p>
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={handleRejectConnection} className="flex-1 bg-[#22222a] border border-white/5 text-red-400 font-bold py-3 rounded-xl text-sm transition-colors hover:bg-[#2a2a35]">
-                                Recusar
-                            </button>
-                            <button onClick={handleAcceptConnection} className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3 rounded-xl text-sm transition-all hover:shadow-lg active:scale-95">
-                                Aceitar
-                            </button>
-                        </div>
-                    </div>
-                )
-            ) : (
+            {connection?.status === 'accepted' ? (
                 <div className="flex gap-3">
                   <button 
                     onClick={handleWink} 
                     disabled={currentUser?.subscription_tier === 'free' && winkCount !== null && winkCount >= 10}
-                    className="flex-1 bg-[#1a1a20] border border-white/5 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-[#22222a] transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                    className="flex-1 bg-gradient-to-r from-pink-600/20 via-purple-600/20 to-pink-600/20 border border-pink-500/40 text-pink-300 font-extrabold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-pink-600/30 hover:border-pink-400 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 shadow-md"
                   >
-                    <span className="material-symbols-rounded text-xl text-pink-500 filled">favorite</span>
-                    <span>{t('profile_modal.wink', { defaultValue: 'Chamar' })}</span>
+                    <span className="text-xl">😉</span>
+                    <span>{t('profile_modal.wink', { defaultValue: 'Enviar Wink 😉' })}</span>
                   </button>
                   <button onClick={handleChatClick} className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-pink-900/30 transition-all active:scale-95">
                     <span className="material-symbols-rounded text-xl filled">chat_bubble</span>
                     <span>{t('profile_modal.message', { defaultValue: 'Mensagem' })}</span>
                   </button>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                  {/* Botão de Wink sempre visível mesmo sem conexão */}
+                  <button 
+                    onClick={handleWink} 
+                    disabled={currentUser?.subscription_tier === 'free' && winkCount !== null && winkCount >= 10}
+                    className="w-full bg-gradient-to-r from-pink-600/20 via-purple-600/20 to-pink-600/20 border border-pink-500/40 hover:border-pink-400 text-pink-300 font-extrabold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-pink-600/30 transition-all active:scale-95 shadow-md shadow-pink-950/30 disabled:opacity-50 disabled:active:scale-100"
+                  >
+                    <span className="text-xl">😉</span>
+                    <span>{t('profile_modal.wink', { defaultValue: 'Enviar Wink 😉' })}</span>
+                  </button>
+
+                  {connection === null ? (
+                    <div className="space-y-3 bg-[#1a1a20] p-4 rounded-2xl border border-white/5 relative">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] text-orange-400/90 font-black tracking-widest uppercase">Conectar para Enviar Mensagens</p>
+                            <button
+                                type="button"
+                                onClick={() => setShowConnectionInfo(!showConnectionInfo)}
+                                className="flex items-center gap-1 text-[10px] text-slate-300 hover:text-pink-300 bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full border border-white/10 transition-all active:scale-95 shrink-0"
+                                title="Por que conectar?"
+                            >
+                                <span className="material-symbols-rounded !text-[14px] text-pink-400">info</span>
+                                <span className="font-bold">Info</span>
+                            </button>
+                        </div>
+
+                        {showConnectionInfo && (
+                            <div className="p-3.5 bg-gradient-to-r from-pink-950/60 to-purple-950/60 border border-pink-500/30 rounded-xl text-xs text-pink-100/90 leading-relaxed animate-fade-in flex gap-2.5 items-start shadow-inner">
+                                <span className="material-symbols-rounded text-pink-400 text-xl flex-shrink-0 mt-0.5">verified_user</span>
+                                <div className="space-y-1">
+                                    <p className="font-bold text-white text-xs">{t('profile_modal.why_connect_title', { defaultValue: 'Por que solicitar conexão?' })}</p>
+                                    <p className="text-[11px] text-slate-300 leading-snug">{t('profile_modal.why_connect_desc', { defaultValue: 'Para manter um ambiente seguro, privado e livre de spam na comunidade, você precisa enviar uma mensagem inicial para solicitar conexão. Assim que aceita pelo outro perfil, o bate-papo direto fica totalmente liberado!' })}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <textarea
+                            value={firstMessage}
+                            onChange={(e) => setFirstMessage(e.target.value)}
+                            placeholder="Envie uma mensagem inicial para conectar..."
+                            maxLength={150}
+                            className="w-full bg-[#0f0f13] border border-white/5 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-pink-500/50 transition-colors resize-none h-18"
+                        />
+                        <button
+                            onClick={handleRequestConnection}
+                            disabled={isSendingRequest || !firstMessage.trim()}
+                            className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-pink-900/30 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                        >
+                            {isSendingRequest ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    <span className="material-symbols-rounded text-xl">handshake</span>
+                                    <span>Solicitar Conexão</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                  ) : connection.status === 'pending' ? (
+                    connection.follower_id === currentUser?.id ? (
+                        <div className="p-4 bg-[#1a1a20] rounded-2xl border border-white/5 space-y-2 relative">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="material-symbols-rounded text-slate-400 text-xl animate-pulse">hourglass_empty</span>
+                                    <p className="text-sm font-bold text-white">Solicitação de Conexão Pendente</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConnectionInfo(!showConnectionInfo)}
+                                    className="flex items-center gap-1 text-[10px] text-slate-300 hover:text-pink-300 bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full border border-white/10 transition-all active:scale-95 shrink-0"
+                                >
+                                    <span className="material-symbols-rounded !text-[14px] text-pink-400">info</span>
+                                    <span className="font-bold">Info</span>
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400">Aguardando a resposta de {user.display_name || user.username} para liberar o envio de mensagens.</p>
+                            {showConnectionInfo && (
+                                <div className="p-3 bg-gradient-to-r from-pink-950/60 to-purple-950/60 border border-pink-500/30 rounded-xl text-xs text-pink-100/90 leading-relaxed animate-fade-in flex gap-2.5 items-start mt-2">
+                                    <span className="material-symbols-rounded text-pink-400 text-lg flex-shrink-0 mt-0.5">verified_user</span>
+                                    <p className="text-[11px] text-slate-300 leading-snug">{t('profile_modal.why_connect_desc', { defaultValue: 'Para manter um ambiente seguro, privado e livre de spam na comunidade, você precisa enviar uma mensagem inicial para solicitar conexão. Assim que aceita pelo outro perfil, o bate-papo direto fica totalmente liberado!' })}</p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="p-4 bg-[#1a1a20] rounded-2xl border border-white/5 space-y-3 shadow-inner">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="material-symbols-rounded text-pink-500 text-2xl animate-bounce">handshake</span>
+                                    <p className="text-sm font-bold text-white">Solicitação de Conexão Recebida</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConnectionInfo(!showConnectionInfo)}
+                                    className="flex items-center gap-1 text-[10px] text-slate-300 hover:text-pink-300 bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-full border border-white/10 transition-all active:scale-95 shrink-0"
+                                >
+                                    <span className="material-symbols-rounded !text-[14px] text-pink-400">info</span>
+                                    <span className="font-bold">Info</span>
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400">{user.display_name || user.username} quer se conectar com você!</p>
+                            {showConnectionInfo && (
+                                <div className="p-3 bg-gradient-to-r from-pink-950/60 to-purple-950/60 border border-pink-500/30 rounded-xl text-xs text-pink-100/90 leading-relaxed animate-fade-in flex gap-2.5 items-start">
+                                    <span className="material-symbols-rounded text-pink-400 text-lg flex-shrink-0 mt-0.5">verified_user</span>
+                                    <p className="text-[11px] text-slate-300 leading-snug">{t('profile_modal.why_connect_desc', { defaultValue: 'Para manter um ambiente seguro, privado e livre de spam na comunidade, você precisa enviar uma mensagem inicial para solicitar conexão. Assim que aceita pelo outro perfil, o bate-papo direto fica totalmente liberado!' })}</p>
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <button onClick={handleRejectConnection} className="flex-1 bg-[#22222a] border border-white/5 text-red-400 font-bold py-3 rounded-xl text-sm transition-colors hover:bg-[#2a2a35]">
+                                    Recusar
+                                </button>
+                                <button onClick={handleAcceptConnection} className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3 rounded-xl text-sm transition-all hover:shadow-lg active:scale-95">
+                                    Aceitar Conexão
+                                </button>
+                            </div>
+                        </div>
+                    )
+                  ) : null}
                 </div>
             )}
           </div>
