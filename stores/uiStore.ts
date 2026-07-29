@@ -30,7 +30,19 @@ export const useUiStore = create<UiState>((set) => ({
   isSidebarOpen: false,
   isSuggestVenueModalOpen: false,
   isCommunityPostCreateOpen: false,
-  setActiveView: (view) => set({ activeView: view }),
+  setActiveView: (view) => {
+    if (typeof window !== 'undefined') {
+      const currentHash = window.location.hash.replace('#', '');
+      if (currentHash !== view) {
+        if (window.history.state && window.history.state.modalId) {
+          window.history.replaceState(null, '', `#${view}`);
+        } else {
+          window.history.pushState(null, '', `#${view}`);
+        }
+      }
+    }
+    set({ activeView: view });
+  },
   setChatUser: (user) => {
       if (user) {
           import('./mapStore').then(({ useMapStore }) => {

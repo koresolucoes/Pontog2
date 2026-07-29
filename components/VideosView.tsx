@@ -554,7 +554,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
     const containerRef = useRef<HTMLDivElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
-    const [hasIncrementedView, setHasIncrementedView] = useState(false);
+    const hasIncrementedViewRef = useRef(false);
 
     // Click to bypass NSFW blur shield
     const [isRevealed, setIsRevealed] = useState(false);
@@ -588,6 +588,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
     // Reset reveal status when global filter changes or video changes
     useEffect(() => {
         setIsRevealed(false);
+        hasIncrementedViewRef.current = false;
     }, [globalNsfwBlur, video.id]);
 
     useEffect(() => {
@@ -609,11 +610,12 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
             const entry = entries[0];
             if (entry && entry.isIntersecting) {
                 if (videoRef.current && (!globalNsfwBlur || isRevealed)) {
-                    videoRef.current.play().catch(() => {});
-                    setIsPlaying(true);
-                    if (!hasIncrementedView) {
+                    videoRef.current.play().then(() => {
+                        setIsPlaying(true);
+                    }).catch(() => {});
+                    if (!hasIncrementedViewRef.current) {
+                        hasIncrementedViewRef.current = true;
                         onIncrementViews();
-                        setHasIncrementedView(true);
                     }
                 }
             } else {
@@ -623,26 +625,27 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                 }
                 setShowCommentsSection(false); // hide comments when scrolled away
             }
-        }, { threshold: 0.6 });
+        }, { threshold: 0.3 });
 
         if (containerRef.current) {
             observer.observe(containerRef.current);
         }
 
         return () => observer.disconnect();
-    }, [globalNsfwBlur, isRevealed, hasIncrementedView, onIncrementViews]);
+    }, [globalNsfwBlur, isRevealed, onIncrementViews]);
 
     const handleVideoClick = () => {
         if (!videoRef.current) return;
-        if (isPlaying) {
+        if (!videoRef.current.paused) {
             videoRef.current.pause();
             setIsPlaying(false);
         } else {
-            videoRef.current.play().catch(err => console.log('Autoplay blocked:', err));
-            setIsPlaying(true);
-            if (!hasIncrementedView) {
+            videoRef.current.play().then(() => {
+                setIsPlaying(true);
+            }).catch(err => console.log('Autoplay blocked:', err));
+            if (!hasIncrementedViewRef.current) {
+                hasIncrementedViewRef.current = true;
                 onIncrementViews();
-                setHasIncrementedView(true);
             }
         }
     };
@@ -687,6 +690,9 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                 muted={isMuted}
                 playsInline
                 onClick={globalNsfwBlur && !isRevealed ? undefined : handleVideoClick}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
             />
 
             {/* NSFW Shield */}
@@ -697,11 +703,12 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                         setIsRevealed(true);
                         setTimeout(() => {
                             if (videoRef.current) {
-                                videoRef.current.play().catch(err => console.log('Autoplay blocked:', err));
-                                setIsPlaying(true);
-                                if (!hasIncrementedView) {
+                                videoRef.current.play().then(() => {
+                                    setIsPlaying(true);
+                                }).catch(err => console.log('Autoplay blocked:', err));
+                                if (!hasIncrementedViewRef.current) {
+                                    hasIncrementedViewRef.current = true;
                                     onIncrementViews();
-                                    setHasIncrementedView(true);
                                 }
                             }
                         }, 50);

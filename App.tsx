@@ -75,6 +75,7 @@ const App: React.FC = () => {
         };
 
         window.addEventListener('hashchange', handleHashChange);
+        window.addEventListener('popstate', handleHashChange);
         
         // Initial sync
         const hash = window.location.hash.replace('#', '');
@@ -84,7 +85,10 @@ const App: React.FC = () => {
             window.history.replaceState(null, '', `#${activeView}`);
         }
 
-        return () => window.removeEventListener('hashchange', handleHashChange);
+        return () => {
+            window.removeEventListener('hashchange', handleHashChange);
+            window.removeEventListener('popstate', handleHashChange);
+        };
     }, []);
 
     useEffect(() => {
