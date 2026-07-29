@@ -695,7 +695,7 @@ export const subscribeToVideoEvents = () => {
         isVideoBatchScheduled = false;
    };
 
-   supabase.channel('videos_realtime')
+   supabase.channel(`videos_realtime_${Date.now()}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'videos' }, payload => {
           videoUpdateBatch.push(payload.new);
           if (!isVideoBatchScheduled) {

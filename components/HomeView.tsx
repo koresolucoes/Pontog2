@@ -10,6 +10,7 @@ import { AdSenseUnit } from './AdSenseUnit';
 import { useTranslation } from 'react-i18next';
 import { AdDetailModal } from './AdDetailModal';
 import { AdBanner } from './AdBanner';
+import { calculateAge } from '../lib/utils';
 
 import { useUserActionsStore } from '../stores/userActionsStore';
 

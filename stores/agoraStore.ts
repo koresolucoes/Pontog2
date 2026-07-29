@@ -355,7 +355,7 @@ export const subscribeToAgoraEvents = () => {
         isAgoraPostBatchScheduled = false;
    };
 
-   supabase.channel('agora_realtime')
+   supabase.channel(`agora_realtime_${Date.now()}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'agora_posts' }, payload => {
           agoraPostUpdateBatch.push(payload.new);
           if (!isAgoraPostBatchScheduled) {

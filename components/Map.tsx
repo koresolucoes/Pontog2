@@ -394,10 +394,12 @@ export const Map: React.FC = () => {
   }, []);
 
   useEffect(() => {
-      if (activeView === 'map' && mapInstanceRef.current) {
+      if (activeView === 'map' && mapInstanceRef.current && mapContainerRef.current) {
           mapInstanceRef.current.invalidateSize();
           setTimeout(() => {
-              mapInstanceRef.current?.invalidateSize();
+              if (mapInstanceRef.current && mapContainerRef.current) {
+                  mapInstanceRef.current.invalidateSize();
+              }
           }, 300);
       }
   }, [activeView]);
@@ -449,6 +451,7 @@ export const Map: React.FC = () => {
 
             tileLayer.on('load', () => {
                 setTimeout(() => {
+                    if (mapInstanceRef.current !== newMap) return;
                     setAreTilesLoaded(true);
                     newMap.invalidateSize();
                 }, 300); 
@@ -462,6 +465,7 @@ export const Map: React.FC = () => {
             newMap.on('moveend', () => updateMarkersRef.current());
 
             setTimeout(() => {
+                if (mapInstanceRef.current !== newMap) return;
                 setAreTilesLoaded(true);
                 if (newMap) newMap.invalidateSize();
             }, 2000);

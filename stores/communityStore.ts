@@ -593,7 +593,7 @@ export const subscribeToCommunityEvents = () => {
         isPostBatchScheduled = false;
    };
 
-   supabase.channel('community_realtime')
+   supabase.channel(`community_realtime_${Date.now()}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'community_posts' }, payload => {
           postUpdateBatch.push(payload.new);
           if (!isPostBatchScheduled) {

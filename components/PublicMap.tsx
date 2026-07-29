@@ -114,7 +114,9 @@ export const PublicMap: React.FC<PublicMapProps> = ({ venues, center, cityName, 
 
             // Força um recálculo do tamanho após um breve delay para garantir que a animação CSS terminou
             setTimeout(() => {
-                map.invalidateSize();
+                if (mapInstanceRef.current === map) {
+                    map.invalidateSize();
+                }
             }, 500);
         } else {
             // Atualiza o centro se mudar (ex: geolocalização terminou)
