@@ -221,7 +221,13 @@ export const useMapStore = create<MapState>((set, get) => ({
     if (data) {
         // Fetch missing columns that the RPC might not return
         const userIds = data.map((u: any) => u.id);
-        const { data: profilesData } = await supabase.from('profiles').select('id, current_checkin_venue_id, current_checkin_venue_name, looking_for, kinks').in('id', userIds);
+        const twentyFourHoursAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const [{ data: profilesData }, { data: activeCheckins }] = await Promise.all([
+            supabase.from('profiles').select('id, current_checkin_venue_id, current_checkin_venue_name, looking_for, kinks').in('id', userIds),
+            supabase.from('venue_checkins').select('user_id, venue_id').in('user_id', userIds).gt('created_at', twentyFourHoursAgoIso)
+        ]);
+
+        const activeCheckinsSet = new Set((activeCheckins || []).map((c: any) => c.user_id));
         
         const profilesMap = new Map();
         if (profilesData) {
@@ -231,8 +237,9 @@ export const useMapStore = create<MapState>((set, get) => ({
         const transformedUsers = data.map((profile: any) => {
            const p = profilesMap.get(profile.id);
            if (p) {
-               profile.current_checkin_venue_id = p.current_checkin_venue_id;
-               profile.current_checkin_venue_name = p.current_checkin_venue_name;
+               const hasValidCheckin = activeCheckinsSet.has(profile.id);
+               profile.current_checkin_venue_id = hasValidCheckin ? p.current_checkin_venue_id : null;
+               profile.current_checkin_venue_name = hasValidCheckin ? p.current_checkin_venue_name : null;
                profile.looking_for = p.looking_for || profile.looking_for;
                profile.kinks = p.kinks || profile.kinks;
            }

@@ -23,9 +23,9 @@ export const SelectAlbumModal: React.FC<SelectAlbumModalProps> = ({ onClose, onS
   }, [myAlbums, fetchMyAlbums]);
 
   return typeof document !== 'undefined' ? createPortal(
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-end sm:items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200] animate-fade-in p-0 sm:p-4" onClick={onClose}>
       <div 
-        className="bg-slate-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg mx-auto animate-slide-in-up sm:animate-fade-in-up flex flex-col h-full sm:h-auto sm:max-h-[80vh]" 
+        className="bg-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg mx-auto animate-slide-in-up sm:animate-fade-in-up flex flex-col h-[80vh] sm:h-auto sm:max-h-[80vh] border-t border-x border-white/10 sm:border-b overflow-hidden" 
         onClick={(e) => e.stopPropagation()}
       >
         <header className="p-6 border-b border-slate-700 flex justify-between items-center flex-shrink-0">

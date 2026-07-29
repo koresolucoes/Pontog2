@@ -130,6 +130,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       
       if (profileData) {
+        if (profileData.current_checkin_venue_id) {
+          const twentyFourHoursAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const { data: activeCheckin } = await supabase
+            .from('venue_checkins')
+            .select('venue_id')
+            .eq('user_id', supabaseUser.id)
+            .gt('created_at', twentyFourHoursAgoIso)
+            .maybeSingle();
+
+          if (!activeCheckin) {
+            profileData.current_checkin_venue_id = undefined;
+            profileData.current_checkin_venue_name = undefined;
+            supabase.from('profiles').update({
+              current_checkin_venue_id: null,
+              current_checkin_venue_name: null,
+              current_checkin_updated_at: null
+            }).eq('id', supabaseUser.id).then();
+          }
+        }
+
         const userData: User = {
             ...profileData,
             age: calculateAge(profileData.date_of_birth),

@@ -548,7 +548,12 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
       if (error) {
          fetchCheckinsFallback();
       } else {
-        setCheckins(data || []);
+        const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const validCheckins = (data || []).filter((c: any) => {
+          const time = new Date(c.checked_in_at || c.created_at).getTime();
+          return !isNaN(time) && time >= twentyFourHoursAgo;
+        });
+        setCheckins(validCheckins);
       }
     } catch (err) {
       fetchCheckinsFallback();
@@ -557,6 +562,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
 
   const fetchCheckinsFallback = async () => {
     try {
+       const twentyFourHoursAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
        const { data, error } = await supabase
          .from('venue_checkins')
          .select(`
@@ -565,7 +571,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
             profiles!inner ( username, avatar_url )
          `)
          .eq('venue_id', venue.id)
-         .gt('created_at', new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString())
+         .gt('created_at', twentyFourHoursAgoIso)
          .order('created_at', { ascending: false });
 
        if (!error && data) {
@@ -599,22 +605,48 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
             
             if (error) throw error;
             setCheckins(prev => prev.filter(c => c.user_id !== user.id));
+
+            // Clear profile checkin info
+            await supabase.from('profiles').update({
+                current_checkin_venue_id: null,
+                current_checkin_venue_name: null,
+                current_checkin_updated_at: null
+            }).eq('id', user.id);
+
+            useAuthStore.setState({ 
+                user: { 
+                    ...user, 
+                    current_checkin_venue_id: undefined, 
+                    current_checkin_venue_name: undefined, 
+                    current_checkin_updated_at: undefined 
+                } 
+            });
+
             toast.success(t('venue.checkin_removed', { defaultValue: 'Check-in removido.' }));
         } else {
+            const nowIso = new Date().toISOString();
             const { error } = await supabase
                 .from('venue_checkins')
-                .upsert({ venue_id: venue.id, user_id: user.id }, { onConflict: 'venue_id, user_id' });
+                .upsert({ venue_id: venue.id, user_id: user.id, created_at: nowIso }, { onConflict: 'venue_id, user_id' });
             
             if (error) throw error;
 
-            // Optional update user's profile checkin status
+            // Update user's profile checkin status with current timestamp
             await supabase.from('profiles').update({
                 current_checkin_venue_id: venue.id,
-                current_checkin_venue_name: venue.name
+                current_checkin_venue_name: venue.name,
+                current_checkin_updated_at: nowIso
             }).eq('id', user.id);
 
             // Update auth store user immediately
-            useAuthStore.setState({ user: { ...user, current_checkin_venue_id: venue.id, current_checkin_venue_name: venue.name } });
+            useAuthStore.setState({ 
+                user: { 
+                    ...user, 
+                    current_checkin_venue_id: venue.id, 
+                    current_checkin_venue_name: venue.name,
+                    current_checkin_updated_at: nowIso
+                } 
+            });
 
             if (postToAgora) {
                 await publishAgoraCheckin(venue.name, venue.image_url);
