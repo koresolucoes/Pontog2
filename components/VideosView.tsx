@@ -129,6 +129,15 @@ export const VideosView: React.FC = () => {
         return list;
     }, [videos, selectedCategory, sortBy, likedVideos]);
 
+    const [visibleCount, setVisibleCount] = useState(10);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+        if (scrollHeight - scrollTop <= clientHeight * 3) {
+            setVisibleCount(prev => prev + 10);
+        }
+    };
+
     return (
         <div className="h-full w-full bg-black flex flex-col text-slate-100 overflow-hidden relative">
             {/* Floating Header */}
@@ -200,7 +209,10 @@ export const VideosView: React.FC = () => {
             </div>
 
             {/* Main scrollable body (Snap Container) */}
-            <div className="flex-1 overflow-y-scroll snap-y snap-mandatory no-scrollbar bg-black pb-0 relative z-0">
+            <div 
+                className="flex-1 overflow-y-scroll snap-y snap-mandatory no-scrollbar bg-black pb-0 relative z-0"
+                onScroll={handleScroll}
+            >
                 {filteredAndSortedVideos.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center py-20 text-slate-500">
                         <span className="material-symbols-rounded text-5xl animate-pulse mb-3 text-red-500/40">videocam_off</span>
@@ -213,7 +225,7 @@ export const VideosView: React.FC = () => {
                         </button>
                     </div>
                 ) : (
-                    filteredAndSortedVideos.map(video => (
+                    filteredAndSortedVideos.slice(0, visibleCount).map(video => (
                         <VideoCard 
                             key={video.id} 
                             video={video} 
@@ -554,6 +566,21 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
     const [editTitle, setEditTitle] = useState(video.title);
     const [editDesc, setEditDesc] = useState(video.description || '');
 
+    // Optimize DOM by only rendering video src when near viewport
+    const [isInViewport, setIsInViewport] = useState(false);
+
+    useEffect(() => {
+        const visibilityObserver = new IntersectionObserver((entries) => {
+            const entry = entries[0];
+            setIsInViewport(entry.isIntersecting);
+        }, { rootMargin: '100% 0px' });
+        
+        if (containerRef.current) {
+            visibilityObserver.observe(containerRef.current);
+        }
+        return () => visibilityObserver.disconnect();
+    }, []);
+
     // Reset reveal status when global filter changes or video changes
     useEffect(() => {
         setIsRevealed(false);
@@ -649,7 +676,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
         <div ref={containerRef} className="w-full h-full snap-start snap-always relative bg-black flex justify-center items-center overflow-hidden z-0">
             <video 
                 ref={videoRef}
-                src={video.video_url} 
+                src={isInViewport ? video.video_url : undefined} 
                 poster={video.thumbnail_url}
                 className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ${globalNsfwBlur && !isRevealed ? 'blur-2xl scale-110 saturate-50' : ''}`} 
                 loop 

@@ -277,6 +277,14 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
     const [isEditCommunityOpen, setIsEditCommunityOpen] = useState(false);
     const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+    const [visiblePostsCount, setVisiblePostsCount] = useState(15);
+
+    const handleFeedScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+        if (scrollHeight - scrollTop <= clientHeight * 3) {
+            setVisiblePostsCount(prev => prev + 15);
+        }
+    };
 
     const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
     const { user: currentUser } = useAuthStore();
@@ -420,7 +428,10 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                     </div>
                 </div>
             </div>
-            <div className="flex-1 overflow-y-auto bg-dark-900 pb-24 pt-6">
+            <div 
+                className="flex-1 overflow-y-auto bg-dark-900 pb-24 pt-6"
+                onScroll={handleFeedScroll}
+            >
                 {/* Expandable About & Rules Card */}
                 <div className="mx-4 mb-4 bg-slate-800/40 border border-white/5 rounded-2xl overflow-hidden transition-all duration-300 shadow-md">
                     <button 
@@ -562,7 +573,7 @@ const CommunityDetailModal: React.FC<{ community: Community, onClose: () => void
                             {loading ? (
                                 <div className="text-center text-slate-400 py-10">Carregando postagens...</div>
                             ) : currentCommunityPosts.length > 0 ? (
-                                currentCommunityPosts.map(post => (
+                                currentCommunityPosts.slice(0, visiblePostsCount).map(post => (
                                     <div key={post.id} className="p-4 border-b border-white/5 hover:bg-slate-800/20 transition-colors flex gap-3">
                                         <div 
                                             onClick={() => handleUserClick(post.author)} 
