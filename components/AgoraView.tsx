@@ -57,103 +57,17 @@ export const AgoraView: React.FC = () => {
         setIsConfirmModalOpen(false);
     };
 
-    const renderHeader = () => (
-        // Header with pl-16 safe zone for hamburger menu
-        <div className="px-5 py-4 bg-gradient-to-b from-primary-900/40 to-transparent backdrop-blur-md sticky top-0 z-20 border-b border-white/5 pl-16">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-black flex items-center gap-2 text-white font-outfit tracking-tight">
-                        <span className="material-symbols-rounded filled text-3xl text-primary-500 animate-pulse-fire drop-shadow-[0_0_10px_rgba(236,72,153,0.8)]">local_fire_department</span>
-                        <span>{t('agora.title', { defaultValue: 'Agora' })}</span>
-                    </h1>
-                    <p className="text-xs text-primary-200/70 font-medium tracking-wide mt-0.5">{t('agora.subtitle', { defaultValue: 'QUEM ESTÁ BUSCANDO JÁ' })}</p>
-                </div>
-                
-                {userIsAgora ? (
-                    <button 
-                        onClick={handleDeactivateClick} 
-                        className="bg-slate-800/80 backdrop-blur-md border border-white/10 text-xs font-bold text-slate-300 py-2 px-4 rounded-full hover:bg-slate-700 transition-all shadow-lg"
-                    >
-                        {t('agora.deactivate', { defaultValue: 'Desativar' })}
-                    </button>
-                ) : (
-                    <button 
-                        onClick={() => setIsActivateModalOpen(true)} 
-                        className="bg-gradient-to-r from-primary-500 to-secondary-500 text-xs font-bold text-white py-2.5 px-5 rounded-full hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2 shadow-lg"
-                    >
-                        <span className="material-symbols-rounded text-base">add_circle</span>
-                        {t('agora.activate', { defaultValue: 'Ativar Modo' })}
-                    </button>
-                )}
-            </div>
-        </div>
-    );
     
-    if (isLoading && posts.length === 0) {
-        return (
-            <div className="h-full flex flex-col bg-dark-900">
-                {renderHeader()}
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-4">
-                    <div className="w-12 h-12 border-4 border-primary-600/30 border-t-primary-500 rounded-full animate-spin"></div>
-                    <p className="text-sm font-medium animate-pulse">{t('agora.warming_up', { defaultValue: 'Aquecendo...' })}</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (posts.length === 0) {
-        return (
-            <>
-                <div className="h-full flex flex-col bg-dark-900 relative overflow-hidden">
-                    {renderHeader()}
-                    
-                    {/* Background com efeito de "brasas" sutil */}
-                    <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary-600/10 rounded-full blur-[100px] animate-pulse"></div>
-                        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary-600/5 rounded-full blur-[120px]"></div>
-                    </div>
-
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 z-10">
-                        <div className="w-24 h-24 bg-gradient-to-br from-dark-800 to-dark-900 rounded-full flex items-center justify-center mb-6 shadow-2xl border border-white/5 relative group cursor-pointer" onClick={() => setIsActivateModalOpen(true)}>
-                            <div className="absolute inset-0 rounded-full border-2 border-primary-500/30 animate-ping opacity-20"></div>
-                            <span className="material-symbols-rounded filled text-5xl text-primary-500 group-hover:scale-110 transition-transform duration-300">local_fire_department</span>
-                        </div>
-                        <h2 className="text-2xl font-bold text-white tracking-tight font-outfit">{t('agora.empty_title', { defaultValue: 'Está tudo frio por aqui.' })}</h2>
-                        <p className="mt-3 text-slate-400 max-w-xs leading-relaxed">
-                            {t('agora.empty_desc', { defaultValue: 'Seja o primeiro a acender a chama! Publique uma foto e apareça no topo por 1 hora.' })}
-                        </p>
-                        <button 
-                            onClick={() => setIsActivateModalOpen(true)}
-                            className="mt-8 bg-white text-primary-600 font-bold py-3.5 px-8 rounded-xl hover:bg-slate-100 transition-all shadow-xl hover:shadow-primary-900/20 transform active:scale-95 flex items-center gap-2"
-                        >
-                            {t('agora.start_now', { defaultValue: 'Começar Agora' })}
-                        </button>
-                    </div>
-                </div>
-                {isActivateModalOpen && <ActivateAgoraModal onClose={() => setIsActivateModalOpen(false)} />}
-            </>
-        );
-    }
-    
+const AgoraPostCard = React.memo(({
+    post, isLast, lastPostElementRef, setSelectedVenue, handleUserClick, setSelectedPost, toggleLikePost, t, itemVariants
+}: any) => {
     return (
-        <>
-            <div className="h-full flex flex-col bg-dark-900">
-                {renderHeader()}
-                <motion.div 
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="show"
-                    className="flex-1 overflow-y-auto p-4 pb-24 space-y-6"
-                >
-                    <AnimatePresence mode="popLayout">
-                        {posts.map((post, index) => (
-                            <motion.div 
-                                variants={itemVariants}
-                                layout
-                                key={post.id} 
-                                ref={index === posts.length - 1 ? lastPostElementRef : null}
-                                className="group relative bg-slate-800 rounded-3xl shadow-2xl overflow-hidden border border-white/5"
-                            >
+        <motion.div 
+    variants={itemVariants}
+    layout
+    ref={isLast ? lastPostElementRef : null}
+    className="group relative bg-slate-800 rounded-3xl shadow-2xl overflow-hidden border border-white/5"
+>
                                 
                                 {/* Header do Card */}
                                 <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10 bg-gradient-to-b from-black/80 to-transparent">
@@ -292,7 +206,118 @@ export const AgoraView: React.FC = () => {
                                     )}
                                 </div>
                             </motion.div>
-                        ))}
+    );
+}, (prev, next) => {
+    return prev.post.id === next.post.id &&
+           prev.post.likes_count === next.post.likes_count &&
+           prev.post.comments_count === next.post.comments_count &&
+           prev.post.user_has_liked === next.post.user_has_liked &&
+           prev.isLast === next.isLast;
+});
+
+    const renderHeader = () => (
+        // Header with pl-16 safe zone for hamburger menu
+        <div className="px-5 py-4 bg-gradient-to-b from-primary-900/40 to-transparent backdrop-blur-md sticky top-0 z-20 border-b border-white/5 pl-16">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-2xl font-black flex items-center gap-2 text-white font-outfit tracking-tight">
+                        <span className="material-symbols-rounded filled text-3xl text-primary-500 animate-pulse-fire drop-shadow-[0_0_10px_rgba(236,72,153,0.8)]">local_fire_department</span>
+                        <span>{t('agora.title', { defaultValue: 'Agora' })}</span>
+                    </h1>
+                    <p className="text-xs text-primary-200/70 font-medium tracking-wide mt-0.5">{t('agora.subtitle', { defaultValue: 'QUEM ESTÁ BUSCANDO JÁ' })}</p>
+                </div>
+                
+                {userIsAgora ? (
+                    <button 
+                        onClick={handleDeactivateClick} 
+                        className="bg-slate-800/80 backdrop-blur-md border border-white/10 text-xs font-bold text-slate-300 py-2 px-4 rounded-full hover:bg-slate-700 transition-all shadow-lg"
+                    >
+                        {t('agora.deactivate', { defaultValue: 'Desativar' })}
+                    </button>
+                ) : (
+                    <button 
+                        onClick={() => setIsActivateModalOpen(true)} 
+                        className="bg-gradient-to-r from-primary-500 to-secondary-500 text-xs font-bold text-white py-2.5 px-5 rounded-full hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2 shadow-lg"
+                    >
+                        <span className="material-symbols-rounded text-base">add_circle</span>
+                        {t('agora.activate', { defaultValue: 'Ativar Modo' })}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+    
+    if (isLoading && posts.length === 0) {
+        return (
+            <div className="h-full flex flex-col bg-dark-900">
+                {renderHeader()}
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-4">
+                    <div className="w-12 h-12 border-4 border-primary-600/30 border-t-primary-500 rounded-full animate-spin"></div>
+                    <p className="text-sm font-medium animate-pulse">{t('agora.warming_up', { defaultValue: 'Aquecendo...' })}</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (posts.length === 0) {
+        return (
+            <>
+                <div className="h-full flex flex-col bg-dark-900 relative overflow-hidden">
+                    {renderHeader()}
+                    
+                    {/* Background com efeito de "brasas" sutil */}
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary-600/10 rounded-full blur-[100px] animate-pulse"></div>
+                        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary-600/5 rounded-full blur-[120px]"></div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 z-10">
+                        <div className="w-24 h-24 bg-gradient-to-br from-dark-800 to-dark-900 rounded-full flex items-center justify-center mb-6 shadow-2xl border border-white/5 relative group cursor-pointer" onClick={() => setIsActivateModalOpen(true)}>
+                            <div className="absolute inset-0 rounded-full border-2 border-primary-500/30 animate-ping opacity-20"></div>
+                            <span className="material-symbols-rounded filled text-5xl text-primary-500 group-hover:scale-110 transition-transform duration-300">local_fire_department</span>
+                        </div>
+                        <h2 className="text-2xl font-bold text-white tracking-tight font-outfit">{t('agora.empty_title', { defaultValue: 'Está tudo frio por aqui.' })}</h2>
+                        <p className="mt-3 text-slate-400 max-w-xs leading-relaxed">
+                            {t('agora.empty_desc', { defaultValue: 'Seja o primeiro a acender a chama! Publique uma foto e apareça no topo por 1 hora.' })}
+                        </p>
+                        <button 
+                            onClick={() => setIsActivateModalOpen(true)}
+                            className="mt-8 bg-white text-primary-600 font-bold py-3.5 px-8 rounded-xl hover:bg-slate-100 transition-all shadow-xl hover:shadow-primary-900/20 transform active:scale-95 flex items-center gap-2"
+                        >
+                            {t('agora.start_now', { defaultValue: 'Começar Agora' })}
+                        </button>
+                    </div>
+                </div>
+                {isActivateModalOpen && <ActivateAgoraModal onClose={() => setIsActivateModalOpen(false)} />}
+            </>
+        );
+    }
+    
+    return (
+        <>
+            <div className="h-full flex flex-col bg-dark-900">
+                {renderHeader()}
+                <motion.div 
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="show"
+                    className="flex-1 overflow-y-auto p-4 pb-24 space-y-6"
+                >
+                    <AnimatePresence mode="popLayout">
+                        {posts.map((post, index) => (
+    <AgoraPostCard
+        key={post.id}
+        post={post}
+        isLast={index === posts.length - 1}
+        lastPostElementRef={lastPostElementRef}
+        setSelectedVenue={setSelectedVenue}
+        handleUserClick={handleUserClick}
+        setSelectedPost={setSelectedPost}
+        toggleLikePost={toggleLikePost}
+        t={t}
+        itemVariants={itemVariants}
+    />
+))}
                     </AnimatePresence>
                     
                     {isLoading && posts.length > 0 && (

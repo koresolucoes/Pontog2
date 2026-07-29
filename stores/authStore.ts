@@ -141,6 +141,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         // Inicia a escuta por eventos da caixa de entrada assim que o perfil é carregado
         (await import('./inboxStore')).useInboxStore.getState().subscribeToInboxChanges();
+        
+        // Setup real-time throttled subscriptions
+        (await import('./videoStore')).subscribeToVideoEvents();
+        (await import('./communityStore')).subscribeToCommunityEvents();
+        (await import('./agoraStore')).subscribeToAgoraEvents();
 
         // Trigger onboarding if the flag is false
         if (!profileData.has_completed_onboarding) {

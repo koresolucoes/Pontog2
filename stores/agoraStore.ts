@@ -338,3 +338,25 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
 }));
 
 useAgoraStore.getState().fetchAgoraPosts();
+let agoraPostUpdateBatch: any[] = [];
+let isAgoraPostBatchScheduled = false;
+
+export const subscribeToAgoraEvents = () => {
+   const processBatch = () => {
+        if (agoraPostUpdateBatch.length > 0) {
+            useAgoraStore.getState().applyBatchedPostUpdates(agoraPostUpdateBatch);
+            agoraPostUpdateBatch = [];
+        }
+        isAgoraPostBatchScheduled = false;
+   };
+
+   supabase.channel('agora_realtime')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'agora_posts' }, payload => {
+          agoraPostUpdateBatch.push(payload.new);
+          if (!isAgoraPostBatchScheduled) {
+              isAgoraPostBatchScheduled = true;
+              setTimeout(processBatch, 2000); // 2 second throttle batch
+          }
+      })
+      .subscribe();
+};

@@ -226,7 +226,7 @@ export const VideosView: React.FC = () => {
                     </div>
                 ) : (
                     filteredAndSortedVideos.slice(0, visibleCount).map(video => (
-                        <VideoCard 
+                        <MemoizedVideoCard 
                             key={video.id} 
                             video={video} 
                             comments={comments[video.id] || []}
@@ -538,7 +538,7 @@ interface VideoCardProps {
     onEditVideo?: (title: string, desc: string) => void;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: initialComments, isLiked: initialIsLiked, globalNsfwBlur, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick, isOwner, onDeleteVideo, onEditVideo }) => {
+const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, comments: initialComments, isLiked: initialIsLiked, globalNsfwBlur, onFetchComments, onAddComment, onIncrementViews, onLike, onChatClick, isOwner, onDeleteVideo, onEditVideo }) => {
     // Get real-time state data
     const storeVideo = useVideoStore(state => state.videos.find(v => v.id === initialVideo.id));
     const video = storeVideo || initialVideo;
@@ -980,3 +980,5 @@ const VideoCard: React.FC<VideoCardProps> = ({ video: initialVideo, comments: in
         </div>
     );
 };
+
+const MemoizedVideoCard = React.memo(VideoCardComponent, (prev, next) => prev.video.id === next.video.id && prev.globalNsfwBlur === next.globalNsfwBlur && prev.isOwner === next.isOwner);

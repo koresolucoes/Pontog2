@@ -232,9 +232,14 @@ export const Map: React.FC = () => {
       const map = mapInstanceRef.current;
       if (!map || !isMapCreated) return;
 
+      const bounds = map.getBounds();
+
       // 1. Filter visible users
       const visibleUsers = users.filter(user => {
           if (!Number.isFinite(user.lat) || !Number.isFinite(user.lng)) return false;
+          
+          // CRITICAL: Filter by map bounds for high-scale performance
+          if (!bounds.contains([user.lat!, user.lng!])) return false;
           
           if (filters.favoritesOnly && !favoriteIds.includes(user.id)) return false;
           if (filters.onlineOnly && !onlineUsers.includes(user.id)) return false;
