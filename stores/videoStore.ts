@@ -615,7 +615,15 @@ export const useVideoStore = create<VideoState>((set, get) => ({
                 for (let i = 0; i < newVideos.length; i++) {
                     const update = updateMap.get(newVideos[i].id);
                     if (update) {
-                        newVideos[i] = { ...newVideos[i], ...update };
+                        const formattedUpdate: any = {};
+                        if (update.views_count !== undefined) formattedUpdate.views_count = update.views_count;
+                        if (update.likes_count !== undefined) formattedUpdate.likes_count = update.likes_count;
+                        if (update.title !== undefined) formattedUpdate.title = update.title;
+                        if (update.description !== undefined) formattedUpdate.description = update.description;
+                        if (update.video_url) formattedUpdate.video_url = getPublicImageUrl(update.video_url);
+                        if (update.thumbnail_url) formattedUpdate.thumbnail_url = getPublicImageUrl(update.thumbnail_url);
+
+                        newVideos[i] = { ...newVideos[i], ...formattedUpdate };
                         changed = true;
                     }
                 }

@@ -111,21 +111,20 @@ export const VideosView: React.FC = () => {
             }
         }
 
-        // Sort by
+        // Sort by (stable sorting - using created_at or id to avoid feed reshuffling during live view increments)
         if (sortBy === 'relevant') {
             const now = Date.now();
             const getScore = (v: any) => {
                 const daysOld = (now - new Date(v.created_at).getTime()) / (1000 * 60 * 60 * 24);
                 const recencyScore = Math.max(0, 30 - daysOld) / 30; // 0 to 1 (newer is better)
-                const engagementScore = ((v.likes_count || 0) * 2 + (v.comments_count || 0)) / (v.views_count || 1);
                 const ratingScore = (v.rating || 5) / 5; // 0 to 1
-                return (ratingScore * 0.4) + (recencyScore * 0.3) + (Math.min(engagementScore, 1) * 0.3);
+                return (ratingScore * 0.6) + (recencyScore * 0.4);
             };
             list.sort((a, b) => getScore(b) - getScore(a));
         } else if (sortBy === 'recent') {
             list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         } else if (sortBy === 'views') {
-            list.sort((a, b) => (b.views_count || 0) - (a.views_count || 0));
+            list.sort((a, b) => (b.views_count || 0) - (a.views_count || 0) || b.id - a.id);
         } else if (sortBy === 'rating') {
             list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         }
@@ -570,20 +569,11 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
     const [editTitle, setEditTitle] = useState(video.title);
     const [editDesc, setEditDesc] = useState(video.description || '');
 
-    // Optimize DOM by only rendering video src when near viewport
-    const [isInViewport, setIsInViewport] = useState(false);
-
+    // Keep stable reference to onIncrementViews to avoid disconnecting observer on re-renders
+    const onIncrementViewsRef = useRef(onIncrementViews);
     useEffect(() => {
-        const visibilityObserver = new IntersectionObserver((entries) => {
-            const entry = entries[0];
-            setIsInViewport(entry ? entry.isIntersecting : false);
-        }, { rootMargin: '100% 0px' });
-        
-        if (containerRef.current) {
-            visibilityObserver.observe(containerRef.current);
-        }
-        return () => visibilityObserver.disconnect();
-    }, []);
+        onIncrementViewsRef.current = onIncrementViews;
+    });
 
     // Reset reveal status when global filter changes or video changes
     useEffect(() => {
@@ -604,6 +594,18 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
         }
     }, [userRating]);
 
+    // TimeUpdate listener to count view only after watching 2s or 30% of video
+    const handleTimeUpdate = () => {
+        if (!hasIncrementedViewRef.current && videoRef.current) {
+            const currentTime = videoRef.current.currentTime;
+            const duration = videoRef.current.duration;
+            if (currentTime >= 2 || (duration > 0 && currentTime / duration >= 0.3)) {
+                hasIncrementedViewRef.current = true;
+                onIncrementViewsRef.current();
+            }
+        }
+    };
+
     // Intersection Observer for autoplay
     useEffect(() => {
         const observer = new IntersectionObserver((entries) => {
@@ -612,11 +614,9 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                 if (videoRef.current && (!globalNsfwBlur || isRevealed)) {
                     videoRef.current.play().then(() => {
                         setIsPlaying(true);
-                    }).catch(() => {});
-                    if (!hasIncrementedViewRef.current) {
-                        hasIncrementedViewRef.current = true;
-                        onIncrementViews();
-                    }
+                    }).catch((err) => {
+                        console.log('Autoplay deferred/prevented:', err);
+                    });
                 }
             } else {
                 if (videoRef.current) {
@@ -632,7 +632,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
         }
 
         return () => observer.disconnect();
-    }, [globalNsfwBlur, isRevealed, onIncrementViews]);
+    }, [globalNsfwBlur, isRevealed, video.id]);
 
     const handleVideoClick = () => {
         if (!videoRef.current) return;
@@ -642,11 +642,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
         } else {
             videoRef.current.play().then(() => {
                 setIsPlaying(true);
-            }).catch(err => console.log('Autoplay blocked:', err));
-            if (!hasIncrementedViewRef.current) {
-                hasIncrementedViewRef.current = true;
-                onIncrementViews();
-            }
+            }).catch(err => console.log('Playback error:', err));
         }
     };
 
@@ -683,8 +679,9 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
         <div ref={containerRef} className="w-full h-full snap-start snap-always relative bg-black flex justify-center items-center overflow-hidden z-0">
             <video 
                 ref={videoRef}
-                src={isInViewport ? video.video_url : undefined} 
+                src={video.video_url} 
                 poster={video.thumbnail_url}
+                preload="metadata"
                 className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ${globalNsfwBlur && !isRevealed ? 'blur-2xl scale-110 saturate-50' : ''}`} 
                 loop 
                 muted={isMuted}
@@ -693,6 +690,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
+                onTimeUpdate={handleTimeUpdate}
             />
 
             {/* NSFW Shield */}
@@ -706,10 +704,6 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video: initialVideo, com
                                 videoRef.current.play().then(() => {
                                     setIsPlaying(true);
                                 }).catch(err => console.log('Autoplay blocked:', err));
-                                if (!hasIncrementedViewRef.current) {
-                                    hasIncrementedViewRef.current = true;
-                                    onIncrementViews();
-                                }
                             }
                         }, 50);
                     }}
