@@ -187,6 +187,31 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
         };
         setChatUser(chatPartner);
     }, [setChatUser]);
+
+    const handleAvatarClick = React.useCallback((convo: ConversationPreview) => {
+        const chatPartner: User = {
+            id: convo.other_participant_id, username: convo.other_participant_username,
+            avatar_url: convo.other_participant_avatar_url, last_seen: convo.other_participant_last_seen,
+            display_name: null, public_photos: [], status_text: null, date_of_birth: null,
+            height_cm: null, weight_kg: null, tribes: [], position: null, hiv_status: null,
+            updated_at: '', lat: 0, lng: 0, age: 0, distance_km: null, 
+            subscription_tier: convo.other_participant_subscription_tier,
+            subscription_expires_at: null, is_incognito: false,
+            has_completed_onboarding: true,
+            has_private_albums: false,
+            email: '',
+            created_at: '',
+            status: 'active',
+            suspended_until: null,
+            kinks: [],
+            can_host: false,
+            video_url: null,
+            is_traveling: false,
+            is_verified: false,
+            has_seen_tour: false
+        };
+        setSelectedUser(chatPartner as any);
+    }, [setSelectedUser]);
     
     const handleDeleteConfirm = () => {
         if (confirmDelete) {
@@ -350,6 +375,7 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
                                 loading={loadingConversations}
                                 onConversationClick={handleConversationClick}
                                 onDeleteClick={(convo) => setConfirmDelete(convo)}
+                                onAvatarClick={handleAvatarClick}
                                 currentUserId={currentUser?.id}
                                 onEmptyAction={goToGrid}
                                 t={t}
@@ -524,6 +550,7 @@ const ConversationItem = React.memo(({
     isOnline, 
     onClick, 
     onDelete,
+    onAvatarClick,
     t,
     getLocale
 }: { 
@@ -532,6 +559,7 @@ const ConversationItem = React.memo(({
     isOnline: boolean, 
     onClick: (convo: ConversationPreview) => void, 
     onDelete: (convo: ConversationPreview) => void,
+    onAvatarClick?: (convo: ConversationPreview) => void,
     t: any,
     getLocale: any
 }) => {
@@ -547,7 +575,15 @@ const ConversationItem = React.memo(({
                 <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-primary-500 rounded-r-full" />
             )}
 
-            <div className="relative flex-shrink-0">
+            <div 
+                className="relative flex-shrink-0 cursor-pointer"
+                onClick={(e) => {
+                    if (onAvatarClick) {
+                        e.stopPropagation();
+                        onAvatarClick(convo);
+                    }
+                }}
+            >
                 <img 
                     loading="lazy" 
                     src={convo.other_participant_avatar_url} 
@@ -647,7 +683,7 @@ interface ConversationListProps {
     t: any;
     getLocale: any;
 }
-const ConversationList: React.FC<ConversationListProps> = ({ conversations, loading, onConversationClick, onDeleteClick, currentUserId, onEmptyAction, t, getLocale }) => {
+const ConversationList: React.FC<ConversationListProps & { onAvatarClick?: (convo: ConversationPreview) => void }> = ({ conversations, loading, onConversationClick, onDeleteClick, onAvatarClick, currentUserId, onEmptyAction, t, getLocale }) => {
     const onlineUsers = useMapStore((state) => state.onlineUsers);
     const inboxAd = useAdStore((state) => state.inboxAd);
     const parentRef = useRef<HTMLDivElement>(null);
@@ -731,6 +767,7 @@ const ConversationList: React.FC<ConversationListProps> = ({ conversations, load
                                     isOnline={onlineUsers.includes((item as ConversationPreview).other_participant_id)}
                                     onClick={onConversationClick}
                                     onDelete={onDeleteClick}
+                                    onAvatarClick={onAvatarClick}
                                     t={t}
                                     getLocale={getLocale}
                                 />

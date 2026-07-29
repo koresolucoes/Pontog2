@@ -12,6 +12,49 @@ import { AdSenseUnit } from './AdSenseUnit';
 import { useTranslation } from 'react-i18next';
 import { cleanTag, parseTags } from '../lib/utils';
 
+export const NewsCard = React.memo(({ article, handleArticleClick, cleanTag, parseTags, t, formatDistanceToNow, getLocale }: any) => (
+        <div 
+            onClick={() => handleArticleClick(article)}
+            className="bg-slate-800/40 border border-white/5 rounded-2xl overflow-hidden hover:bg-slate-800/60 transition-all cursor-pointer group flex flex-col h-full"
+        >
+            
+            <div className="relative aspect-video overflow-hidden">
+                <img 
+                    src={article.image_url} 
+                    alt={article.title} 
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                />
+                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg uppercase">
+                    {article.source}
+                </div>
+            </div>
+            <div className="p-4 flex-1 flex flex-col">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className={`w-2 h-2 rounded-full ${article.type === 'blog' ? 'bg-primary-500' : 'bg-blue-500'}`}></span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">
+                        {cleanTag(parseTags(article.tags)[0]) || t('news.general', { defaultValue: 'Geral' })}
+                    </span>
+                </div>
+                <h3 className="text-lg font-bold text-white font-outfit leading-tight mb-2 group-hover:text-primary-400 transition-colors">
+                    {article.title}
+                </h3>
+                <p className="text-xs text-slate-400 line-clamp-3 mb-4 flex-1 leading-relaxed">
+                    {article.summary}
+                </p>
+                <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                    <span className="text-[10px] text-slate-500 font-medium">
+                        {formatDistanceToNow(new Date(article.published_at), { addSuffix: true, locale: getLocale() } as any)}
+                    </span>
+                    <span className="text-xs font-bold text-primary-500 group-hover:underline flex items-center gap-1">
+                        {article.type === 'blog' ? t('news.read_article', { defaultValue: 'Ler Artigo' }) : t('news.access_link', { defaultValue: 'Acessar Link' })}
+                        <span className="material-symbols-rounded text-sm">{article.type === 'blog' ? 'article' : 'open_in_new'}</span>
+                    </span>
+                </div>
+            </div>
+        
+        </div>
+    ), (prev, next) => prev.article.id === next.article.id);
+
 export const NewsView: React.FC = () => {
     const { articles, loading, fetchArticles } = useNewsStore();
     const { user } = useAuthStore();
@@ -77,46 +120,7 @@ export const NewsView: React.FC = () => {
         </div>
     );
 
-    const NewsCard = ({ article }: { article: NewsArticle }) => (
-        <div 
-            onClick={() => handleArticleClick(article)}
-            className="bg-slate-800/40 border border-white/5 rounded-2xl overflow-hidden hover:bg-slate-800/60 transition-all cursor-pointer group flex flex-col h-full"
-        >
-            <div className="relative aspect-video overflow-hidden">
-                <img 
-                    src={article.image_url} 
-                    alt={article.title} 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                />
-                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg uppercase">
-                    {article.source}
-                </div>
-            </div>
-            <div className="p-4 flex-1 flex flex-col">
-                <div className="flex items-center gap-2 mb-2">
-                    <span className={`w-2 h-2 rounded-full ${article.type === 'blog' ? 'bg-primary-500' : 'bg-blue-500'}`}></span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">
-                        {cleanTag(parseTags(article.tags)[0]) || t('news.general', { defaultValue: 'Geral' })}
-                    </span>
-                </div>
-                <h3 className="text-lg font-bold text-white font-outfit leading-tight mb-2 group-hover:text-primary-400 transition-colors">
-                    {article.title}
-                </h3>
-                <p className="text-xs text-slate-400 line-clamp-3 mb-4 flex-1 leading-relaxed">
-                    {article.summary}
-                </p>
-                <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                    <span className="text-[10px] text-slate-500 font-medium">
-                        {formatDistanceToNow(new Date(article.published_at), { addSuffix: true, locale: getLocale() } as any)}
-                    </span>
-                    <span className="text-xs font-bold text-primary-500 group-hover:underline flex items-center gap-1">
-                        {article.type === 'blog' ? t('news.read_article', { defaultValue: 'Ler Artigo' }) : t('news.access_link', { defaultValue: 'Acessar Link' })}
-                        <span className="material-symbols-rounded text-sm">{article.type === 'blog' ? 'article' : 'open_in_new'}</span>
-                    </span>
-                </div>
-            </div>
-        </div>
-    );
+    
 
     // Se não estiver logado, não adiciona o padding extra para o menu hambúrguer
     const headerPadding = user ? 'pl-16' : 'px-5';
@@ -184,7 +188,7 @@ export const NewsView: React.FC = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {filteredArticles.slice(filter === 'all' ? 1 : 0).map((article, index) => (
                                     <React.Fragment key={article.id}>
-                                        <NewsCard article={article} />
+                                        <NewsCard article={article} handleArticleClick={handleArticleClick} cleanTag={cleanTag} parseTags={parseTags} t={t} formatDistanceToNow={formatDistanceToNow} getLocale={getLocale} />
                                         {/* Insert Ad periodically */}
                                         {index === 2 && (
                                             <div className="sm:col-span-2 lg:col-span-3 bg-slate-800/20 rounded-2xl p-1 border border-white/5 overflow-hidden flex justify-center items-center min-h-[100px]">

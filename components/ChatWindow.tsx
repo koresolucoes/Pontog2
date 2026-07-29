@@ -786,11 +786,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   const isOnline = onlineUsers.includes(user.id) || statusText === 'Online' || statusText === 'Online Agora' || statusText === t('profile_modal.online_now', { defaultValue: 'Online Agora' });
   const isPremiumUser = currentUser.subscription_tier === 'plus';
 
+  const handleOpenProfile = () => {
+      const fullChatUser = useUiStore.getState().chatUser;
+      if (fullChatUser) {
+          useMapStore.getState().setSelectedUser(fullChatUser as any);
+      }
+  };
+
   return (
     <>
     <div className="fixed bottom-0 right-0 sm:right-4 md:right-8 w-full sm:w-[400px] h-full sm:h-[600px] bg-dark-900/95 backdrop-blur-xl shadow-2xl rounded-t-3xl sm:rounded-3xl z-[60] flex flex-col animate-slide-in-up border border-white/10 overflow-hidden">
       <header className="flex items-center justify-between p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/5 flex-shrink-0 z-20">
-        <div className="flex items-center space-x-3">
+        <div 
+            className="flex items-center space-x-3 cursor-pointer hover:bg-white/5 p-2 rounded-xl transition-colors -ml-2"
+            onClick={handleOpenProfile}
+        >
           <div className="relative">
             <img loading="lazy" src={user.imageUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-700" />
             {isOnline && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-slate-900 shadow-[0_0_5px_rgba(74,222,128,0.8)]"></div>}

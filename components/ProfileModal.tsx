@@ -16,6 +16,8 @@ import { ReportUserModal } from './ReportUserModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useTranslation } from 'react-i18next';
 import { useVideoStore } from '../stores/videoStore';
+import { reverseGeocode } from '../lib/geocode';
+
 
 interface ProfileModalProps {
   user: User;
@@ -59,6 +61,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
   const agoraPost = posts.find(p => p.user_id === user.id);
   const videos = useVideoStore((state) => state.videos);
   const userVideos = videos.filter(v => v.user_id === user.id);
+    const [locationName, setLocationName] = useState<{city: string, state: string} | null>(null);
+
+    useEffect(() => {
+        if (user?.lat && user?.lng) {
+            reverseGeocode(user.lat, user.lng).then(setLocationName);
+        }
+    }, [user?.lat, user?.lng]);
+
 
   const fetchConnection = async () => {
     if (!currentUser || !user || currentUser.id === user.id) return;
@@ -416,7 +426,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
                 </h2>
                 <div className="flex flex-col items-center gap-1 mt-1">
                     <p className="text-sm text-orange-200/80 font-medium">
-                        {statusText} • {user.distance_km != null ? (
+                        {locationName ? `${locationName.city}, ${locationName.state} • ` : (user.city ? `${user.city}, ${user.state} • ` : '')}{statusText} • {user.distance_km != null ? (
                             currentUser?.subscription_tier === 'plus' ? (
                                 user.distance_km < 1 ? t('profile_modal.near_you_precise', { defaultValue: `${Math.round(user.distance_km * 1000)}m de você` }) : `${user.distance_km.toFixed(1)}km ` + t('profile_modal.from_you', { defaultValue: 'de você' })
                             ) : (

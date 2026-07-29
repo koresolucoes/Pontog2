@@ -39,6 +39,8 @@ export interface Profile {
   is_incognito: boolean; // Adicionado para o Modo Invisível
   is_traveling: boolean;
   visibility?: string; // Adicionado na Fase 1 - Modo Viajante
+  city?: string;
+  state?: string;
   has_completed_onboarding: boolean; // Adicionado para o fluxo de boas-vindas
   tribes_configured?: boolean;
   has_private_albums: boolean; // Adicionado para saber se o usuário tem álbuns

@@ -15,6 +15,8 @@ import { VerificationModal } from './VerificationModal';
 import { useTranslation } from 'react-i18next';
 import { cleanTag, parseTags } from '../lib/utils';
 import { useVideoStore } from '../stores/videoStore';
+import { reverseGeocode } from '../lib/geocode';
+
 
 const ToggleSwitch: React.FC<{
     label: string;
@@ -129,6 +131,14 @@ export const ProfileView: React.FC = () => {
     const { t } = useTranslation();
     const videos = useVideoStore((state) => state.videos);
     const userVideos = videos.filter(v => v.user_id === user?.id);
+    const [locationName, setLocationName] = useState<{city: string, state: string} | null>(null);
+
+    useEffect(() => {
+        if (user?.lat && user?.lng) {
+            reverseGeocode(user.lat, user.lng).then(setLocationName);
+        }
+    }, [user?.lat, user?.lng]);
+
 
     useEffect(() => {
         checkPushSupport();
@@ -222,7 +232,7 @@ export const ProfileView: React.FC = () => {
                         )}
                     </h2>
                     <p className="text-sm text-orange-200/80 font-medium mt-1">
-                        {user.city || 'São Paulo'}, {user.state || 'SP'} • {user.distance_km ? `${user.distance_km.toFixed(1)}km away` : '2km away'}
+                        {locationName ? `${locationName.city}, ${locationName.state}` : (user.city ? `${user.city}, ${user.state || 'SP'}` : t('profile.locating', { defaultValue: 'Buscando localização...' }))}
                     </p>
                 </div>
 
