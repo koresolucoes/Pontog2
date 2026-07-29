@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../stores/uiStore';
 import { useMapStore } from '../stores/mapStore';
 import { useAdStore } from '../stores/adStore';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface AdDetailModalProps {
   ad: Ad;
@@ -12,6 +13,7 @@ interface AdDetailModalProps {
 }
 
 export const AdDetailModal: React.FC<AdDetailModalProps> = ({ ad, onClose }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const setSelectedVenue = useMapStore(state => state.setSelectedVenue);
   const venues = useMapStore(state => state.venues);

@@ -63,6 +63,36 @@ const App: React.FC = () => {
 
     const [showAuth, setShowAuth] = useState(false);
 
+    // Sync activeView with URL Hash
+    useEffect(() => {
+        const handleHashChange = () => {
+            const hash = window.location.hash.replace('#', '');
+            const validViews = ['home', 'grid', 'agora', 'communities', 'inbox', 'profile', 'news', 'videos', 'map'];
+            if (validViews.includes(hash)) {
+                useUiStore.getState().setActiveView(hash as any);
+            }
+        };
+
+        window.addEventListener('hashchange', handleHashChange);
+        
+        // Initial sync
+        const hash = window.location.hash.replace('#', '');
+        if (hash && ['home', 'grid', 'agora', 'communities', 'inbox', 'profile', 'news', 'videos', 'map'].includes(hash)) {
+            handleHashChange();
+        } else {
+            window.history.replaceState(null, '', `#${activeView}`);
+        }
+
+        return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
+
+    useEffect(() => {
+        const currentHash = window.location.hash.replace('#', '');
+        if (currentHash !== activeView) {
+            window.history.pushState(null, '', `#${activeView}`);
+        }
+    }, [activeView]);
+
     useEffect(() => {
         const registerServiceWorker = async () => {
             if ('serviceWorker' in navigator) {

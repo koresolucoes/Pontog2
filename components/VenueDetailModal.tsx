@@ -8,6 +8,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useAgoraStore } from '../stores/agoraStore';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface VenueDetailModalProps {
   venue: Venue;
@@ -15,6 +16,7 @@ interface VenueDetailModalProps {
 }
 
 export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClose }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const [checkins, setCheckins] = useState<VenueCheckin[]>([]);
   const [isCheckingIn, setIsCheckingIn] = useState(false);

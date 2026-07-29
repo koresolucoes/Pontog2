@@ -4,10 +4,12 @@ import { useUiStore } from '../stores/uiStore';
 import { supabase } from '../lib/supabase';
 import { usePlanStore } from '../stores/planStore';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 export const SubscriptionModal: React.FC = () => {
     const { t } = useTranslation();
     const { setSubscriptionModalOpen } = useUiStore();
+    useHardwareBack(true, () => setSubscriptionModalOpen(false));
     const { plans, loading: loadingPlans, fetchPlans } = usePlanStore();
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);

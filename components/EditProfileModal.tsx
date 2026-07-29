@@ -9,6 +9,7 @@ import { Profile } from '../types';
 import { HIV_STATUSES, KINKS, POSITIONS, LOOKING_FOR } from '../lib/constants';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface EditProfileModalProps {
   onClose: () => void;
@@ -24,6 +25,7 @@ const getPathFromUrl = (url: string): string => {
 }
 
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const { profile, fetchProfile } = useAuthStore();
   const { tribes, fetchTribes } = useDataStore();

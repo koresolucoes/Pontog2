@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { useAgoraStore } from '../stores/agoraStore';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface ActivateAgoraModalProps {
   onClose: () => void;
 }
 
 export const ActivateAgoraModal: React.FC<ActivateAgoraModalProps> = ({ onClose }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const { activateAgoraMode, isActivating } = useAgoraStore();
   const [photoFile, setPhotoFile] = useState<File | null>(null);

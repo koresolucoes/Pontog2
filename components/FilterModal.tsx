@@ -4,6 +4,7 @@ import { useMapStore } from '../stores/mapStore';
 import { useDataStore } from '../stores/dataStore';
 import { POSITIONS, LOOKING_FOR } from '../lib/constants';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface FilterModalProps {
   onClose: () => void;
@@ -28,6 +29,7 @@ const ChipButton: React.FC<{
 );
 
 export const FilterModal: React.FC<FilterModalProps> = ({ onClose }) => {
+    useHardwareBack(true, onClose);
     const { t } = useTranslation();
     const { filters, setFilters } = useMapStore();
     const { tribes, fetchTribes } = useDataStore();

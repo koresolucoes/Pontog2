@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdSenseUnit } from './AdSenseUnit';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface RewardAdModalProps {
   onClose: () => void;
@@ -8,6 +9,7 @@ interface RewardAdModalProps {
 }
 
 export const RewardAdModal: React.FC<RewardAdModalProps> = ({ onClose, onReward }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const [countdown, setCountdown] = useState(30);
   const isFinished = countdown === 0;

@@ -3,12 +3,14 @@ import { useUserActionsStore, BlockedUser } from '../stores/userActionsStore';
 import { ConfirmationModal } from './ConfirmationModal';
 import { getPublicImageUrl } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface BlockedUsersModalProps {
     onClose: () => void;
 }
 
 export const BlockedUsersModal: React.FC<BlockedUsersModalProps> = ({ onClose }) => {
+    useHardwareBack(true, onClose);
     const { t } = useTranslation();
     const { blockedUsers, isFetchingBlocked, fetchBlockedUsers, unblockUser } = useUserActionsStore();
     const [userToUnblock, setUserToUnblock] = useState<BlockedUser | null>(null);

@@ -6,8 +6,10 @@ import { useAuthStore } from '../stores/authStore';
 import { handleUserClick, renderContent } from './postUtils';
 import { toast } from 'react-hot-toast';
 import type { CommunityPost, CommunityComment } from '../types';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: () => void, communityId: string }> = ({ post, onClose, communityId }) => {
+    useHardwareBack(true, onClose);
     const [comments, setComments] = useState<CommunityComment[]>([]);
     const [newComment, setNewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);

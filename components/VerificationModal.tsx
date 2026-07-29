@@ -4,6 +4,7 @@ import * as faceapi from 'face-api.js';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface VerificationModalProps {
     isOpen: boolean;
@@ -11,6 +12,7 @@ interface VerificationModalProps {
 }
 
 export const VerificationModal: React.FC<VerificationModalProps> = ({ isOpen, onClose }) => {
+    useHardwareBack(isOpen, onClose);
     const { t } = useTranslation();
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isModelsLoaded, setIsModelsLoaded] = useState(false);

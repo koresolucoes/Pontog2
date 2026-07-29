@@ -7,14 +7,23 @@ import { MyAlbumsModal } from './MyAlbumsModal';
 import { BlockedUsersModal } from './BlockedUsersModal';
 import { LegalModal, LegalDocType } from './LegalModals';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 export const Sidebar: React.FC = () => {
     const { isSidebarOpen, setSidebarOpen, setSubscriptionModalOpen, setDonationModalOpen, setActiveView } = useUiStore();
+    useHardwareBack(isSidebarOpen, () => setSidebarOpen(false));
+    
     const { user, toggleCanHost, toggleIncognitoMode, signOut } = useAuthStore();
     
     const [isMyAlbumsOpen, setIsMyAlbumsOpen] = useState(false);
+    useHardwareBack(isMyAlbumsOpen, () => setIsMyAlbumsOpen(false));
+    
     const [isBlockedUsersOpen, setIsBlockedUsersOpen] = useState(false);
+    useHardwareBack(isBlockedUsersOpen, () => setIsBlockedUsersOpen(false));
+    
     const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType | null>(null);
+    useHardwareBack(!!activeLegalDoc, () => setActiveLegalDoc(null));
+    
     const { t, i18n } = useTranslation();
 
     if (!user) return null;

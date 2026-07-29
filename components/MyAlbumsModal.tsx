@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { useAlbumStore } from '../stores/albumStore';
 import { PrivateAlbum } from '../types';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface MyAlbumsModalProps {
   onClose: () => void;
 }
 
 export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const { myAlbums, isLoading, fetchMyAlbums, createAlbum, deleteAlbum, uploadPhoto, addPhotoToAlbum, deletePhotoFromAlbum, isUploading } = useAlbumStore();
   const [newAlbumName, setNewAlbumName] = useState('');

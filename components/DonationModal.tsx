@@ -4,12 +4,14 @@ import toast from 'react-hot-toast';
 import { useUiStore } from '../stores/uiStore';
 import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 const presetAmounts = [5, 10, 25, 50];
 
 export const DonationModal: React.FC = () => {
-    const { t } = useTranslation();
     const { setDonationModalOpen } = useUiStore();
+    useHardwareBack(true, () => setDonationModalOpen(false));
+    const { t } = useTranslation();
     const [amount, setAmount] = useState('');
     const [message, setMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);

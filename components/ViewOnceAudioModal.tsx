@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface ViewOnceAudioModalProps {
   audioUrl: string;
@@ -7,6 +8,7 @@ interface ViewOnceAudioModalProps {
 }
 
 export const ViewOnceAudioModal: React.FC<ViewOnceAudioModalProps> = ({ audioUrl, onClose }) => {
+    useHardwareBack(true, onClose);
     const { t } = useTranslation();
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface UnlockFeatureModalProps {
   title: string;
@@ -10,6 +11,7 @@ interface UnlockFeatureModalProps {
 }
 
 export const UnlockFeatureModal: React.FC<UnlockFeatureModalProps> = ({ title, description, onClose, onUpgrade, onWatchAd }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   return (
     <div className="fixed inset-0 bg-dark-900/80 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4" onClick={onClose}>

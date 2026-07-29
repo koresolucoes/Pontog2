@@ -9,6 +9,7 @@ import { useNewsStore } from '../stores/newsStore';
 import { useAuthStore } from '../stores/authStore';
 import { useTranslation } from 'react-i18next';
 import { cleanTag, parseTags } from '../lib/utils';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface NewsReaderModalProps {
     article: NewsArticle;
@@ -16,6 +17,7 @@ interface NewsReaderModalProps {
 }
 
 export const NewsReaderModal: React.FC<NewsReaderModalProps> = ({ article, onClose }) => {
+    useHardwareBack(true, onClose);
     const { t } = useTranslation();
     const { activeComments, loadingComments, fetchComments, addComment, toggleLikeComment } = useNewsStore();
     const { user } = useAuthStore();

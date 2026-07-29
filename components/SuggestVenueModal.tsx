@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { VenueType } from '../types';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface SuggestVenueModalProps {
   onClose: () => void;
@@ -20,6 +21,7 @@ const VENUE_TYPES: { value: VenueType; label: string }[] = [
 ];
 
 export const SuggestVenueModal: React.FC<SuggestVenueModalProps> = ({ onClose }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const { myLocation, suggestVenue } = useMapStore();
   const [loading, setLoading] = useState(false);

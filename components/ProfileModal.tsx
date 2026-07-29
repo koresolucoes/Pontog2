@@ -17,7 +17,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { useTranslation } from 'react-i18next';
 import { useVideoStore } from '../stores/videoStore';
 import { reverseGeocode } from '../lib/geocode';
-
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface ProfileModalProps {
   user: User;
@@ -26,6 +26,7 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onStartChat }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const currentUser = useAuthStore((state) => state.user);
   const onlineUsers = useMapStore((state) => state.onlineUsers);
@@ -44,10 +45,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onSta
 
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [viewingAlbum, setViewingAlbum] = useState<PrivateAlbum | null>(null);
+  useHardwareBack(!!viewingAlbum, () => setViewingAlbum(null));
+  
   const [winkCount, setWinkCount] = useState<number | null>(null);
   const [isOptionsMenuOpen, setOptionsMenuOpen] = useState(false);
+  useHardwareBack(isOptionsMenuOpen, () => setOptionsMenuOpen(false));
+  
   const [isReportModalOpen, setReportModalOpen] = useState(false);
+  useHardwareBack(isReportModalOpen, () => setReportModalOpen(false));
+  
   const [isBlockConfirmOpen, setBlockConfirmOpen] = useState(false);
+  useHardwareBack(isBlockConfirmOpen, () => setBlockConfirmOpen(false));
   
   // Connection Request States
   const [connection, setConnection] = useState<any>(null);

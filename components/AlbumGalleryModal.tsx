@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PrivateAlbum } from '../types';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface AlbumGalleryModalProps {
   album: PrivateAlbum;
@@ -8,6 +9,7 @@ interface AlbumGalleryModalProps {
 }
 
 export const AlbumGalleryModal: React.FC<AlbumGalleryModalProps> = ({ album, onClose }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const photos = album.private_album_photos;

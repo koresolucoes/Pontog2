@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   confirmText,
   cancelText
 }) => {
+  useHardwareBack(isOpen, onCancel);
   const { t } = useTranslation();
   if (!isOpen) return null;
 

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 export type LegalDocType = 'terms' | 'privacy' | 'guidelines';
 
@@ -129,6 +130,7 @@ const DiretrizesComunidade = () => {
 )};
 
 export const LegalModal: React.FC<LegalModalProps> = ({ type, onClose }) => {
+  useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const getTitle = () => {
     switch (type) {

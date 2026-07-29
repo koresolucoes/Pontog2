@@ -3,12 +3,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useMapStore } from '../stores/mapStore';
 import * as L from 'leaflet';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface TravelModeModalProps {
     onClose: () => void;
 }
 
 export const TravelModeModal: React.FC<TravelModeModalProps> = ({ onClose }) => {
+    useHardwareBack(true, onClose);
     const { t } = useTranslation();
     const { myLocation, enableTravelMode } = useMapStore();
     const mapRef = useRef<HTMLDivElement>(null);

@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/authStore';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { handleUserClick } from './postUtils';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface AgoraPostDetailModalProps {
   post: AgoraPost;
@@ -13,6 +14,7 @@ interface AgoraPostDetailModalProps {
 }
 
 export const AgoraPostDetailModal: React.FC<AgoraPostDetailModalProps> = ({ post, onClose }) => {
+  useHardwareBack(true, onClose);
   const { addComment, fetchCommentsForPost, toggleLikePost, toggleLikeComment } = useAgoraStore();
   const currentPost = useAgoraStore(state => state.posts.find(p => p.id === post.id)) || post;
   

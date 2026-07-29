@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import { ViewOncePhotoModal } from './ViewOncePhotoModal';
 import { ViewOnceAudioModal } from './ViewOnceAudioModal';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface ChatUser {
   id: string;
@@ -275,6 +276,8 @@ const MessageStatus = React.memo(({ msg, currentUserId, isPremium, t }: { msg: M
 });
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
+  useHardwareBack(true, onClose);
+  
   const { t } = useTranslation();
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
@@ -294,9 +297,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   
   const [isAttachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [isAlbumSelectorOpen, setIsAlbumSelectorOpen] = useState(false);
+  
+  useHardwareBack(isAlbumSelectorOpen, () => setIsAlbumSelectorOpen(false));
+  useHardwareBack(!!confirmDeleteMessage, () => setConfirmDeleteMessage(null));
+  useHardwareBack(confirmDeleteConvo, () => setConfirmDeleteConvo(false));
+  useHardwareBack(isAttachmentMenuOpen, () => setAttachmentMenuOpen(false));
+  
   const imageInputRef = useRef<HTMLInputElement>(null);
   
   const [messageOptions, setMessageOptions] = useState<MessageType | null>(null);
+  useHardwareBack(!!messageOptions, () => setMessageOptions(null));
   
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -307,8 +317,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   const [imageToSend, setImageToSend] = useState<{ file: File; preview: string } | null>(null);
   const [audioToSend, setAudioToSend] = useState<{ file: File; preview: string } | null>(null);
   const [isViewOnce, setIsViewOnce] = useState(false);
+  
+  useHardwareBack(!!imageToSend, () => setImageToSend(null));
+  useHardwareBack(!!audioToSend, () => setAudioToSend(null));
+  useHardwareBack(isRecording, () => cancelRecording());
+  
   const [viewingOncePhoto, setViewingOncePhoto] = useState<MessageType | null>(null);
   const [viewingOnceAudio, setViewingOnceAudio] = useState<MessageType | null>(null);
+  
+  useHardwareBack(!!viewingOncePhoto, () => setViewingOncePhoto(null));
+  useHardwareBack(!!viewingOnceAudio, () => setViewingOnceAudio(null));
+  
   const [connectionStatus, setConnectionStatus] = useState<'pending_incoming' | 'pending_outgoing' | 'accepted' | 'none'>('none');
   const [connectionIdState, setConnectionIdState] = useState<string | null>(null);
 

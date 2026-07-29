@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { useUserActionsStore, reportReasons } from '../stores/userActionsStore';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface ReportUserModalProps {
   user: User;
@@ -9,6 +10,7 @@ interface ReportUserModalProps {
 }
 
 export const ReportUserModal: React.FC<ReportUserModalProps> = ({ user, onClose }) => {
+    useHardwareBack(true, onClose);
     const { t } = useTranslation();
     const { reportUser } = useUserActionsStore();
     const [reason, setReason] = useState('');

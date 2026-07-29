@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHardwareBack } from '../lib/useHardwareBack';
 
 interface ViewOncePhotoModalProps {
   imageUrl: string;
@@ -7,6 +8,7 @@ interface ViewOncePhotoModalProps {
 }
 
 export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl, onClose }) => {
+    useHardwareBack(true, onClose);
     const { t } = useTranslation();
     const [isFocused, setIsFocused] = useState(true);
     const [isHolding, setIsHolding] = useState(false);
