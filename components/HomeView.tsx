@@ -79,8 +79,31 @@ const HomeFeedAdCard: React.FC<HomeFeedAdCardProps> = ({ ad, onClick }) => {
     );
 };
 
-export 
-const HomeUserCard = React.memo(({ user, isLastUser, isAgora, isPlus, lastUserElementRef, handleUserClick, onlineUsers, calculateAge, t, getRoleIcon, hasRole, renderVerifiedBadge, itemVariants }: any) => {
+const getRoleIcon = (role: string) => {
+    switch (role) {
+        case 'admin': return 'shield_person';
+        case 'owner': return 'storefront';
+        default: return 'person';
+    }
+};
+
+const hasRole = (user: any, role: string) => {
+    if (role === 'owner') return user.is_owner === true;
+    if (role === 'admin') return user.is_admin === true;
+    if (user.role === role) return true;
+    return false;
+};
+
+const renderVerifiedBadge = (user: any) => {
+    if (!user.is_verified) return null;
+    return (
+        <div className="bg-blue-500/90 backdrop-blur-md text-white rounded-full p-1 shadow border border-white/20" title="Verificado">
+            <span className="material-symbols-rounded filled block" style={{ fontSize: '12px' }}>check_circle</span>
+        </div>
+    );
+};
+
+export const HomeUserCard = React.memo(({ user, isLastUser, isAgora, isPlus, lastUserElementRef, handleUserClick, onlineUsers, calculateAge, t, getRoleIcon, hasRole, renderVerifiedBadge, itemVariants }: any) => {
     return (
         <motion.div
             variants={itemVariants}
