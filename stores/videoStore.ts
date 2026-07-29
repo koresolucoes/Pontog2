@@ -680,7 +680,12 @@ let videoUpdateBatch: any[] = [];
 let commentUpdateBatch: any[] = [];
 let isVideoBatchScheduled = false;
 
+let isVideoSubscribed = false;
+
 export const subscribeToVideoEvents = () => {
+   if (isVideoSubscribed) return;
+   isVideoSubscribed = true;
+
    const processBatch = () => {
         if (videoUpdateBatch.length > 0 || commentUpdateBatch.length > 0) {
             useVideoStore.getState().applyBatchedUpdates(videoUpdateBatch, commentUpdateBatch);

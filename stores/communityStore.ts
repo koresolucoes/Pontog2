@@ -579,7 +579,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 let postUpdateBatch: any[] = [];
 let isPostBatchScheduled = false;
 
+let isCommunitySubscribed = false;
+
 export const subscribeToCommunityEvents = () => {
+   if (isCommunitySubscribed) return;
+   isCommunitySubscribed = true;
+
    const processBatch = () => {
         if (postUpdateBatch.length > 0) {
             useCommunityStore.getState().applyBatchedPostUpdates(postUpdateBatch);

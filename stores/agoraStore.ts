@@ -341,7 +341,12 @@ useAgoraStore.getState().fetchAgoraPosts();
 let agoraPostUpdateBatch: any[] = [];
 let isAgoraPostBatchScheduled = false;
 
+let isAgoraSubscribed = false;
+
 export const subscribeToAgoraEvents = () => {
+   if (isAgoraSubscribed) return;
+   isAgoraSubscribed = true;
+
    const processBatch = () => {
         if (agoraPostUpdateBatch.length > 0) {
             useAgoraStore.getState().applyBatchedPostUpdates(agoraPostUpdateBatch);
