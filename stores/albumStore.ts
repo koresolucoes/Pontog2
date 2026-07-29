@@ -132,16 +132,19 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
         
         const newAlbum = { ...data, private_album_photos: [] };
         set(state => ({ myAlbums: [newAlbum, ...state.myAlbums] }));
+        await get().fetchMyAlbums();
         return newAlbum;
     },
 
     deleteAlbum: async (albumId: number) => {
+        set(state => ({ myAlbums: state.myAlbums.filter(a => a.id !== albumId) }));
         const { error } = await supabase.from('private_albums').delete().eq('id', albumId);
         if (error) {
             console.error('Error deleting album:', error);
+            await get().fetchMyAlbums();
             return false;
         }
-        set(state => ({ myAlbums: state.myAlbums.filter(a => a.id !== albumId) }));
+        await get().fetchMyAlbums();
         return true;
     },
 
@@ -160,17 +163,39 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
             return null;
         }
 
-        get().fetchMyAlbums(); 
+        const publicUrl = getPublicImageUrl(photoPath);
+        const newPhoto: PrivateAlbumPhoto = {
+            ...data,
+            photo_path: publicUrl
+        };
+
+        set(state => ({
+            myAlbums: state.myAlbums.map(album => 
+                album.id === albumId 
+                    ? { ...album, private_album_photos: [...(album.private_album_photos || []), newPhoto] }
+                    : album
+            )
+        }));
+
+        await get().fetchMyAlbums(); 
         return data;
     },
     
     deletePhotoFromAlbum: async (photoId: number) => {
+        set(state => ({
+            myAlbums: state.myAlbums.map(album => ({
+                ...album,
+                private_album_photos: (album.private_album_photos || []).filter(p => p.id !== photoId)
+            }))
+        }));
+
         const { error } = await supabase.from('private_album_photos').delete().eq('id', photoId);
         if (error) {
             console.error('Error deleting photo:', error);
+            await get().fetchMyAlbums();
             return false;
         }
-        get().fetchMyAlbums();
+        await get().fetchMyAlbums();
         return true;
     },
 

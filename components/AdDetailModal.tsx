@@ -74,10 +74,10 @@ export const AdDetailModal: React.FC<AdDetailModalProps> = ({ ad, onClose }) => 
             {ad.cta_url && ad.cta_url !== '#' && !ad.cta_url.startsWith('/venue') && (
               <button 
                 onClick={handleOpenLink}
-                className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-primary-900/20"
               >
-                <Tag size={18} />
-                <span>Resgatar Cupom / Oferta</span>
+                <ExternalLink size={18} />
+                <span>{ad.cta_text || 'Saiba Mais'}</span>
               </button>
             )}
 
@@ -88,16 +88,6 @@ export const AdDetailModal: React.FC<AdDetailModalProps> = ({ ad, onClose }) => 
               >
                 <MapPin size={18} />
                 <span>Ver Perfil do Local</span>
-              </button>
-            )}
-
-            {(ad.cta_url && ad.cta_url !== '#' && !ad.cta_url.startsWith('/venue')) && (
-               <button 
-                onClick={handleOpenLink}
-                className="w-full flex items-center justify-center gap-2 bg-transparent hover:bg-white/5 text-slate-300 font-bold py-3 px-4 rounded-xl transition-all border border-white/10"
-              >
-                <ExternalLink size={18} />
-                <span>{ad.cta_text || 'Visitar Site'}</span>
               </button>
             )}
           </div>

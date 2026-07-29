@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 
 // Mock data as fallback
+const PREP_GOV_URL = 'https://www.gov.br/aids/pt-br/assuntos/prep-profilaxia-pre-exposicao';
+
 const MOCK_ADS: Ad[] = [
     {
         id: 1,
@@ -23,7 +25,7 @@ const MOCK_ADS: Ad[] = [
         description: 'Cuide-se! Informações e suporte sobre saúde sexual. Discreto e seguro.',
         image_url: 'https://images.pexels.com/photos/4021779/pexels-photo-4021779.jpeg?auto=compress&cs=tinysrgb&w=600',
         cta_text: 'Ver Agora',
-        cta_url: 'https://example.com',
+        cta_url: PREP_GOV_URL,
     }
 ];
 
@@ -78,7 +80,12 @@ export const useAdStore = create<AdState>((set, get) => ({
 
                     // Respect custom CTA and URL configurations from DB
                     const customCtaText = camp.cta_text || (camp.placement === 'messages' ? 'Ver Agora' : 'Saiba Mais');
-                    const customCtaUrl = camp.cta_url || (camp.venue_id ? `/venue/${camp.venue_id}` : '#');
+                    let customCtaUrl = camp.cta_url || (camp.venue_id ? `/venue/${camp.venue_id}` : '#');
+
+                    const isPrepRelated = (camp.title && camp.title.toLowerCase().includes('prep')) || (camp.message && camp.message.toLowerCase().includes('prep'));
+                    if (isPrepRelated && (!camp.cta_url || camp.cta_url === '#' || camp.cta_url.includes('example.com'))) {
+                        customCtaUrl = PREP_GOV_URL;
+                    }
 
                     const mappedAd: Ad = {
                         id: camp.id,

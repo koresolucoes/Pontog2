@@ -14,7 +14,8 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
   const { t } = useTranslation();
   const { myAlbums, isLoading, fetchMyAlbums, createAlbum, deleteAlbum, uploadPhoto, addPhotoToAlbum, deletePhotoFromAlbum, isUploading } = useAlbumStore();
   const [newAlbumName, setNewAlbumName] = useState('');
-  const [selectedAlbum, setSelectedAlbum] = useState<PrivateAlbum | null>(null);
+  const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null);
+  const selectedAlbum = myAlbums.find(a => a.id === selectedAlbumId) || null;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -39,6 +40,9 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
         await addPhotoToAlbum(selectedAlbum.id, newPath);
     } else {
         alert(t('my_albums.upload_failed', { defaultValue: 'Falha no upload da foto.' }));
+    }
+    if (fileInputRef.current) {
+        fileInputRef.current.value = '';
     }
   };
   
@@ -82,7 +86,7 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
         ) : (
           <div className="grid grid-cols-2 gap-4">
             {myAlbums.map(album => (
-              <div key={album.id} className="relative aspect-square group cursor-pointer rounded-2xl overflow-hidden bg-slate-800 shadow-md hover:shadow-xl transition-all border border-white/5" onClick={() => setSelectedAlbum(album)}>
+              <div key={album.id} className="relative aspect-square group cursor-pointer rounded-2xl overflow-hidden bg-slate-800 shadow-md hover:shadow-xl transition-all border border-white/5" onClick={() => setSelectedAlbumId(album.id)}>
                 {album.private_album_photos && album.private_album_photos.length > 0 ? (
                    <img loading="lazy" src={album.private_album_photos[0].photo_path} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100"/>
                 ) : (
@@ -112,12 +116,12 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
      <>
       <header className="p-5 border-b border-white/10 flex justify-between items-center flex-shrink-0 bg-slate-800/50 rounded-t-3xl">
         <div className="flex items-center gap-3">
-            <button onClick={() => setSelectedAlbum(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-slate-400 hover:text-white">
+            <button onClick={() => setSelectedAlbumId(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-slate-400 hover:text-white">
                 <span className="material-symbols-rounded">arrow_back</span>
             </button>
             <h2 className="text-lg font-bold text-white truncate max-w-[200px]">{selectedAlbum.name}</h2>
         </div>
-        <button type="button" onClick={() => deleteAlbum(selectedAlbum.id).then(() => setSelectedAlbum(null))} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors">
+        <button type="button" onClick={() => deleteAlbum(selectedAlbum.id).then(() => setSelectedAlbumId(null))} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors">
             <span className="material-symbols-rounded">delete</span>
         </button>
       </header>
