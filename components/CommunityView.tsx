@@ -449,7 +449,7 @@ const CommunityPostCard = React.memo(({
                                                 </button>
                                                 <button onClick={async () => {
                                                     try {
-                                                        await useCommunityStore.getState().repostPost(post.id, community.id);
+                                                        await useCommunityStore.getState().repostPost(post.id, post.community_id);
                                                         toast.success('Repostado com sucesso!');
                                                     } catch (e: any) {
                                                         toast.error(e?.message || 'Erro ao repostar');

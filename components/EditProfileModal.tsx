@@ -24,6 +24,51 @@ const getPathFromUrl = (url: string): string => {
     return url;
 }
 
+const InputField = ({ label, name, type = "text", value, onChange, placeholder = "", ...rest }: any) => (
+    <div className="space-y-1.5">
+        <label htmlFor={name} className="block text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wide">{label}</label>
+        <input 
+            type={type} 
+            name={name} 
+            id={name} 
+            value={value || ''} 
+            onChange={onChange} 
+            placeholder={placeholder}
+            className="w-full bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all shadow-sm text-sm font-medium" 
+            {...rest}
+        />
+    </div>
+);
+
+const SelectField = ({ label, name, value, onChange, options, t }: any) => (
+    <div className="space-y-1.5">
+        <label htmlFor={name} className="block text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wide">{label}</label>
+        <div className="relative">
+          <select 
+              name={name} 
+              id={name} 
+              value={value || ''} 
+              onChange={onChange} 
+              className="w-full bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all appearance-none shadow-sm text-sm font-medium"
+          >
+              <option value="" disabled>{t('edit_profile.select_an_option', { defaultValue: 'Selecione uma opção...' })}</option>
+              {options.map((opt: string) => {
+                  const translatedText = t(`constants.${name}.${opt}`, {
+                      defaultValue: opt,
+                      fallbackLng: 'en'
+                  });
+                  return (
+                      <option key={opt} value={opt}>{translatedText !== `constants.${name}.${opt}` ? translatedText : opt}</option>
+                  );
+              })}
+          </select>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <span className="material-symbols-rounded text-[18px]">expand_more</span>
+          </div>
+        </div>
+    </div>
+);
+
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) => {
   useHardwareBack(true, onClose);
   const { t } = useTranslation();
@@ -255,50 +300,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
   if (!profile || !formData) return null;
 
   // Updated InputField to accept generic props like min, max, maxLength etc.
-  const InputField = ({ label, name, type = "text", value, onChange, placeholder = "", ...rest }: any) => (
-      <div className="space-y-1.5">
-          <label htmlFor={name} className="block text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wide">{label}</label>
-          <input 
-              type={type} 
-              name={name} 
-              id={name} 
-              value={value || ''} 
-              onChange={onChange} 
-              placeholder={placeholder}
-              className="w-full bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all shadow-sm text-sm font-medium" 
-              {...rest}
-          />
-      </div>
-  );
 
-  const SelectField = ({ label, name, value, onChange, options }: any) => (
-      <div className="space-y-1.5">
-          <label htmlFor={name} className="block text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wide">{label}</label>
-          <div className="relative">
-            <select 
-                name={name} 
-                id={name} 
-                value={value || ''} 
-                onChange={onChange} 
-                className="w-full bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3.5 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all shadow-sm text-sm font-medium"
-            >
-                {options.map((opt: string) => {
-                    const translatedText = t(`constants.positions.${opt}`, {
-                        defaultValue: t(`constants.hiv_statuses.${opt}`, {
-                            defaultValue: t(`constants.options.${opt}`, { defaultValue: opt })
-                        })
-                    });
-                    return (
-                        <option key={opt} value={opt === 'Não informado' ? '' : opt} className="bg-slate-800">
-                            {translatedText}
-                        </option>
-                    );
-                })}
-            </select>
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none material-symbols-rounded text-xl">expand_more</span>
-          </div>
-      </div>
-  );
 
   return typeof document !== 'undefined' ? createPortal(
     <div className="fixed inset-0 bg-dark-900/80 backdrop-blur-md flex items-end sm:items-center justify-center z-50 animate-fade-in" onClick={onClose}>

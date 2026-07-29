@@ -160,7 +160,7 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
         className="bg-slate-900/95 backdrop-blur-xl rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-2xl mx-auto animate-slide-in-up sm:animate-fade-in-up flex flex-col h-[85vh] sm:h-auto sm:max-h-[80vh] border border-white/10" 
         onClick={(e) => e.stopPropagation()}
       >
-        {selectedAlbum ? <AlbumDetailView /> : <MainView />}
+        {selectedAlbum ? AlbumDetailView() : MainView()}
       </div>
     </div>,
     document.body

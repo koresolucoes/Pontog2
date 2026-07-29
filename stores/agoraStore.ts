@@ -32,6 +32,7 @@ interface AgoraState {
   fetchCommentsForPost: (postId: number) => Promise<AgoraComment[]>;
   toggleLikeComment: (commentId: number, hasLiked: boolean) => Promise<void>;
   publishAgoraCheckin: (venueName: string, venueImageUrl: string) => Promise<void>;
+  applyBatchedPostUpdates: (updates: any[]) => void;
 }
 
 let isPaginatedRpcSupported = true;
@@ -333,6 +334,20 @@ export const useAgoraStore = create<AgoraState>((set, get) => ({
     
     // Refresh posts
     await get().fetchAgoraPosts(true);
+  },
+  applyBatchedPostUpdates: (updates: any[]) => {
+      set((state) => {
+          const newPosts = [...state.posts];
+          let changed = false;
+          updates.forEach((update) => {
+              const idx = newPosts.findIndex((p) => p.id === update.id);
+              if (idx !== -1) {
+                  newPosts[idx] = { ...newPosts[idx], ...update };
+                  changed = true;
+              }
+          });
+          return changed ? { posts: newPosts } : {};
+      });
   },
 
 }));

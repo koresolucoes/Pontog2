@@ -35,6 +35,7 @@ import { VenueDetailModal } from './components/VenueDetailModal';
 import { GuidedTour } from './components/GuidedTour';
 import { CommunityView } from './components/CommunityView';
 import { VideosView } from './components/VideosView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 
 const App: React.FC = () => {
@@ -191,6 +192,7 @@ const App: React.FC = () => {
     };
 
     return (
+        <ErrorBoundary>
         <>
             <Toaster
                 position="top-center"
@@ -306,6 +308,7 @@ const App: React.FC = () => {
                 </div>
             )}
         </>
+        </ErrorBoundary>
     );
 };
 
