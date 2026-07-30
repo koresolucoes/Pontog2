@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PrivateAlbum } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useHardwareBack } from '../lib/useHardwareBack';
+import { isVideoUrl } from '../lib/utils';
 
 interface AlbumGalleryModalProps {
   album: PrivateAlbum;
@@ -12,7 +13,7 @@ export const AlbumGalleryModal: React.FC<AlbumGalleryModalProps> = ({ album, onC
   useHardwareBack(true, onClose);
   const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const photos = album.private_album_photos;
+  const photos = album.private_album_photos || [];
 
   const nextPhoto = () => setCurrentIndex((prev) => (prev + 1) % photos.length);
   const prevPhoto = () => setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);
@@ -29,12 +30,32 @@ export const AlbumGalleryModal: React.FC<AlbumGalleryModalProps> = ({ album, onC
     );
   }
 
+  const currentItem = photos[currentIndex];
+  const isVideo = currentItem ? isVideoUrl(currentItem.photo_path, currentItem.media_type) : false;
+
   return (
     <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center z-[180] animate-fade-in" onClick={onClose}>
       
       <div className="w-full h-full flex items-center justify-center p-4 sm:p-10" onClick={(e) => e.stopPropagation()}>
         <div className="relative w-full max-w-5xl aspect-[4/5] sm:aspect-video flex items-center justify-center">
-            <img loading="lazy" src={photos[currentIndex].photo_path} alt={t('gallery.photo_alt', { defaultValue: 'Foto {{current}} do álbum {{name}}', current: currentIndex + 1, name: album.name })} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
+            {isVideo ? (
+                <video 
+                    key={currentItem.photo_path}
+                    src={currentItem.photo_path} 
+                    controls 
+                    autoPlay 
+                    playsInline 
+                    className="max-w-full max-h-full rounded-lg shadow-2xl" 
+                />
+            ) : (
+                <img 
+                    key={currentItem.photo_path}
+                    loading="lazy" 
+                    src={currentItem.photo_path} 
+                    alt={t('gallery.photo_alt', { defaultValue: 'Foto {{current}} do álbum {{name}}', current: currentIndex + 1, name: album.name })} 
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
+                />
+            )}
         </div>
       </div>
 
@@ -53,8 +74,11 @@ export const AlbumGalleryModal: React.FC<AlbumGalleryModalProps> = ({ album, onC
         </>
         )}
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center text-white bg-black/60 backdrop-blur-md px-6 py-3 rounded-full border border-white/10">
-          <p className="font-bold text-sm">{album.name}</p>
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center text-white bg-black/60 backdrop-blur-md px-6 py-3 rounded-full border border-white/10 flex flex-col items-center">
+          <p className="font-bold text-sm flex items-center justify-center gap-1.5">
+            {isVideo && <span className="material-symbols-rounded text-primary-400 text-base">videocam</span>}
+            {album.name}
+          </p>
           <p className="text-xs text-slate-400 mt-0.5">{currentIndex + 1} / {photos.length}</p>
       </div>
     </div>

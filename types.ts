@@ -97,6 +97,7 @@ export interface PrivateAlbumPhoto {
     album_id: number;
     user_id: string;
     photo_path: string;
+    media_type?: 'photo' | 'video';
     created_at: string;
 }
 
@@ -105,6 +106,8 @@ export interface PrivateAlbum {
     user_id: string;
     name: string;
     created_at: string;
+    expires_at?: string | null;
+    is_view_once?: boolean;
     // Isso vem da query com join no albumStore, e Supabase usa o nome da tabela
     private_album_photos: PrivateAlbumPhoto[];
 }

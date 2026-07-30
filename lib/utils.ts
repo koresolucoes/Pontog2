@@ -6,6 +6,21 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 import { getPublicImageUrl } from './supabase';
 import { User } from '../types';
 
+export const isVideoUrl = (path?: string | null, mediaType?: string | null): boolean => {
+    if (mediaType === 'video') return true;
+    if (!path) return false;
+    const cleanPath = path.split('?')[0].toLowerCase();
+    return cleanPath.endsWith('.mp4') || 
+           cleanPath.endsWith('.webm') || 
+           cleanPath.endsWith('.mov') || 
+           cleanPath.endsWith('.mkv') || 
+           cleanPath.endsWith('.avi') || 
+           cleanPath.endsWith('.m4v') ||
+           cleanPath.endsWith('.3gp') ||
+           cleanPath.endsWith('.ogv') ||
+           cleanPath.includes('/videos/');
+};
+
 /**
  * Formata um timestamp para uma string de "visto por último" legível.
  * Considera um usuário online se esteve ativo nos últimos 5 minutos.

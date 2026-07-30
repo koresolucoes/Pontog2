@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { formatLastSeen } from '../lib/utils';
 import { ConfirmationModal } from './ConfirmationModal';
 import { SelectAlbumModal } from './SelectAlbumModal';
+import { AlbumGalleryModal } from './AlbumGalleryModal';
 import { getPublicImageUrl } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { ViewOncePhotoModal } from './ViewOncePhotoModal';
@@ -37,6 +38,7 @@ interface ChatWindowProps {
 interface MessageContentProps {
   message: MessageType;
   onViewOnceClick: (message: MessageType) => void;
+  onAlbumClick?: (albumId: number, isViewOnce?: boolean, expiresAt?: string | null, message?: MessageType) => void;
   t: any;
   isOwn?: boolean;
 }
@@ -121,7 +123,7 @@ const AudioPreviewPlayer: React.FC<{ src: string }> = ({ src }) => {
 };
 
 // Memoized MessageContent to prevent unnecessary re-renders
-const MessageContent: React.FC<MessageContentProps> = React.memo(({ message, onViewOnceClick, t, isOwn }) => {
+const MessageContent: React.FC<MessageContentProps> = React.memo(({ message, onViewOnceClick, onAlbumClick, t, isOwn }) => {
     if (message.is_view_once) {
         let isAudio = false;
         try {
@@ -213,17 +215,55 @@ const MessageContent: React.FC<MessageContentProps> = React.memo(({ message, onV
                         </div>
                     );
                 case 'album':
-                    const { albumName } = parsedContent;
+                    const { albumId, albumName, expiresAt, isViewOnce } = parsedContent;
+                    const isExpired = expiresAt && new Date(expiresAt) < new Date();
+
+                    if (isExpired) {
+                        return (
+                            <div className="flex items-center gap-2 text-sm italic opacity-60 select-none text-rose-300">
+                                <span className="material-symbols-rounded text-lg">timer_off</span>
+                                <span>{t('chat.album_expired', { defaultValue: 'Acesso ao álbum expirou' })}</span>
+                            </div>
+                        );
+                    }
+
+                    if (isViewOnce && message.viewed_at) {
+                        return (
+                            <div className="flex items-center gap-2 text-sm italic opacity-60 select-none text-amber-300">
+                                <span className="material-symbols-rounded text-lg">visibility_off</span>
+                                <span>{isOwn ? t('chat.album_viewed_by_recipient', { defaultValue: 'Álbum (1x) visualizado pelo destinatário' }) : t('chat.album_viewed', { defaultValue: 'Álbum (1x) já visualizado' })}</span>
+                            </div>
+                        );
+                    }
+
                     return (
-                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                                <span className="material-symbols-rounded filled text-xl">photo_album</span>
+                        <button 
+                            type="button"
+                            onClick={() => onAlbumClick && albumId && onAlbumClick(albumId, isViewOnce, expiresAt, message)}
+                            className="flex items-center gap-3 bg-white/10 hover:bg-white/20 p-3 rounded-xl transition-all cursor-pointer text-left w-full border border-white/10"
+                        >
+                            <div className="w-10 h-10 rounded-full bg-primary-500/30 flex items-center justify-center text-primary-300 flex-shrink-0">
+                                <span className="material-symbols-rounded text-xl">photo_album</span>
                             </div>
-                            <div>
-                                <span className="font-bold text-sm block">{t('chat.private_album', { defaultValue: 'Álbum Privado' })}</span>
-                                <span className="text-xs opacity-80 italic">"{albumName}"</span>
+                            <div className="flex-1 min-w-0">
+                                <span className="font-bold text-sm block truncate">{albumName || t('chat.private_album', { defaultValue: 'Álbum Privado' })}</span>
+                                <span className="text-xs opacity-80 flex items-center gap-1 mt-0.5">
+                                    {isViewOnce ? (
+                                        <span className="text-amber-400 font-semibold flex items-center gap-1">
+                                            <span className="material-symbols-rounded text-xs">local_fire_department</span>
+                                            Visualização Única
+                                        </span>
+                                    ) : expiresAt ? (
+                                        <span className="text-blue-300">
+                                            Expira em {format(new Date(expiresAt), 'dd/MM HH:mm')}
+                                        </span>
+                                    ) : (
+                                        <span>{t('chat.click_to_open_album', { defaultValue: 'Clique para abrir o álbum' })}</span>
+                                    )}
+                                </span>
                             </div>
-                        </div>
+                            <span className="material-symbols-rounded text-slate-400">chevron_right</span>
+                        </button>
                     );
                 case 'audio':
                     const { url } = parsedContent;
@@ -288,7 +328,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   const currentUser = useAuthStore(state => state.user);
   const onlineUsers = useMapStore(state => state.onlineUsers);
   const { deleteConversation, clearUnreadCountForConversation } = useInboxStore();
-  const { uploadPhoto, uploadAudio, grantAccess } = useAlbumStore();
+  const { uploadPhoto, uploadAudio, grantAccess, fetchAlbumById } = useAlbumStore();
 
   const [editingMessage, setEditingMessage] = useState<MessageType | null>(null);
   const [editedContent, setEditedContent] = useState('');
@@ -297,8 +337,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   
   const [isAttachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [isAlbumSelectorOpen, setIsAlbumSelectorOpen] = useState(false);
+  const [activeAlbum, setActiveAlbum] = useState<PrivateAlbum | null>(null);
   
   useHardwareBack(isAlbumSelectorOpen, () => setIsAlbumSelectorOpen(false));
+  useHardwareBack(!!activeAlbum, () => setActiveAlbum(null));
   useHardwareBack(!!confirmDeleteMessage, () => setConfirmDeleteMessage(null));
   useHardwareBack(confirmDeleteConvo, () => setConfirmDeleteConvo(false));
   useHardwareBack(isAttachmentMenuOpen, () => setAttachmentMenuOpen(false));
@@ -691,21 +733,59 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
     );
   };
   
-  const handleSelectAlbum = async (album: PrivateAlbum) => {
+  const handleSelectAlbum = async (album: PrivateAlbum & { is_view_once?: boolean; expires_in_hours?: number }) => {
     setIsAlbumSelectorOpen(false);
     const toastId = toast.loading(t('chat.sharing_album', { defaultValue: 'Compartilhando álbum...' }));
     try {
         await grantAccess(album.id, user.id);
+        const expiresAt = album.expires_in_hours ? new Date(Date.now() + album.expires_in_hours * 3600000).toISOString() : null;
         const albumContent = JSON.stringify({
             type: 'album',
             albumId: album.id,
             albumName: album.name,
+            isViewOnce: !!album.is_view_once,
+            expiresAt: expiresAt,
         });
         await sendMessage(albumContent);
         toast.success(t('chat.album_shared', { defaultValue: 'Álbum compartilhado!' }), { id: toastId });
     } catch (error) {
         toast.error(t('chat.error_sharing_album', { defaultValue: 'Falha ao compartilhar o álbum.' }), { id: toastId });
     }
+  };
+
+  const handleAlbumClick = async (albumId: number, isViewOnce?: boolean, expiresAt?: string | null, message?: MessageType) => {
+    const isOwn = currentUser && message && message.sender_id === currentUser.id;
+
+    if (expiresAt && new Date(expiresAt) < new Date()) {
+        toast.error(t('chat.album_expired', { defaultValue: 'O acesso a este álbum expirou.' }));
+        return;
+    }
+
+    if (isViewOnce && message?.viewed_at && !isOwn) {
+        toast.error(t('chat.album_viewed', { defaultValue: 'Este álbum de visualização única já foi visualizado.' }));
+        return;
+    }
+
+    const toastId = toast.loading(t('chat.loading_album', { defaultValue: 'Carregando álbum...' }));
+    const album = await fetchAlbumById(albumId);
+    toast.dismiss(toastId);
+
+    if (!album) {
+        toast.error(t('chat.album_not_found', { defaultValue: 'Álbum não encontrado ou sem acesso.' }));
+        return;
+    }
+
+    if (isViewOnce && message && !isOwn && !message.viewed_at) {
+        const nowStr = new Date().toISOString();
+        await supabase
+            .from('messages')
+            .update({ viewed_at: nowStr })
+            .eq('id', message.id);
+
+        setMessages(prev => prev.map(m => m.id === message.id ? { ...m, viewed_at: nowStr } : m));
+    }
+
+    setActiveAlbum(album);
   };
   
   const handleStartEdit = (msg: MessageType) => {
@@ -924,7 +1004,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
                         ? 'bg-gradient-to-br from-primary-500 to-secondary-500 text-white rounded-2xl rounded-tr-none' 
                         : 'bg-slate-800/80 text-slate-100 rounded-2xl rounded-tl-none'
                     }`}>
-                        <MessageContent message={msg} onViewOnceClick={handleViewOnceClick} t={t} isOwn={msg.sender_id === currentUser.id} />
+                        <MessageContent message={msg} onViewOnceClick={handleViewOnceClick} onAlbumClick={handleAlbumClick} t={t} isOwn={msg.sender_id === currentUser.id} />
                     </div>
                  )}
                 
@@ -1149,6 +1229,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
         <SelectAlbumModal 
             onClose={() => setIsAlbumSelectorOpen(false)}
             onSelect={handleSelectAlbum}
+        />
+    )}
+    {activeAlbum && (
+        <AlbumGalleryModal
+            album={activeAlbum}
+            onClose={() => setActiveAlbum(null)}
         />
     )}
     {messageOptions && (

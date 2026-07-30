@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase, getPublicImageUrl } from '../lib/supabase';
 import { useAuthStore } from './authStore';
 import { PrivateAlbum, PrivateAlbumPhoto, AlbumAccessStatus } from '../types';
+import { isVideoUrl } from '../lib/utils';
 
 interface AlbumState {
     myAlbums: PrivateAlbum[];
@@ -15,11 +16,14 @@ interface AlbumState {
 
     fetchMyAlbums: () => Promise<void>;
     uploadPhoto: (file: File) => Promise<string | null>;
+    uploadVideo: (file: File) => Promise<string | null>;
+    uploadMedia: (file: File) => Promise<{ path: string; mediaType: 'photo' | 'video' } | null>;
     uploadAudio: (file: File) => Promise<string | null>;
     createAlbum: (name: string) => Promise<PrivateAlbum | null>;
     deleteAlbum: (albumId: number) => Promise<boolean>;
-    addPhotoToAlbum: (albumId: number, photoPath: string) => Promise<PrivateAlbumPhoto | null>;
+    addPhotoToAlbum: (albumId: number, photoPath: string, mediaType?: 'photo' | 'video') => Promise<PrivateAlbumPhoto | null>;
     deletePhotoFromAlbum: (photoId: number) => Promise<boolean>;
+    fetchAlbumById: (albumId: number) => Promise<PrivateAlbum | null>;
 
     // Functions for access control and viewing other's albums
     fetchAlbumsAndAccessStatusForUser: (userId: string) => Promise<void>;
@@ -57,12 +61,13 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
             return;
         }
 
-        // Processa os caminhos das fotos para URLs públicas
+        // Processa os caminhos das fotos/vídeos para URLs públicas
         const albumsWithUrls = data.map(album => ({
             ...album,
             private_album_photos: (album.private_album_photos || []).map(photo => ({
                 ...photo,
-                photo_path: getPublicImageUrl(photo.photo_path)
+                photo_path: getPublicImageUrl(photo.photo_path),
+                media_type: photo.media_type || (isVideoUrl(photo.photo_path) ? 'video' : 'photo')
             }))
         }));
 
@@ -76,7 +81,7 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
             set({ isUploading: false });
             return null;
         }
-        const fileExt = file.name.split('.').pop();
+        const fileExt = file.name.split('.').pop() || 'jpg';
         const fileName = `${Date.now()}.${fileExt}`;
         const filePath = `${user.id}/${fileName}`;
 
@@ -90,6 +95,40 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
             return null;
         }
         return filePath;
+    },
+
+    uploadVideo: async (file: File) => {
+        set({ isUploading: true });
+        const user = useAuthStore.getState().user;
+        if (!user) {
+            set({ isUploading: false });
+            return null;
+        }
+        const fileExt = file.name.split('.').pop() || 'mp4';
+        const fileName = `${Date.now()}_video.${fileExt}`;
+        const filePath = `${user.id}/videos/${fileName}`;
+
+        const { error } = await supabase.storage
+            .from('user_uploads')
+            .upload(filePath, file);
+
+        set({ isUploading: false });
+        if (error) {
+            console.error('Error uploading video:', error);
+            return null;
+        }
+        return filePath;
+    },
+
+    uploadMedia: async (file: File) => {
+        const isVideo = file.type.startsWith('video/') || isVideoUrl(file.name);
+        if (isVideo) {
+            const path = await get().uploadVideo(file);
+            return path ? { path, mediaType: 'video' as const } : null;
+        } else {
+            const path = await get().uploadPhoto(file);
+            return path ? { path, mediaType: 'photo' as const } : null;
+        }
     },
 
     uploadAudio: async (file: File) => {
@@ -148,15 +187,35 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
         return true;
     },
 
-    addPhotoToAlbum: async (albumId: number, photoPath: string) => {
+    addPhotoToAlbum: async (albumId: number, photoPath: string, mediaType: 'photo' | 'video' = 'photo') => {
         const user = useAuthStore.getState().user;
         if (!user) return null;
 
-        const { data, error } = await supabase
+        const payload: any = { 
+            album_id: albumId, 
+            photo_path: photoPath, 
+            user_id: user.id 
+        };
+        if (mediaType === 'video' || isVideoUrl(photoPath)) {
+            payload.media_type = 'video';
+        }
+
+        let { data, error } = await supabase
             .from('private_album_photos')
-            .insert({ album_id: albumId, photo_path: photoPath, user_id: user.id })
+            .insert(payload)
             .select()
             .single();
+
+        if (error && error.message?.includes('media_type')) {
+            delete payload.media_type;
+            const res = await supabase
+                .from('private_album_photos')
+                .insert(payload)
+                .select()
+                .single();
+            data = res.data;
+            error = res.error;
+        }
 
         if (error) {
             console.error('Error adding photo to album:', error);
@@ -166,7 +225,8 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
         const publicUrl = getPublicImageUrl(photoPath);
         const newPhoto: PrivateAlbumPhoto = {
             ...data,
-            photo_path: publicUrl
+            photo_path: publicUrl,
+            media_type: mediaType === 'video' || isVideoUrl(photoPath) ? 'video' : 'photo'
         };
 
         set(state => ({
@@ -197,6 +257,28 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
         }
         await get().fetchMyAlbums();
         return true;
+    },
+
+    fetchAlbumById: async (albumId: number): Promise<PrivateAlbum | null> => {
+        const { data, error } = await supabase
+            .from('private_albums')
+            .select('*, private_album_photos(*, user_id)')
+            .eq('id', albumId)
+            .single();
+
+        if (error || !data) {
+            console.error('Error fetching album by id:', error);
+            return null;
+        }
+
+        return {
+            ...data,
+            private_album_photos: (data.private_album_photos || []).map((photo: any) => ({
+                ...photo,
+                photo_path: getPublicImageUrl(photo.photo_path),
+                media_type: photo.media_type || (isVideoUrl(photo.photo_path) ? 'video' : 'photo')
+            }))
+        };
     },
 
     fetchAlbumsAndAccessStatusForUser: async (userId: string) => {
@@ -233,7 +315,8 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
                     ...album,
                     private_album_photos: (album.private_album_photos || []).map(photo => ({
                         ...photo,
-                        photo_path: getPublicImageUrl(photo.photo_path)
+                        photo_path: getPublicImageUrl(photo.photo_path),
+                        media_type: photo.media_type || (isVideoUrl(photo.photo_path) ? 'video' : 'photo')
                     }))
                 }));
                 set({ viewedUserAlbums: albumsWithUrls });
@@ -276,13 +359,30 @@ export const useAlbumStore = create<AlbumState>((set, get) => ({
     },
     
     grantAccess: async (albumId: number, targetUserId: string) => {
-        const { error } = await supabase.rpc('grant_album_access', {
-            p_album_id: albumId,
-            p_target_user_id: targetUserId,
-        });
+        const currentUser = useAuthStore.getState().user;
+        if (!currentUser) return;
+
+        try {
+            const { error: rpcError } = await supabase.rpc('grant_album_access', {
+                p_album_id: albumId,
+                p_target_user_id: targetUserId,
+            });
+            if (!rpcError) return;
+        } catch (e) {
+            console.warn("RPC grant_album_access warning:", e);
+        }
+
+        // Direct table upsert fallback
+        const { error } = await supabase
+            .from('private_album_access')
+            .upsert({
+                owner_id: currentUser.id,
+                requester_id: targetUserId,
+                status: 'granted'
+            }, { onConflict: 'owner_id,requester_id' });
+
         if (error) {
             console.error('Error granting album access:', error);
-            throw error;
         }
     },
 

@@ -4,6 +4,7 @@ import { useAlbumStore } from '../stores/albumStore';
 import { PrivateAlbum } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useHardwareBack } from '../lib/useHardwareBack';
+import { isVideoUrl } from '../lib/utils';
 
 interface MyAlbumsModalProps {
   onClose: () => void;
@@ -12,7 +13,7 @@ interface MyAlbumsModalProps {
 export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
   useHardwareBack(true, onClose);
   const { t } = useTranslation();
-  const { myAlbums, isLoading, fetchMyAlbums, createAlbum, deleteAlbum, uploadPhoto, addPhotoToAlbum, deletePhotoFromAlbum, isUploading } = useAlbumStore();
+  const { myAlbums, isLoading, fetchMyAlbums, createAlbum, deleteAlbum, uploadMedia, addPhotoToAlbum, deletePhotoFromAlbum, isUploading } = useAlbumStore();
   const [newAlbumName, setNewAlbumName] = useState('');
   const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null);
   const selectedAlbum = myAlbums.find(a => a.id === selectedAlbumId) || null;
@@ -35,11 +36,16 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const newPath = await uploadPhoto(file);
-    if (newPath) {
-        await addPhotoToAlbum(selectedAlbum.id, newPath);
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      alert(t('my_albums.file_too_large', { defaultValue: 'O arquivo é muito grande (Máximo 50MB).' }));
+      return;
+    }
+
+    const mediaRes = await uploadMedia(file);
+    if (mediaRes) {
+        await addPhotoToAlbum(selectedAlbum.id, mediaRes.path, mediaRes.mediaType);
     } else {
-        alert(t('my_albums.upload_failed', { defaultValue: 'Falha no upload da foto.' }));
+        alert(t('my_albums.upload_failed', { defaultValue: 'Falha no upload do arquivo.' }));
     }
     if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -81,29 +87,41 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
                     <span className="material-symbols-rounded text-4xl text-slate-600 opacity-80">lock</span>
                 </div>
                 <h3 className="text-lg font-bold text-white font-outfit">{t('my_albums.empty_title', { defaultValue: 'Seu espaço secreto' })}</h3>
-                <p className="text-sm text-slate-400 mt-2 max-w-xs">{t('my_albums.empty_desc', { defaultValue: 'Crie álbuns para compartilhar fotos apenas com quem você permitir.' })}</p>
+                <p className="text-sm text-slate-400 mt-2 max-w-xs">{t('my_albums.empty_desc', { defaultValue: 'Crie álbuns para compartilhar fotos e vídeos apenas com quem você permitir.' })}</p>
             </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
-            {myAlbums.map(album => (
-              <div key={album.id} className="relative aspect-square group cursor-pointer rounded-2xl overflow-hidden bg-slate-800 shadow-md hover:shadow-xl transition-all border border-white/5" onClick={() => setSelectedAlbumId(album.id)}>
-                {album.private_album_photos && album.private_album_photos.length > 0 ? (
-                   <img loading="lazy" src={album.private_album_photos[0].photo_path} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100"/>
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-600 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
-                        <span className="material-symbols-rounded text-4xl opacity-50">image_not_supported</span>
-                    </div>
-                )}
-                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
-                 <div className="absolute bottom-3 left-3 right-3">
-                    <span className="font-bold text-white block truncate text-lg leading-tight drop-shadow-lg">{album.name}</span>
-                    <div className="flex items-center gap-1 text-xs text-slate-300 font-medium mt-0.5">
-                        <span className="material-symbols-rounded text-[14px]">photo_library</span>
-                        <span>{album.private_album_photos?.length || 0} {t('my_albums.photos_count', { defaultValue: 'fotos' })}</span>
-                    </div>
-                 </div>
-              </div>
-            ))}
+            {myAlbums.map(album => {
+              const coverItem = album.private_album_photos && album.private_album_photos.length > 0 ? album.private_album_photos[0] : null;
+              const isCoverVideo = coverItem ? isVideoUrl(coverItem.photo_path, coverItem.media_type) : false;
+
+              return (
+                <div key={album.id} className="relative aspect-square group cursor-pointer rounded-2xl overflow-hidden bg-slate-800 shadow-md hover:shadow-xl transition-all border border-white/5" onClick={() => setSelectedAlbumId(album.id)}>
+                  {coverItem ? (
+                     isCoverVideo ? (
+                        <div className="w-full h-full relative flex items-center justify-center bg-slate-900">
+                           <video src={coverItem.photo_path} className="w-full h-full object-cover opacity-80" muted />
+                           <span className="material-symbols-rounded absolute text-3xl text-white drop-shadow">play_circle</span>
+                        </div>
+                     ) : (
+                        <img loading="lazy" src={coverItem.photo_path} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100"/>
+                     )
+                  ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-600 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+                          <span className="material-symbols-rounded text-4xl opacity-50">image_not_supported</span>
+                      </div>
+                  )}
+                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
+                   <div className="absolute bottom-3 left-3 right-3">
+                      <span className="font-bold text-white block truncate text-lg leading-tight drop-shadow-lg">{album.name}</span>
+                      <div className="flex items-center gap-1 text-xs text-slate-300 font-medium mt-0.5">
+                          <span className="material-symbols-rounded text-[14px]">photo_library</span>
+                          <span>{album.private_album_photos?.length || 0} {t('my_albums.items_count', { defaultValue: 'mídias' })}</span>
+                      </div>
+                   </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </main>
@@ -126,7 +144,7 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
         </button>
       </header>
        <main className="flex-1 overflow-y-auto p-5 bg-slate-900/50">
-           <input type="file" accept="image/*" onChange={handleFileSelect} ref={fileInputRef} className="hidden" disabled={isUploading} />
+           <input type="file" accept="image/*,video/*" onChange={handleFileSelect} ref={fileInputRef} className="hidden" disabled={isUploading} />
             <div className="grid grid-cols-3 gap-2">
                 <button 
                     type="button" 
@@ -137,21 +155,35 @@ export const MyAlbumsModal: React.FC<MyAlbumsModalProps> = ({ onClose }) => {
                     {isUploading ? (
                         <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
                     ) : (
-                        <span className="material-symbols-rounded text-3xl group-hover:scale-110 transition-transform">add</span>
+                        <div className="flex flex-col items-center gap-1">
+                            <span className="material-symbols-rounded text-2xl group-hover:scale-110 transition-transform">add_a_photo</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Foto / Vídeo</span>
+                        </div>
                     )}
                 </button>
-                {selectedAlbum.private_album_photos?.map(photo => (
-                    <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden shadow-sm border border-white/5">
-                        <img loading="lazy" src={photo.photo_path} alt={t('my_albums.photo_alt', { defaultValue: 'foto do álbum' })} className="w-full h-full object-cover" />
-                        <button 
-                            type="button" 
-                            onClick={() => deletePhotoFromAlbum(photo.id)} 
-                            className="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-600 transition-colors backdrop-blur-sm z-10 shadow-lg"
-                        >
-                            <span className="material-symbols-rounded text-[18px]">delete</span>
-                        </button>
-                    </div>
-                ))}
+                {selectedAlbum.private_album_photos?.map(photo => {
+                    const isVid = isVideoUrl(photo.photo_path, photo.media_type);
+
+                    return (
+                        <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden shadow-sm border border-white/5 bg-slate-800">
+                            {isVid ? (
+                                <div className="w-full h-full relative flex items-center justify-center bg-slate-900">
+                                    <video src={photo.photo_path} className="w-full h-full object-cover opacity-80" muted />
+                                    <span className="material-symbols-rounded absolute text-2xl text-white drop-shadow">play_circle</span>
+                                </div>
+                            ) : (
+                                <img loading="lazy" src={photo.photo_path} alt={t('my_albums.photo_alt', { defaultValue: 'foto do álbum' })} className="w-full h-full object-cover" />
+                            )}
+                            <button 
+                                type="button" 
+                                onClick={(e) => { e.stopPropagation(); deletePhotoFromAlbum(photo.id); }} 
+                                className="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-600 transition-colors backdrop-blur-sm z-10 shadow-lg"
+                            >
+                                <span className="material-symbols-rounded text-[18px]">delete</span>
+                            </button>
+                        </div>
+                    );
+                })}
             </div>
        </main>
       </>

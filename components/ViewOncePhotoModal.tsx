@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHardwareBack } from '../lib/useHardwareBack';
+import { isVideoUrl } from '../lib/utils';
 
 interface ViewOncePhotoModalProps {
   imageUrl: string;
@@ -12,14 +13,17 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
     const { t } = useTranslation();
     const [isFocused, setIsFocused] = useState(true);
     const [isHolding, setIsHolding] = useState(false);
-    const [timeLeft, setTimeLeft] = useState(5.0); // 5 segundos de visualização cumulativa
+    const [timeLeft, setTimeLeft] = useState(10.0); // 10 segundos para mídias
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const isVid = isVideoUrl(imageUrl);
 
     // Monitoramento do foco da janela para proteção extra
     useEffect(() => {
         const handleBlur = () => {
             setIsFocused(false);
             setIsHolding(false);
+            if (videoRef.current) videoRef.current.pause();
         };
         const handleFocus = () => {
             setIsFocused(true);
@@ -38,6 +42,7 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
                 e.preventDefault();
                 setIsFocused(false);
                 setIsHolding(false);
+                if (videoRef.current) videoRef.current.pause();
                 alert(t('chat.screenshot_protection', { defaultValue: 'Proteção de captura de tela ativa!' }));
             }
         };
@@ -55,6 +60,9 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
     // Timer decrescente que funciona apenas enquanto o usuário estiver mantendo o clique/toque
     useEffect(() => {
         if (isHolding && isFocused && timeLeft > 0) {
+            if (isVid && videoRef.current) {
+                videoRef.current.play().catch(e => console.warn("Video play warning:", e));
+            }
             timerRef.current = setInterval(() => {
                 setTimeLeft((prev) => {
                     const nextValue = Math.max(0, prev - 0.1);
@@ -66,6 +74,9 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
                 });
             }, 100);
         } else {
+            if (isVid && videoRef.current) {
+                videoRef.current.pause();
+            }
             if (timerRef.current) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
@@ -78,7 +89,7 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
                 timerRef.current = null;
             }
         };
-    }, [isHolding, isFocused, timeLeft, onClose]);
+    }, [isHolding, isFocused, timeLeft, onClose, isVid]);
 
     const handleStartReveal = (e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
@@ -96,7 +107,6 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
             className="fixed inset-0 bg-black bg-opacity-98 flex items-center justify-center z-[70] animate-fade-in select-none touch-none" 
             onContextMenu={(e) => e.preventDefault()} // Previne salvar imagem com clique direito
         >
-            {/* Bloco de estilo CSS para impedir impressão de mídia */}
             <style>{`
                 @media print {
                     body { display: none !important; }
@@ -134,15 +144,25 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
                         onTouchEnd={handleEndReveal}
                         onTouchCancel={handleEndReveal}
                     >
-                        {/* Imagem Revelada */}
+                        {/* Imagem/Vídeo Revelado */}
                         <div className={`absolute inset-0 flex items-center justify-center p-4 transition-all duration-300 ${isHolding ? 'opacity-100 scale-100 filter-none' : 'opacity-0 scale-95 blur-2xl pointer-events-none'}`}>
-                            <img 
-                                loading="lazy" 
-                                src={imageUrl} 
-                                alt={t('chat.view_once_photo_alt', { defaultValue: 'Foto de visualização única' })} 
-                                className="max-h-full max-w-full object-contain rounded-2xl shadow-2xl select-none no-drag" 
-                                onDragStart={(e) => e.preventDefault()}
-                            />
+                            {isVid ? (
+                                <video
+                                    ref={videoRef}
+                                    src={imageUrl}
+                                    playsInline
+                                    muted={false}
+                                    className="max-h-full max-w-full object-contain rounded-2xl shadow-2xl select-none no-drag"
+                                />
+                            ) : (
+                                <img 
+                                    loading="lazy" 
+                                    src={imageUrl} 
+                                    alt={t('chat.view_once_photo_alt', { defaultValue: 'Mídia de visualização única' })} 
+                                    className="max-h-full max-w-full object-contain rounded-2xl shadow-2xl select-none no-drag" 
+                                    onDragStart={(e) => e.preventDefault()}
+                                />
+                            )}
                             {/* Marca d'água dinâmica flutuante */}
                             <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-12 pointer-events-none opacity-[0.08] overflow-hidden select-none">
                                 {Array.from({ length: 12 }).map((_, i) => (
@@ -162,7 +182,9 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
                                 {t('chat.hold_to_reveal_title', { defaultValue: 'Pressione e Segure' })}
                             </h3>
                             <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
-                                {t('chat.hold_to_reveal_desc', { defaultValue: 'Toque e mantenha o dedo pressionado na tela para revelar a foto. Solte para ocultar instantaneamente.' })}
+                                {isVid 
+                                    ? t('chat.hold_to_reveal_video_desc', { defaultValue: 'Toque e mantenha o dedo pressionado para assistir ao vídeo. Solte para ocultar instantaneamente.' })
+                                    : t('chat.hold_to_reveal_desc', { defaultValue: 'Toque e mantenha o dedo pressionado na tela para revelar a foto. Solte para ocultar instantaneamente.' })}
                             </p>
                         </div>
                     </div>
@@ -170,14 +192,14 @@ export const ViewOncePhotoModal: React.FC<ViewOncePhotoModalProps> = ({ imageUrl
                     <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/10 max-w-xs animate-fade-in">
                         <span className="material-symbols-rounded text-5xl text-rose-500 animate-pulse mb-3">security</span>
                         <h4 className="text-white font-bold mb-1">{t('chat.hidden_content_title', { defaultValue: 'Conteúdo Oculto' })}</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">{t('chat.hidden_content_desc', { defaultValue: 'Para sua privacidade, a imagem foi ocultada porque a janela perdeu o foco.' })}</p>
+                        <p className="text-xs text-slate-400 leading-relaxed">{t('chat.hidden_content_desc', { defaultValue: 'Para sua privacidade, a mídia foi ocultada porque a janela perdeu o foco.' })}</p>
                     </div>
                 )}
 
                 <div className="mt-6 text-center pointer-events-none max-w-xs">
                     <p className="text-xs text-slate-500 font-medium tracking-wide flex items-center justify-center gap-1.5 leading-relaxed">
                         <span className="material-symbols-rounded text-sm text-red-500 animate-pulse">local_fire_department</span>
-                        {t('chat.view_once_warning', { defaultValue: 'Esta imagem possui apenas 5 segundos de visualização cumulativa e é destruída após o fechamento.' })}
+                        {t('chat.view_once_warning', { defaultValue: 'Esta mídia possui visualização única e é destruída após o fechamento.' })}
                     </p>
                 </div>
             </div>
