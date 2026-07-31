@@ -15,12 +15,40 @@ export const AlbumGalleryModal: React.FC<AlbumGalleryModalProps> = ({ album, onC
   const [currentIndex, setCurrentIndex] = useState(0);
   const photos = album.private_album_photos || [];
 
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    if (isLeftSwipe) {
+      nextPhoto();
+    }
+    if (isRightSwipe) {
+      prevPhoto();
+    }
+  };
+
   const nextPhoto = () => setCurrentIndex((prev) => (prev + 1) % photos.length);
   const prevPhoto = () => setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);
 
   if (!photos || photos.length === 0) {
     return (
-      <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[180] animate-fade-in" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[180] animate-fade-in" onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}>
         <div className="bg-slate-800 p-8 rounded-2xl text-center border border-white/10" onClick={(e) => e.stopPropagation()}>
           <h2 className="text-xl font-bold mb-4 text-white">{album.name}</h2>
           <p className="text-slate-400">{t('gallery.empty_album', { defaultValue: 'Este álbum está vazio.' })}</p>
@@ -34,7 +62,15 @@ export const AlbumGalleryModal: React.FC<AlbumGalleryModalProps> = ({ album, onC
   const isVideo = currentItem ? isVideoUrl(currentItem.photo_path, currentItem.media_type) : false;
 
   return (
-    <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center z-[180] animate-fade-in" onClick={onClose}>
+    <div 
+      className="fixed inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center z-[180] animate-fade-in" 
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       
       <div className="w-full h-full flex items-center justify-center p-4 sm:p-10" onClick={(e) => e.stopPropagation()}>
         <div className="relative w-full max-w-5xl aspect-[4/5] sm:aspect-video flex items-center justify-center">

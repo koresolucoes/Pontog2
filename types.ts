@@ -69,6 +69,7 @@ export interface Profile {
   } | null;
   current_checkin_venue_id?: string;
   current_checkin_venue_name?: string;
+  current_checkin_updated_at?: string | null;
 }
 
 // O tipo User estende Profile com campos calculados como 'idade'
