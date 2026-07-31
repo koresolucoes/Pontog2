@@ -326,8 +326,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentUser = useAuthStore(state => state.user);
+  const currentUserId = currentUser?.id;
   const onlineUsers = useMapStore(state => state.onlineUsers);
-  const { deleteConversation, clearUnreadCountForConversation } = useInboxStore();
+  const deleteConversation = useInboxStore(state => state.deleteConversation);
+  const clearUnreadCountForConversation = useInboxStore(state => state.clearUnreadCountForConversation);
   const { uploadPhoto, uploadAudio, grantAccess, fetchAlbumById } = useAlbumStore();
 
   const [editingMessage, setEditingMessage] = useState<MessageType | null>(null);
@@ -393,12 +395,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
 
   useEffect(() => {
     const fetchConnectionStatus = async () => {
-      if (!currentUser || !user.id) return;
+      if (!currentUserId || !user.id) return;
       try {
         const { data, error } = await supabase
           .from('user_connections')
           .select('*')
-          .or(`and(follower_id.eq.${currentUser.id},following_id.eq.${user.id}),and(follower_id.eq.${user.id},following_id.eq.${currentUser.id})`);
+          .or(`and(follower_id.eq.${currentUserId},following_id.eq.${user.id}),and(follower_id.eq.${user.id},following_id.eq.${currentUserId})`);
 
         if (error) throw error;
 
@@ -407,7 +409,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
           setConnectionIdState(conn.id);
           if (conn.status === 'accepted') {
             setConnectionStatus('accepted');
-          } else if (conn.follower_id === currentUser.id) {
+          } else if (conn.follower_id === currentUserId) {
             setConnectionStatus('pending_outgoing');
           } else {
             setConnectionStatus('pending_incoming');
@@ -421,7 +423,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
     };
 
     fetchConnectionStatus();
-  }, [currentUser, user.id]);
+  }, [currentUserId, user.id]);
 
   const handleAcceptConnection = async () => {
     if (!connectionIdState) return;
@@ -447,10 +449,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
 
   useEffect(() => {
     const setupConversation = async () => {
-      if (!currentUser) return;
+      if (!currentUserId || !user.id) return;
       
       const { data, error } = await supabase.rpc('get_or_create_conversation', {
-        p_one: currentUser.id,
+        p_one: currentUserId,
         p_two: user.id
       });
 
@@ -479,17 +481,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
           setHasMoreMessages(initialMessages?.length === 50);
           
           const unreadIds = sortedMessages
-            .filter(m => m.sender_id !== currentUser.id && !m.read_at)
+            .filter(m => m.sender_id !== currentUserId && !m.read_at)
             .map(m => m.id);
-          markMessagesAsRead(unreadIds, convId);
+          if (unreadIds.length > 0) {
+              markMessagesAsRead(unreadIds, convId);
+          }
       }
     };
 
     setupConversation();
-  }, [user.id, currentUser, markMessagesAsRead]);
+  }, [user.id, currentUserId, markMessagesAsRead]);
 
   useEffect(() => {
-    if (!conversationId || !currentUser) return;
+    if (!conversationId || !currentUserId) return;
 
     const channel = supabase
       .channel(`chat:${conversationId}`)
@@ -499,8 +503,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
         (payload) => {
            if (payload.eventType === 'INSERT') {
                const newMessagePayload = payload.new as MessageType;
-               setMessages((prevMessages) => [...prevMessages, newMessagePayload]);
-               if (newMessagePayload.sender_id !== currentUser.id) {
+               setMessages((prevMessages) => {
+                   if (prevMessages.some(m => m.id === newMessagePayload.id)) {
+                       return prevMessages;
+                   }
+                   return [...prevMessages, newMessagePayload];
+               });
+               if (newMessagePayload.sender_id !== currentUserId) {
                    markMessagesAsRead([newMessagePayload.id], conversationId);
                }
            } else if (payload.eventType === 'UPDATE') {
@@ -521,7 +530,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ user, onClose }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, currentUser, markMessagesAsRead]);
+  }, [conversationId, currentUserId, markMessagesAsRead]);
 
   const handleLoadMoreMessages = async () => {
       if (!hasMoreMessages || loadingMoreMessages || !conversationId || messages.length === 0) return;

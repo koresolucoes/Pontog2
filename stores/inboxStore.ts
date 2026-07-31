@@ -100,7 +100,9 @@ export const useInboxStore = create<InboxState>((set, get) => {
             const now = Date.now();
             if (!force && now - get().lastConversationsFetch < 60000 && get().conversations.length > 0) return;
 
-            set({ loadingConversations: true });
+            if (get().conversations.length === 0) {
+                set({ loadingConversations: true });
+            }
             
             try {
                 const { data, error } = await supabase.rpc('get_my_conversations');
@@ -176,7 +178,9 @@ export const useInboxStore = create<InboxState>((set, get) => {
             const now = Date.now();
             if (!force && now - get().lastWinksFetch < 60000 && get().winks.length > 0) return;
 
-            set({ loadingWinks: true });
+            if (get().winks.length === 0) {
+                set({ loadingWinks: true });
+            }
             
             let winksWithAgeAndUrls: any[] = [];
             
@@ -243,7 +247,9 @@ export const useInboxStore = create<InboxState>((set, get) => {
             const now = Date.now();
             if (!force && now - get().lastRequestsFetch < 60000 && get().accessRequests.length > 0) return;
 
-            set({ loadingRequests: true });
+            if (get().accessRequests.length === 0) {
+                set({ loadingRequests: true });
+            }
             let { data, error } = await supabase.rpc('get_my_album_access_requests');
 
             // Fallback to direct query if RPC fails or returns unexpectedly
@@ -311,7 +317,9 @@ export const useInboxStore = create<InboxState>((set, get) => {
             const now = Date.now();
             if (!force && now - get().lastViewsFetch < 60000 && get().profileViews.length > 0) return;
 
-            set({ loadingProfileViews: true });
+            if (get().profileViews.length === 0) {
+                set({ loadingProfileViews: true });
+            }
             const { data, error } = await supabase.rpc('get_my_profile_viewers');
 
             if (error) {
@@ -481,7 +489,9 @@ export const useInboxStore = create<InboxState>((set, get) => {
             const currentUser = useAuthStore.getState().user;
             if (!currentUser) return;
 
-            set({ loadingMessageRequests: true });
+            if (get().messageRequests.length === 0) {
+                set({ loadingMessageRequests: true });
+            }
             try {
                 const { data, error } = await supabase
                     .from('user_connections')
