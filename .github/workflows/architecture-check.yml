@@ -1,0 +1,44 @@
+name: Architecture Check
+
+on:
+  pull_request:
+    paths:
+      - 'core/**'
+      - 'engines/**'
+      - 'modules/**'
+      - 'plugins/**'
+      - 'composition/**'
+      - 'tsconfig.architecture.json'
+      - '.github/workflows/architecture-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'core/**'
+      - 'engines/**'
+      - 'modules/**'
+      - 'plugins/**'
+      - 'composition/**'
+      - 'tsconfig.architecture.json'
+      - '.github/workflows/architecture-check.yml'
+
+jobs:
+  architecture-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck architecture foundation
+        run: npx tsc -p tsconfig.architecture.json
+
+      - name: Build application
+        run: npm run build
