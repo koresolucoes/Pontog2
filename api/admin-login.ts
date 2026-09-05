@@ -1,9 +1,24 @@
 // api/admin-login.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
-import { createClient } from '@supabase/supabase-js';
 import { getAdminAccounts, recordAuditLog, getSupabaseClient } from './admin/_utils.js';
 import { verifyTOTP } from './admin/_totp.js';
+import {
+  checkAdminLoginRateLimit,
+  clearAdminLoginFailures,
+  createAdminLoginRateKey,
+  getAdminJwtSecret,
+  getLegacyAdminApiKey,
+  recordAdminLoginFailure,
+  secureSecretEquals,
+} from '../engines/security/admin-security.server.js';
+
+function getClientIp(req: VercelRequest): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (Array.isArray(forwarded)) return forwarded[0] || 'unknown';
+  if (typeof forwarded === 'string') return forwarded.split(',')[0].trim() || 'unknown';
+  return req.socket?.remoteAddress || 'unknown';
+}
 
 export default async function handler(
   req: VercelRequest,
@@ -14,19 +29,36 @@ export default async function handler(
     return res.status(405).end('Method Not Allowed');
   }
 
-  const { email, password, apiKey, tempToken, mfaCode } = req.body;
-  const jwtSecret = process.env.JWT_SECRET;
+  const { email, password, apiKey, tempToken, mfaCode } = req.body ?? {};
 
-  if (!jwtSecret) {
-    console.error('JWT Secret not set in environment variables.');
+  let jwtSecret: string;
+  try {
+    jwtSecret = getAdminJwtSecret();
+  } catch (error) {
+    console.error('Admin authentication is not configured.', error);
     return res.status(500).json({ error: 'Configuration error.' });
   }
 
-  // 1. Support Multi-Factor (MFA) Verification with Temp Token
+  const identifier = typeof email === 'string' && email.trim()
+    ? email
+    : apiKey
+      ? 'legacy-api-key'
+      : tempToken
+        ? 'mfa'
+        : 'unknown';
+  const rateKey = createAdminLoginRateKey(getClientIp(req), identifier);
+  const rateDecision = checkAdminLoginRateLimit(rateKey);
+  if (!rateDecision.allowed) {
+    res.setHeader('Retry-After', String(rateDecision.retryAfterSeconds ?? 60));
+    return res.status(429).json({ error: 'Muitas tentativas. Tente novamente mais tarde.' });
+  }
+
+  // 1. Multi-Factor (MFA) verification with temporary token.
   if (tempToken && mfaCode) {
     try {
       const decoded = jwt.verify(tempToken, jwtSecret) as any;
       if (decoded.purpose !== 'mfa_pending' || !decoded.email) {
+        recordAdminLoginFailure(rateKey);
         return res.status(401).json({ error: 'Sessão MFA expirada ou inválida.' });
       }
 
@@ -43,7 +75,8 @@ export default async function handler(
         .single();
 
       if (dbError || !dbAdmin) {
-        return res.status(401).json({ error: 'Administrador não encontrado ou desativado.' });
+        recordAdminLoginFailure(rateKey);
+        return res.status(401).json({ error: 'Credenciais administrativas inválidas.' });
       }
 
       if (!dbAdmin.mfa_secret) {
@@ -52,7 +85,7 @@ export default async function handler(
 
       const isValidMfa = verifyTOTP(mfaCode, dbAdmin.mfa_secret);
       if (!isValidMfa) {
-        // Record failed attempt
+        recordAdminLoginFailure(rateKey);
         await recordAuditLog(
           req,
           { email: dbAdmin.email, name: dbAdmin.name, role: dbAdmin.role },
@@ -63,18 +96,14 @@ export default async function handler(
         return res.status(401).json({ error: 'Código de autenticação em dois fatores inválido.' });
       }
 
-      // Successful MFA Login
       const adminUser = {
         email: dbAdmin.email,
         role: dbAdmin.role as 'owner' | 'moderator' | 'support' | 'financial',
         name: dbAdmin.name
       };
 
-      const token = jwt.sign(
-        adminUser, 
-        jwtSecret, 
-        { expiresIn: '8h' }
-      );
+      const token = jwt.sign(adminUser, jwtSecret, { expiresIn: '8h' });
+      clearAdminLoginFailures(rateKey);
 
       await recordAuditLog(
         req,
@@ -84,54 +113,40 @@ export default async function handler(
         `Login MFA concluído com sucesso via banco de dados por ${adminUser.name} (${adminUser.role}).`
       );
 
-      return res.status(200).json({
-        token,
-        adminUser
-      });
-
-    } catch (err: any) {
+      return res.status(200).json({ token, adminUser });
+    } catch {
+      recordAdminLoginFailure(rateKey);
       return res.status(401).json({ error: 'Sessão temporária inválida ou expirada. Tente novamente.' });
     }
   }
 
-  // 2. Support legacy apiKey login
+  // 2. Legacy API-key login is enabled only when ADMIN_API_KEY is explicitly configured.
   if (apiKey) {
-    const adminApiKey = process.env.ADMIN_API_KEY || 'pontog_admin';
-    if (apiKey === adminApiKey) {
+    const adminApiKey = getLegacyAdminApiKey();
+    if (adminApiKey && secureSecretEquals(apiKey, adminApiKey)) {
       const legacyAdmin = {
         email: 'owner@pontog.com',
         role: 'owner' as const,
         name: 'Administrador Geral (Owner)',
       };
-      
-      const token = jwt.sign(
-        { 
-          email: legacyAdmin.email, 
-          role: legacyAdmin.role,
-          name: legacyAdmin.name 
-        }, 
-        jwtSecret, 
-        { expiresIn: '8h' }
-      );
 
-      // Record audit log
-      await recordAuditLog(req, legacyAdmin, 'LOGIN', 'system', 'Login de admin efetuado com chave de acesso legada.');
+      const token = jwt.sign(legacyAdmin, jwtSecret, { expiresIn: '8h' });
+      clearAdminLoginFailures(rateKey);
 
-      return res.status(200).json({ 
-        token,
-        adminUser: legacyAdmin
-      });
-    } else {
-      return res.status(401).json({ error: 'Chave de acesso inválida.' });
+      await recordAuditLog(req, legacyAdmin, 'LOGIN', 'system', 'Login de admin efetuado com chave de acesso legada explicitamente configurada.');
+      return res.status(200).json({ token, adminUser: legacyAdmin });
     }
+
+    recordAdminLoginFailure(rateKey);
+    return res.status(401).json({ error: 'Credenciais administrativas inválidas.' });
   }
 
-  // 3. Support email/password login
-  if (!email || !password) {
+  // 3. Email/password login.
+  if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
   }
 
-  // Try checking the database `admins` table first
+  // Prefer database-backed admin accounts.
   try {
     const supabaseAdmin = getSupabaseClient();
     if (supabaseAdmin) {
@@ -142,83 +157,64 @@ export default async function handler(
         .eq('is_active', true)
         .single();
 
-      if (!dbError && dbAdmin) {
-        if (dbAdmin.password_hash === password) {
-          // If MFA is enabled (mfa_secret exists), don't return the real token yet!
-          if (dbAdmin.mfa_secret) {
-            const tempToken = jwt.sign(
-              { email: dbAdmin.email, purpose: 'mfa_pending' },
-              jwtSecret,
-              { expiresIn: '5m' } // 5 minutes validity
-            );
-
-            return res.status(200).json({
-              mfaRequired: true,
-              tempToken,
-              message: 'Código de autenticação em dois fatores requerido.'
-            });
-          }
-
-          const adminUser = {
-            email: dbAdmin.email,
-            role: dbAdmin.role as 'owner' | 'moderator' | 'support' | 'financial',
-            name: dbAdmin.name
-          };
-
-          const token = jwt.sign(
-            adminUser, 
-            jwtSecret, 
-            { expiresIn: '8h' }
+      if (!dbError && dbAdmin && secureSecretEquals(password, dbAdmin.password_hash)) {
+        if (dbAdmin.mfa_secret) {
+          const pendingToken = jwt.sign(
+            { email: dbAdmin.email, purpose: 'mfa_pending' },
+            jwtSecret,
+            { expiresIn: '5m' }
           );
 
-          // Record audit log
-          await recordAuditLog(req, adminUser, 'LOGIN', adminUser.email, `Login realizado com sucesso via banco de dados por ${adminUser.name} (${adminUser.role}).`);
-
-          return res.status(200).json({ 
-            token,
-            adminUser
+          return res.status(200).json({
+            mfaRequired: true,
+            tempToken: pendingToken,
+            message: 'Código de autenticação em dois fatores requerido.'
           });
         }
+
+        const adminUser = {
+          email: dbAdmin.email,
+          role: dbAdmin.role as 'owner' | 'moderator' | 'support' | 'financial',
+          name: dbAdmin.name
+        };
+
+        const token = jwt.sign(adminUser, jwtSecret, { expiresIn: '8h' });
+        clearAdminLoginFailures(rateKey);
+
+        await recordAuditLog(req, adminUser, 'LOGIN', adminUser.email, `Login realizado com sucesso via banco de dados por ${adminUser.name} (${adminUser.role}).`);
+        return res.status(200).json({ token, adminUser });
       }
     }
   } catch (err) {
-    console.warn('Could not query admins table (might be missing in DB, falling back to static/env accounts).', err);
+    console.warn('Could not query admins table; checking explicitly configured ADMIN_ACCOUNTS.', err);
   }
 
-  // 4. Fallback to static accounts in ADMIN_ACCOUNTS or hardcoded default
-  const accounts = getAdminAccounts();
+  // 4. Optional compatibility path: ADMIN_ACCOUNTS must be explicitly configured.
+  let accounts;
+  try {
+    accounts = getAdminAccounts();
+  } catch (error) {
+    console.error('ADMIN_ACCOUNTS configuration is invalid.', error);
+    return res.status(500).json({ error: 'Configuration error.' });
+  }
+
   const admin = accounts.find(acc => acc.email.toLowerCase() === email.toLowerCase());
+  if (admin && secureSecretEquals(password, admin.password_hash)) {
+    const adminUser = { email: admin.email, role: admin.role, name: admin.name };
+    const token = jwt.sign(adminUser, jwtSecret, { expiresIn: '8h' });
+    clearAdminLoginFailures(rateKey);
 
-  if (admin && admin.password_hash === password) {
-    const adminUser = {
-      email: admin.email,
-      role: admin.role,
-      name: admin.name
-    };
-
-    const token = jwt.sign(
-      adminUser, 
-      jwtSecret, 
-      { expiresIn: '8h' }
-    );
-
-    // Record audit log
-    await recordAuditLog(req, adminUser, 'LOGIN', adminUser.email, `Login realizado com sucesso por ${adminUser.name} (${adminUser.role}) [Fallback Estático].`);
-
-    return res.status(200).json({ 
-      token,
-      adminUser
-    });
-  } else {
-    // Record audit log for failed attempts
-    await recordAuditLog(
-      req, 
-      { email: email, name: 'Tentativa Falha', role: 'guest' }, 
-      'LOGIN_FAILED', 
-      email, 
-      `Tentativa inválida de login com e-mail: ${email}`
-    );
-    return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
+    await recordAuditLog(req, adminUser, 'LOGIN', adminUser.email, `Login realizado com sucesso por ${adminUser.name} (${adminUser.role}) [ADMIN_ACCOUNTS].`);
+    return res.status(200).json({ token, adminUser });
   }
-}
 
+  recordAdminLoginFailure(rateKey);
+  await recordAuditLog(
+    req,
+    { email, name: 'Tentativa Falha', role: 'guest' },
+    'LOGIN_FAILED',
+    email,
+    `Tentativa inválida de login com e-mail: ${email}`
+  );
+  return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
+}
