@@ -16,6 +16,18 @@ A Etapa 00.5 cria somente a foundation técnica:
 - `plugins/sdk.ts` — contrato capability-based para extensões futuras;
 - `composition/root.ts` — único ponto de montagem arquitetural.
 
+## Gate de validação
+
+Foi adicionado `tsconfig.architecture.json` para validar apenas a nova foundation sem misturar a dívida TypeScript do legado.
+
+O workflow `.github/workflows/architecture-check.yml` executa:
+
+1. `npm ci`;
+2. `npx tsc -p tsconfig.architecture.json`;
+3. `npm run build`.
+
+Esse gate deve permanecer verde antes de qualquer merge da arquitetura modular.
+
 ## O que esta etapa NÃO faz
 
 - não altera `App.tsx`;
