@@ -1,7 +1,13 @@
 // api/admin/_utils.ts
 import { createClient } from '@supabase/supabase-js';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest } from '@vercel/node';
 import jwt from 'jsonwebtoken';
+import {
+    getAdminJwtSecret,
+    getConfiguredAdminAccounts,
+    isAdminRole,
+    type AdminRole,
+} from '../../engines/security/admin-security.server.js';
 
 export function getSupabaseClient() {
     const url = process.env.SUPABASE_URL;
@@ -38,78 +44,47 @@ const MEMORY_SETTINGS: Record<string, any> = {
 
 export interface AdminAccount {
     email: string;
-    password_hash: string; // Plaintext or hashes
-    role: 'owner' | 'moderator' | 'support' | 'financial';
+    password_hash: string;
+    role: AdminRole;
     name: string;
 }
 
-// Get all configured administrators
+// Explicitly configured administrators only. There are no generated/default credentials.
 export function getAdminAccounts(): AdminAccount[] {
-    const accountsEnv = process.env.ADMIN_ACCOUNTS;
-    if (accountsEnv) {
-        try {
-            return JSON.parse(accountsEnv);
-        } catch (e) {
-            console.error('Failed to parse ADMIN_ACCOUNTS env var', e);
-        }
-    }
-
-    // Default Fallback using ADMIN_API_KEY
-    const baseKey = process.env.ADMIN_API_KEY || 'pontog_admin';
-    return [
-        {
-            email: 'owner@pontog.com',
-            password_hash: baseKey,
-            role: 'owner',
-            name: 'Administrador Geral (Owner)',
-        },
-        {
-            email: 'moderator@pontog.com',
-            password_hash: `${baseKey}_mod`,
-            role: 'moderator',
-            name: 'Moderação Ponto G',
-        },
-        {
-            email: 'support@pontog.com',
-            password_hash: `${baseKey}_support`,
-            role: 'support',
-            name: 'Suporte Técnico Ponto G',
-        },
-        {
-            email: 'financial@pontog.com',
-            password_hash: `${baseKey}_finance`,
-            role: 'financial',
-            name: 'Financeiro Ponto G',
-        }
-    ];
+    return getConfiguredAdminAccounts();
 }
 
-// Verify Admin token and return payload
+// Verify Admin token and return payload. Missing/unknown claims fail closed.
 export function verifyAdminAndGetRole(req: VercelRequest) {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) throw new Error('Not authenticated');
-    
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-        throw new Error('JWT Secret not configured in environment.');
-    }
+
+    const jwtSecret = getAdminJwtSecret();
 
     try {
-        const decoded = jwt.verify(token, jwtSecret) as any;
-        return {
-            email: decoded.email || 'legacy-admin@pontog.com',
-            role: decoded.role || 'owner',
-            name: decoded.name || 'Admin Legado',
-        };
-    } catch (e: any) {
+        const decoded = jwt.verify(token, jwtSecret);
+        if (!decoded || typeof decoded !== 'object') {
+            throw new Error('Invalid token payload');
+        }
+
+        const email = typeof decoded.email === 'string' ? decoded.email : '';
+        const name = typeof decoded.name === 'string' ? decoded.name : '';
+        const role = decoded.role;
+
+        if (!email || !name || !isAdminRole(role)) {
+            throw new Error('Invalid admin claims');
+        }
+
+        return { email, role, name };
+    } catch {
         throw new Error('Invalid or expired token');
     }
 }
 
 // Check role permissions against a list of allowed roles
-export function enforceRoles(req: VercelRequest, allowedRoles: ('owner' | 'moderator' | 'support' | 'financial')[]) {
+export function enforceRoles(req: VercelRequest, allowedRoles: AdminRole[]) {
     const admin = verifyAdminAndGetRole(req);
-    if (!allowedRoles.includes(admin.role as any)) {
+    if (!allowedRoles.includes(admin.role)) {
         throw new Error(`Forbidden: Role ${admin.role} does not have access to this operation.`);
     }
     return admin;
@@ -133,7 +108,6 @@ export async function getAuditLogs(req: VercelRequest): Promise<AuditLog[]> {
         return data || [];
     } catch (err: any) {
         console.warn('Could not fetch audit logs from DB table (might be missing). Falling back to memory logs.', err.message);
-        // Fallback to memory logs (sorted descending)
         return [...MEMORY_AUDIT_LOGS].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
 }
@@ -168,13 +142,11 @@ export async function recordAuditLog(
         created_at: new Date().toISOString(),
     };
 
-    // Save to memory cache (limit to 50 items)
     MEMORY_AUDIT_LOGS.push(logEntry);
     if (MEMORY_AUDIT_LOGS.length > 50) {
         MEMORY_AUDIT_LOGS.shift();
     }
 
-    // Try to save to Supabase
     const supabaseAdmin = getSupabaseClient();
     if (supabaseAdmin) {
         try {
@@ -185,7 +157,7 @@ export async function recordAuditLog(
                     admin_email: logEntry.admin_email,
                     admin_name: logEntry.admin_name,
                     role: logEntry.role,
-                    action: logEntry.action,
+                    action,
                     target_id: logEntry.target_id,
                     details: logEntry.details,
                     ip_address: logEntry.ip_address,
@@ -212,7 +184,7 @@ export async function getSystemSettings(): Promise<Record<string, any>> {
             .select('*');
 
         if (error) throw error;
-        
+
         const settings: Record<string, any> = { ...MEMORY_SETTINGS };
         if (data) {
             data.forEach((row: any) => {
@@ -221,7 +193,6 @@ export async function getSystemSettings(): Promise<Record<string, any>> {
         }
         return settings;
     } catch (err) {
-        // Table doesn't exist yet, return memory settings
         return MEMORY_SETTINGS;
     }
 }
