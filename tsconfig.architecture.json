@@ -10,6 +10,10 @@
     "modules/**/*.ts",
     "plugins/**/*.ts",
     "composition/**/*.ts",
-    "api/admin/media-upload.ts"
+    "api/admin/media-upload.ts",
+    "api/send-push.ts",
+    "api/send-wink-push.ts",
+    "api/send-album-request-push.ts",
+    "api/send-generic-push.ts"
   ]
 }
