@@ -120,12 +120,22 @@ export const assertWalletOwnership = async (
 export const buildPaymentUrls = (
   config: PaymentRuntimeConfig,
   successQuery: string,
-): { success: string; failure: string; pending: string; notification: string } => ({
-  success: new URL(`/?payment=${encodeURIComponent(successQuery)}`, `${config.publicBaseUrl}/`).toString(),
-  failure: new URL('/?payment=failure', `${config.publicBaseUrl}/`).toString(),
-  pending: new URL('/?payment=pending', `${config.publicBaseUrl}/`).toString(),
-  notification: new URL('/api/mercadopago-webhook', `${config.publicBaseUrl}/`).toString(),
-});
+  returnPath = '/',
+): { success: string; failure: string; pending: string; notification: string } => {
+  const normalizedPath = returnPath.startsWith('/') ? returnPath : `/${returnPath}`;
+  const withPaymentStatus = (status: string) => {
+    const url = new URL(normalizedPath, `${config.publicBaseUrl}/`);
+    url.searchParams.set('payment', status);
+    return url.toString();
+  };
+
+  return {
+    success: withPaymentStatus(successQuery),
+    failure: withPaymentStatus('failure'),
+    pending: withPaymentStatus('pending'),
+    notification: new URL('/api/mercadopago-webhook', `${config.publicBaseUrl}/`).toString(),
+  };
+};
 
 export const createMercadoPagoPreference = async (
   config: PaymentRuntimeConfig,
