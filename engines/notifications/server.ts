@@ -147,7 +147,9 @@ async function resolveMessage(client: any, actorId: string, input: UserNotificat
     .eq('conversation_id', message.conversation_id);
   if (error) throw error;
 
-  const ids = Array.from(new Set((participants || []).map((row: any) => String(row.user_id))));
+  const ids: string[] = Array.from(
+    new Set<string>(((participants || []) as any[]).map((row: any): string => String(row.user_id))),
+  );
   if (ids.length !== 2 || !ids.includes(actorId)) {
     throw new Error('Notification is only supported for authorized 1:1 conversations.');
   }
