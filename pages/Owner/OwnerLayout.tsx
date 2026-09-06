@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { OwnerVenuesView } from './views/OwnerVenuesView';
+// Server-backed marketing surface; keep this import in the client bundle so API-only hotfixes can be promoted safely.
 import { OwnerMarketingSecureView } from './views/OwnerMarketingSecureView';
 
 export const OwnerLayout: React.FC = () => {
