@@ -5,7 +5,6 @@ import { add } from 'date-fns';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 
-// Mock data as fallback
 const PREP_GOV_URL = 'https://www.gov.br/aids/pt-br/assuntos/prep-profilaxia-pre-exposicao';
 
 const MOCK_ADS: Ad[] = [
@@ -42,12 +41,27 @@ interface AdState {
   trackClick: (campaignId: string | number) => Promise<void>;
 }
 
+const isPersistedCampaignId = (campaignId: string | number): campaignId is string =>
+    typeof campaignId === 'string' && !!campaignId && !campaignId.startsWith('mock_');
+
+const incrementCampaignMetric = async (campaignId: string | number, metric: 'view' | 'click') => {
+    if (!isPersistedCampaignId(campaignId)) return;
+
+    const { error } = await supabase.rpc('increment_b2b_campaign_metric', {
+        p_campaign_id: campaignId,
+        p_metric: metric,
+    });
+
+    if (error) throw error;
+};
+
 export const useAdStore = create<AdState>((set, get) => ({
     feedAds: [],
     bannerAds: [],
     inboxAd: null,
     temporaryPerks: [],
     activePinoDouradoVenueIds: [],
+
     fetchAds: async () => {
         try {
             const { data, error } = await supabase
@@ -58,7 +72,7 @@ export const useAdStore = create<AdState>((set, get) => ({
             let feedAds: Ad[] = [];
             let bannerAds: Ad[] = [];
             let inboxAd: Ad | null = null;
-            let pinoVenueIds: string[] = [];
+            const pinoVenueIds: string[] = [];
 
             if (!error && data) {
                 const dynamicFeedAds: Ad[] = [];
@@ -66,23 +80,20 @@ export const useAdStore = create<AdState>((set, get) => ({
                 const dynamicInboxAds: Ad[] = [];
 
                 data.forEach((camp: any) => {
-                    const isExpired = camp.duration_hours && camp.created_at ? new Date(camp.created_at).getTime() + (camp.duration_hours * 60 * 60 * 1000) < Date.now() : false;
-                    
+                    const isExpired = camp.duration_hours && camp.created_at
+                        ? new Date(camp.created_at).getTime() + (camp.duration_hours * 60 * 60 * 1000) < Date.now()
+                        : false;
+
                     if (isExpired) return;
-                    
-                    // Ignore legacy hardcoded campaigns that confuse users with default text
-                    if (camp.title === 'Destaque: Pino Dourado' || camp.title === 'Destaque: Banner no Feed') {
-                        return;
-                    }
+                    if (camp.title === 'Destaque: Pino Dourado' || camp.title === 'Destaque: Banner no Feed') return;
 
                     const defaultImage = 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600';
-                    const imageUrl = camp.image_url ? camp.image_url : defaultImage;
-
-                    // Respect custom CTA and URL configurations from DB
+                    const imageUrl = camp.image_url || defaultImage;
                     const customCtaText = camp.cta_text || (camp.placement === 'messages' ? 'Ver Agora' : 'Saiba Mais');
                     let customCtaUrl = camp.cta_url || (camp.venue_id ? `/venue/${camp.venue_id}` : '#');
 
-                    const isPrepRelated = (camp.title && camp.title.toLowerCase().includes('prep')) || (camp.message && camp.message.toLowerCase().includes('prep'));
+                    const isPrepRelated = (camp.title && camp.title.toLowerCase().includes('prep'))
+                        || (camp.message && camp.message.toLowerCase().includes('prep'));
                     if (isPrepRelated && (!camp.cta_url || camp.cta_url === '#' || camp.cta_url.includes('example.com'))) {
                         customCtaUrl = PREP_GOV_URL;
                     }
@@ -100,42 +111,27 @@ export const useAdStore = create<AdState>((set, get) => ({
 
                     if (camp.placement === 'map' || camp.title === 'Destaque: Pino Dourado') {
                         pinoVenueIds.push(camp.venue_id);
-                    } 
-                    
+                    }
                     if (camp.placement === 'feed' || camp.placement === 'push' || camp.title === 'Destaque: Banner no Feed' || !camp.placement) {
                         dynamicFeedAds.push(mappedAd);
                     }
-
                     if (camp.placement === 'banner' || camp.title === 'Destaque: Banner no Feed') {
                         dynamicBannerAds.push(mappedAd);
                     }
-
                     if (camp.placement === 'messages' || camp.placement === 'push') {
                         dynamicInboxAds.push(mappedAd);
                     }
                 });
 
-                if (dynamicFeedAds.length > 0) {
-                    feedAds = dynamicFeedAds;
-                } else {
-                    feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
-                }
-
-                if (dynamicBannerAds.length > 0) {
-                    bannerAds = dynamicBannerAds;
-                } else {
-                    if (dynamicFeedAds.length > 0) {
-                        bannerAds = [dynamicFeedAds[0]];
-                    } else {
-                        bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
-                    }
-                }
-                
-                if (dynamicInboxAds.length > 0) {
-                    inboxAd = dynamicInboxAds[0];
-                } else {
-                    inboxAd = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
-                }
+                feedAds = dynamicFeedAds.length > 0 ? dynamicFeedAds : MOCK_ADS.filter(ad => ad.ad_type === 'feed');
+                bannerAds = dynamicBannerAds.length > 0
+                    ? dynamicBannerAds
+                    : dynamicFeedAds.length > 0
+                        ? [dynamicFeedAds[0]]
+                        : MOCK_ADS.filter(ad => ad.ad_type === 'banner');
+                inboxAd = dynamicInboxAds.length > 0
+                    ? dynamicInboxAds[0]
+                    : MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
             } else {
                 feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
                 bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
@@ -144,85 +140,53 @@ export const useAdStore = create<AdState>((set, get) => ({
 
             set({ feedAds, bannerAds, inboxAd, activePinoDouradoVenueIds: pinoVenueIds });
         } catch (err) {
-            console.error("Error fetching ads:", err);
-            // fallback to mock
-            const feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
-            const bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
-            const inboxAd = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
-            set({ feedAds, bannerAds, inboxAd, activePinoDouradoVenueIds: [] });
+            console.error('Error fetching ads:', err);
+            set({
+                feedAds: MOCK_ADS.filter(ad => ad.ad_type === 'feed'),
+                bannerAds: MOCK_ADS.filter(ad => ad.ad_type === 'banner'),
+                inboxAd: MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null,
+                activePinoDouradoVenueIds: []
+            });
         }
     },
 
     grantTemporaryPerk: (perk, durationHours) => {
         const expires_at = add(new Date(), { hours: durationHours }).toISOString();
         const newPerk: TemporaryPerk = { perk, expires_at };
-        
+
         set(state => {
             const otherPerks = state.temporaryPerks.filter(p => p.perk !== perk);
             return { temporaryPerks: [...otherPerks, newPerk] };
         });
-        
+
         toast.success(`Benefício desbloqueado por ${durationHours} hora(s)!`);
     },
 
     hasPerk: (perk) => {
         const existingPerk = get().temporaryPerks.find(p => p.perk === perk);
         if (existingPerk) {
-            if (new Date(existingPerk.expires_at) > new Date()) {
-                return true;
-            } else {
-                set(state => ({
-                    temporaryPerks: state.temporaryPerks.filter(p => p.perk !== perk)
-                }));
-                return false;
-            }
+            if (new Date(existingPerk.expires_at) > new Date()) return true;
+
+            set(state => ({
+                temporaryPerks: state.temporaryPerks.filter(p => p.perk !== perk)
+            }));
         }
         return false;
     },
 
     trackView: async (campaignId: string | number) => {
         try {
-            // Verify campaignId is valid number/string to avoid errors
-            if (!campaignId || typeof campaignId === 'string' && campaignId.startsWith('mock_') || typeof campaignId === 'number' && campaignId < 10) return;
-            
-            // Try to increment views_count directly on supabase
-            const { data: current } = await supabase
-                .from('b2b_campaigns')
-                .select('views_count')
-                .eq('id', campaignId)
-                .single();
-
-            if (current) {
-                const nextViews = (current.views_count || 0) + 1;
-                await supabase
-                    .from('b2b_campaigns')
-                    .update({ views_count: nextViews })
-                    .eq('id', campaignId);
-            }
+            await incrementCampaignMetric(campaignId, 'view');
         } catch (err) {
-            console.error("Error tracking ad view:", err);
+            console.error('Error tracking ad view:', err);
         }
     },
 
     trackClick: async (campaignId: string | number) => {
         try {
-            if (!campaignId || typeof campaignId === 'string' && campaignId.startsWith('mock_') || typeof campaignId === 'number' && campaignId < 10) return;
-            
-            const { data: current } = await supabase
-                .from('b2b_campaigns')
-                .select('clicks_count')
-                .eq('id', campaignId)
-                .single();
-
-            if (current) {
-                const nextClicks = (current.clicks_count || 0) + 1;
-                await supabase
-                    .from('b2b_campaigns')
-                    .update({ clicks_count: nextClicks })
-                    .eq('id', campaignId);
-            }
+            await incrementCampaignMetric(campaignId, 'click');
         } catch (err) {
-            console.error("Error tracking ad click:", err);
+            console.error('Error tracking ad click:', err);
         }
     }
 }));
