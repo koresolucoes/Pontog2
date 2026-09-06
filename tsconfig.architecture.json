@@ -9,6 +9,7 @@
     "engines/**/*.ts",
     "modules/manifest.ts",
     "plugins/**/*.ts",
-    "composition/**/*.ts"
+    "composition/**/*.ts",
+    "api/admin/media-upload.ts"
   ]
 }
