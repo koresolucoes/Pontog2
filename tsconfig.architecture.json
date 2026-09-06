@@ -14,6 +14,8 @@
     "api/send-push.ts",
     "api/send-wink-push.ts",
     "api/send-album-request-push.ts",
-    "api/send-generic-push.ts"
+    "api/send-generic-push.ts",
+    "api/store-push-subscription.ts",
+    "api/unlink-push-subscription.ts"
   ]
 }
