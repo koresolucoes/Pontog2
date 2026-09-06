@@ -5,7 +5,7 @@ import {
   getPaymentRuntimeConfig,
   settleMercadoPagoPayment,
   verifyMercadoPagoSignature,
-} from '../engines/payments/server';
+} from '../engines/payments/server.js';
 
 const firstQueryValue = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;

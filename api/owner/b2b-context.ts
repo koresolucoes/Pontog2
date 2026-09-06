@@ -3,7 +3,7 @@ import {
   authenticateServerUser,
   createServerAuthorizationClient,
   requireVenueOwner,
-} from '../../engines/authorization/server';
+} from '../../engines/authorization/server.js';
 
 const queryValue = (value: string | string[] | undefined): string =>
   (Array.isArray(value) ? value[0] : value || '').trim();
