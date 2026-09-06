@@ -40,12 +40,21 @@ const normalizePublicBaseUrl = (raw: string): string => {
   return parsed.toString().replace(/\/$/, '');
 };
 
+const getPlatformProductionUrl = (): string | undefined => {
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (!host) return undefined;
+  return host.includes('://') ? host : `https://${host}`;
+};
+
 export const getPaymentRuntimeConfig = (): PaymentRuntimeConfig => {
   const configuredBaseUrl = process.env.PAYMENTS_PUBLIC_BASE_URL?.trim()
-    || process.env.NEXT_PUBLIC_SITE_URL?.trim();
+    || process.env.NEXT_PUBLIC_SITE_URL?.trim()
+    || getPlatformProductionUrl();
 
   if (!configuredBaseUrl) {
-    throw new Error('Payment configuration missing: PAYMENTS_PUBLIC_BASE_URL or NEXT_PUBLIC_SITE_URL');
+    throw new Error(
+      'Payment configuration missing: PAYMENTS_PUBLIC_BASE_URL, NEXT_PUBLIC_SITE_URL or VERCEL_PROJECT_PRODUCTION_URL',
+    );
   }
 
   return {
@@ -100,21 +109,12 @@ export const assertWalletOwnership = async (
     .eq('id', wallet.venue_id)
     .maybeSingle();
 
-  if (!venueError && venue?.owner_id === userId) return wallet;
-
-  if (venue?.id) {
-    const { data: claim } = await client
-      .from('venue_claims')
-      .select('id')
-      .eq('venue_id', venue.id)
-      .eq('user_id', userId)
-      .eq('status', 'approved')
-      .maybeSingle();
-
-    if (claim) return wallet;
+  if (venueError || !venue) throw new Error('Wallet venue not found.');
+  if (venue.owner_id !== userId) {
+    throw new Error('Wallet does not belong to the authenticated user.');
   }
 
-  throw new Error('Wallet does not belong to the authenticated user.');
+  return wallet;
 };
 
 export const buildPaymentUrls = (
