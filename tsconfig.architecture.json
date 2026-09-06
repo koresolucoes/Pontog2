@@ -7,7 +7,7 @@
   "include": [
     "core/**/*.ts",
     "engines/**/*.ts",
-    "modules/manifest.ts",
+    "modules/**/*.ts",
     "plugins/**/*.ts",
     "composition/**/*.ts",
     "api/admin/media-upload.ts"
