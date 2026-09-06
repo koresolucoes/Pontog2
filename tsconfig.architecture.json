@@ -19,6 +19,10 @@
     "api/send-album-request-push.ts",
     "api/send-generic-push.ts",
     "api/store-push-subscription.ts",
-    "api/unlink-push-subscription.ts"
+    "api/unlink-push-subscription.ts",
+    "api/mercadopago-webhook.ts",
+    "api/create-mercadopago-preference.ts",
+    "api/create-donation-preference.ts",
+    "api/owner/create-wallet-preference.ts"
   ]
 }
