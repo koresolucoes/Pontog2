@@ -1,6 +1,7 @@
 -- B2B ownership + financial integrity hardening — EXPAND phase.
 -- Safe to apply before the frontend migration because it is additive only.
 -- Canonical owner: venues.owner_id. Claims only establish ownership after admin approval.
+-- Wallets start at zero; credits enter only through explicit, auditable ledger effects.
 
 alter table public.b2b_campaigns
   add column if not exists cta_text text,
@@ -12,10 +13,7 @@ create unique index if not exists b2b_transactions_campaign_reference_uidx
   on public.b2b_transactions(reference_id)
   where type = 'campaign_deduction' and reference_id is not null;
 
-create or replace function public.ensure_b2b_wallet(
-  p_actor_user_id uuid,
-  p_venue_id uuid
-)
+create or replace function public.ensure_b2b_wallet(p_actor_user_id uuid, p_venue_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -29,31 +27,20 @@ begin
     raise exception 'actor and venue are required';
   end if;
 
-  perform 1
-  from public.venues
+  perform 1 from public.venues
   where id = p_venue_id and owner_id = p_actor_user_id
   for update;
-  if not found then
-    raise exception 'venue is not owned by actor';
-  end if;
+  if not found then raise exception 'venue is not owned by actor'; end if;
 
-  select * into v_wallet
-  from public.b2b_wallets
+  select * into v_wallet from public.b2b_wallets
   where venue_id = p_venue_id
   for update;
 
   if not found then
     insert into public.b2b_wallets(venue_id, balance, currency)
-    values (p_venue_id, 100.00, 'BRL')
+    values (p_venue_id, 0.00, 'BRL')
     returning * into v_wallet;
     v_created := true;
-
-    insert into public.b2b_transactions(
-      wallet_id, amount, type, status, description, actor_user_id
-    ) values (
-      v_wallet.id, 100.00, 'bonus_signup', 'approved',
-      'Bônus de Boas-Vindas B2B', p_actor_user_id
-    );
   end if;
 
   return jsonb_build_object(
@@ -94,47 +81,29 @@ declare
   v_range integer;
   v_placement text;
 begin
-  if p_actor_user_id is null or p_venue_id is null then
-    raise exception 'actor and venue are required';
-  end if;
-  if length(btrim(coalesce(p_title, ''))) < 2 or length(btrim(coalesce(p_title, ''))) > 120 then
-    raise exception 'invalid campaign title';
-  end if;
-  if length(btrim(coalesce(p_message, ''))) < 2 or length(btrim(coalesce(p_message, ''))) > 1000 then
-    raise exception 'invalid campaign message';
-  end if;
+  if p_actor_user_id is null or p_venue_id is null then raise exception 'actor and venue are required'; end if;
+  if length(btrim(coalesce(p_title, ''))) < 2 or length(btrim(coalesce(p_title, ''))) > 120 then raise exception 'invalid campaign title'; end if;
+  if length(btrim(coalesce(p_message, ''))) < 2 or length(btrim(coalesce(p_message, ''))) > 1000 then raise exception 'invalid campaign message'; end if;
 
   v_placement := lower(coalesce(p_placement, 'feed'));
-  if v_placement not in ('push', 'feed', 'map', 'messages', 'banner') then
-    raise exception 'invalid campaign placement';
-  end if;
+  if v_placement not in ('push', 'feed', 'map', 'messages', 'banner') then raise exception 'invalid campaign placement'; end if;
   v_duration := greatest(1, least(coalesce(p_duration_hours, 24), 168));
   v_range := greatest(100, least(coalesce(p_range_meters, 500), 50000));
 
-  perform 1
-  from public.venues
+  perform 1 from public.venues
   where id = p_venue_id and owner_id = p_actor_user_id
   for update;
-  if not found then
-    raise exception 'venue is not owned by actor';
-  end if;
+  if not found then raise exception 'venue is not owned by actor'; end if;
 
-  select * into v_wallet
-  from public.b2b_wallets
+  select * into v_wallet from public.b2b_wallets
   where venue_id = p_venue_id
   for update;
-
   if not found then
     perform public.ensure_b2b_wallet(p_actor_user_id, p_venue_id);
-    select * into v_wallet
-    from public.b2b_wallets
-    where venue_id = p_venue_id
-    for update;
+    select * into v_wallet from public.b2b_wallets where venue_id = p_venue_id for update;
   end if;
 
-  if upper(coalesce(v_wallet.currency, '')) <> 'BRL' then
-    raise exception 'unsupported wallet currency';
-  end if;
+  if upper(coalesce(v_wallet.currency, '')) <> 'BRL' then raise exception 'unsupported wallet currency'; end if;
 
   if v_placement = 'push' then
     v_reach := case
@@ -155,9 +124,7 @@ begin
     v_cost := round(v_reach * 0.05, 2);
   end if;
 
-  if v_wallet.balance < v_cost then
-    raise exception 'insufficient wallet balance';
-  end if;
+  if v_wallet.balance < v_cost then raise exception 'insufficient wallet balance'; end if;
 
   insert into public.b2b_campaigns(
     venue_id, title, message, target_tribe, range_meters,
@@ -173,14 +140,12 @@ begin
   ) returning id into v_campaign_id;
 
   update public.b2b_wallets
-  set balance = balance - v_cost,
-      updated_at = now()
+  set balance = balance - v_cost, updated_at = now()
   where id = v_wallet.id
   returning balance into v_balance;
 
   insert into public.b2b_transactions(
-    wallet_id, amount, type, status, description,
-    reference_id, actor_user_id
+    wallet_id, amount, type, status, description, reference_id, actor_user_id
   ) values (
     v_wallet.id, -v_cost, 'campaign_deduction', 'approved',
     'Anúncio: ' || left(btrim(p_title), 120) || ' (' || v_placement || ')',
@@ -197,9 +162,7 @@ end;
 $$;
 
 create or replace function public.set_b2b_campaign_status(
-  p_actor_user_id uuid,
-  p_campaign_id uuid,
-  p_status text
+  p_actor_user_id uuid, p_campaign_id uuid, p_status text
 )
 returns text
 language plpgsql
@@ -209,26 +172,18 @@ as $$
 declare
   v_status text := lower(coalesce(p_status, ''));
 begin
-  if v_status not in ('approved', 'paused') then
-    raise exception 'invalid campaign status';
-  end if;
-
+  if v_status not in ('approved', 'paused') then raise exception 'invalid campaign status'; end if;
   update public.b2b_campaigns c
   set status = v_status
   from public.venues v
-  where c.id = p_campaign_id
-    and v.id = c.venue_id
-    and v.owner_id = p_actor_user_id;
-  if not found then
-    raise exception 'campaign is not owned by actor';
-  end if;
+  where c.id = p_campaign_id and v.id = c.venue_id and v.owner_id = p_actor_user_id;
+  if not found then raise exception 'campaign is not owned by actor'; end if;
   return v_status;
 end;
 $$;
 
 create or replace function public.increment_b2b_campaign_metric(
-  p_campaign_id uuid,
-  p_metric text
+  p_campaign_id uuid, p_metric text
 )
 returns void
 language plpgsql
