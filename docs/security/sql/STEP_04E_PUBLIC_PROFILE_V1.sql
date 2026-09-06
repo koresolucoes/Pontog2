@@ -13,7 +13,7 @@ returns table (
   video_url text,
   status_text text,
   age integer,
-  position text,
+  profile_position text,
   relationship_status text,
   body_type text,
   gender_identity text,
@@ -50,7 +50,7 @@ begin
       when p.date_of_birth is null then null
       else extract(year from age(current_date, p.date_of_birth))::integer
     end as age,
-    p.position,
+    p.position as profile_position,
     coalesce(p.relationship_status, p.status_relacionamento) as relationship_status,
     p.tipo_corpo as body_type,
     p.gender_identity,
