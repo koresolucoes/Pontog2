@@ -1,4 +1,5 @@
--- B2B ownership + financial integrity hardening.
+-- B2B ownership + financial integrity hardening — EXPAND phase.
+-- Safe to apply before the frontend migration because it is additive only.
 -- Canonical owner: venues.owner_id. Claims only establish ownership after admin approval.
 
 alter table public.b2b_campaigns
@@ -32,7 +33,6 @@ begin
   from public.venues
   where id = p_venue_id and owner_id = p_actor_user_id
   for update;
-
   if not found then
     raise exception 'venue is not owned by actor';
   end if;
@@ -108,7 +108,6 @@ begin
   if v_placement not in ('push', 'feed', 'map', 'messages', 'banner') then
     raise exception 'invalid campaign placement';
   end if;
-
   v_duration := greatest(1, least(coalesce(p_duration_hours, 24), 168));
   v_range := greatest(100, least(coalesce(p_range_meters, 500), 50000));
 
@@ -220,11 +219,9 @@ begin
   where c.id = p_campaign_id
     and v.id = c.venue_id
     and v.owner_id = p_actor_user_id;
-
   if not found then
     raise exception 'campaign is not owned by actor';
   end if;
-
   return v_status;
 end;
 $$;
@@ -240,12 +237,10 @@ set search_path = pg_catalog, public
 as $$
 begin
   if p_metric = 'view' then
-    update public.b2b_campaigns
-    set views_count = views_count + 1
+    update public.b2b_campaigns set views_count = views_count + 1
     where id = p_campaign_id and status = 'approved';
   elsif p_metric = 'click' then
-    update public.b2b_campaigns
-    set clicks_count = clicks_count + 1
+    update public.b2b_campaigns set clicks_count = clicks_count + 1
     where id = p_campaign_id and status = 'approved';
   else
     raise exception 'invalid campaign metric';
@@ -261,81 +256,3 @@ grant execute on function public.ensure_b2b_wallet(uuid, uuid) to service_role;
 grant execute on function public.create_b2b_campaign_atomic(uuid, uuid, text, text, text, text, integer, integer, text, text, text) to service_role;
 grant execute on function public.set_b2b_campaign_status(uuid, uuid, text) to service_role;
 grant execute on function public.increment_b2b_campaign_metric(uuid, text) to authenticated;
-
--- Replace broad B2B RLS with owner-scoped reads and backend-only writes.
-drop policy if exists "Allow full access for administrators on wallets" on public.b2b_wallets;
-drop policy if exists "Allow select for owners on their own wallets" on public.b2b_wallets;
-create policy b2b_wallets_select_owner
-on public.b2b_wallets for select to authenticated
-using (exists (
-  select 1 from public.venues v
-  where v.id = b2b_wallets.venue_id
-    and v.owner_id = (select auth.uid())
-));
-
-drop policy if exists "Allow insert/update for transactions" on public.b2b_transactions;
-drop policy if exists "Allow read for transactions" on public.b2b_transactions;
-create policy b2b_transactions_select_owner
-on public.b2b_transactions for select to authenticated
-using (exists (
-  select 1
-  from public.b2b_wallets w
-  join public.venues v on v.id = w.venue_id
-  where w.id = b2b_transactions.wallet_id
-    and v.owner_id = (select auth.uid())
-));
-
-drop policy if exists "Allow full action on campaigns" on public.b2b_campaigns;
-drop policy if exists "Allow read on campaigns" on public.b2b_campaigns;
-create policy b2b_campaigns_select_public_approved
-on public.b2b_campaigns for select to anon, authenticated
-using (status = 'approved');
-create policy b2b_campaigns_select_owner
-on public.b2b_campaigns for select to authenticated
-using (exists (
-  select 1 from public.venues v
-  where v.id = b2b_campaigns.venue_id
-    and v.owner_id = (select auth.uid())
-));
-
-revoke insert, update, delete, truncate on public.b2b_wallets from anon, authenticated;
-revoke insert, update, delete, truncate on public.b2b_transactions from anon, authenticated;
-revoke insert, update, delete, truncate on public.b2b_campaigns from anon, authenticated;
-revoke select on public.b2b_wallets, public.b2b_transactions from anon;
-grant select on public.b2b_wallets, public.b2b_transactions to authenticated;
-grant select on public.b2b_campaigns to anon, authenticated;
-
--- Claims: authenticated user can create/read only their own claim; no anonymous claim surface.
-drop policy if exists "Donos podem criar reivindicações" on public.venue_claims;
-drop policy if exists "Donos podem ver suas reivindicações" on public.venue_claims;
-drop policy if exists "Usuários criam solicitações" on public.venue_claims;
-drop policy if exists "Usuários veem suas próprias solicitações" on public.venue_claims;
-create policy venue_claims_insert_own
-on public.venue_claims for insert to authenticated
-with check (
-  user_id = (select auth.uid())
-  and status = 'pending'
-  and exists (
-    select 1 from public.venues v
-    where v.id = venue_claims.venue_id
-      and (v.owner_id is null or v.owner_id = (select auth.uid()))
-  )
-);
-create policy venue_claims_select_own
-on public.venue_claims for select to authenticated
-using (user_id = (select auth.uid()));
-revoke all on public.venue_claims from anon;
-revoke update, delete, truncate on public.venue_claims from authenticated;
-grant select, insert on public.venue_claims to authenticated;
-
--- Remove the blanket venue SELECT; preserve verified/OSM/public and owner/submitted visibility.
-drop policy if exists "Todos podem ler venues" on public.venues;
-drop policy if exists "Public venues are viewable by everyone" on public.venues;
-create policy venues_select_visible
-on public.venues for select to anon, authenticated
-using (
-  is_verified = true
-  or source_type = 'osm'
-  or submitted_by = (select auth.uid())
-  or owner_id = (select auth.uid())
-);
