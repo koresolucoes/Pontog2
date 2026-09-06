@@ -28,12 +28,10 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-
 interface PwaState {
   installPromptEvent: BeforeInstallPromptEvent | null;
   setInstallPromptEvent: (event: BeforeInstallPromptEvent | null) => void;
   triggerInstall: () => void;
-  // Novas propriedades de estado para Push Notifications
   pushState: 'unsupported' | 'denied' | 'prompt' | 'granted';
   isSubscribing: boolean;
   checkPushSupport: () => Promise<void>;
@@ -43,15 +41,20 @@ interface PwaState {
 }
 
 const log = {
-    info: (message: string, data?: any) => console.log(`[PWA_STORE] INFO: ${message}`, data || ''),
-    error: (message: string, error?: any) => console.error(`[PWA_STORE] ERROR: ${message}`, error || ''),
+  info: (message: string, data?: any) => console.log(`[PWA_STORE] INFO: ${message}`, data || ''),
+  error: (message: string, error?: any) => console.error(`[PWA_STORE] ERROR: ${message}`, error || ''),
 };
+
+const safeSubscriptionLog = (subscriptionObject: PushSubscriptionJSON) => ({
+  endpoint: subscriptionObject.endpoint,
+  expirationTime: subscriptionObject.expirationTime ?? null,
+});
 
 export const usePwaStore = create<PwaState>((set, get) => ({
   installPromptEvent: null,
   pushState: 'prompt',
   isSubscribing: false,
-  
+
   setInstallPromptEvent: (event) => set({ installPromptEvent: event }),
 
   triggerInstall: async () => {
@@ -60,7 +63,7 @@ export const usePwaStore = create<PwaState>((set, get) => ({
       log.info('O prompt de instalação do PWA não está disponível.');
       return;
     }
-    
+
     installPromptEvent.prompt();
     const { outcome } = await installPromptEvent.userChoice;
     log.info(`Resposta do usuário ao prompt de instalação: ${outcome}`);
@@ -74,19 +77,14 @@ export const usePwaStore = create<PwaState>((set, get) => ({
     }
 
     if (Notification.permission === 'denied') {
-        set({pushState: 'denied'});
-        return;
+      set({ pushState: 'denied' });
+      return;
     }
 
     if (Notification.permission === 'granted') {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
-
-      if (subscription) {
-        set({ pushState: 'granted' });
-      } else {
-        set({ pushState: 'prompt' });
-      }
+      set({ pushState: subscription ? 'granted' : 'prompt' });
     } else {
       set({ pushState: 'prompt' });
     }
@@ -97,79 +95,76 @@ export const usePwaStore = create<PwaState>((set, get) => ({
     set({ isSubscribing: true });
 
     try {
-        const vapidPublicKey = (import.meta as any).env.VITE_VAPID_PUBLIC_KEY;
-        if (!vapidPublicKey) {
-            throw new Error('VAPID public key não encontrada nas variáveis de ambiente.');
-        }
-        log.info('VAPID public key encontrada.');
+      const vapidPublicKey = (import.meta as any).env.VITE_VAPID_PUBLIC_KEY;
+      if (!vapidPublicKey) {
+        throw new Error('VAPID public key não encontrada nas variáveis de ambiente.');
+      }
+      log.info('VAPID public key encontrada.');
 
-        if (get().pushState === 'denied' || get().pushState === 'unsupported') {
-            toast('As notificações estão bloqueadas ou não são suportadas neste navegador.');
-            set({ isSubscribing: false });
-            return;
-        }
-
-        log.info('Solicitando permissão para notificações...');
-        const permission = await Notification.requestPermission();
-        log.info(`Permissão de notificação: ${permission}`);
-        if (permission !== 'granted') {
-            throw new Error('Permissão para notificações não concedida.');
-        }
-
-        log.info('Aguardando o Service Worker ficar pronto...');
-        const registration = await navigator.serviceWorker.ready;
-        log.info('Service Worker está pronto.', registration);
-
-        log.info('Inscrevendo no Push Manager...');
-        const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-        });
-        const subscriptionObject = subscription.toJSON();
-        log.info('Inscrição criada com sucesso no navegador.', subscriptionObject);
-
-        log.info('Obtendo sessão do Supabase para enviar ao servidor...');
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            throw new Error("Usuário não autenticado para salvar inscrição.");
-        }
-
-        log.info('Sessão do usuário obtida. Enviando inscrição para /api/store-push-subscription...');
-        const response = await fetch('/api/store-push-subscription', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({ subscription_object: subscriptionObject }),
-        });
-        log.info('Resposta recebida do servidor.', { status: response.status });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            log.error('Servidor retornou um erro ao salvar a inscrição.', errorData);
-            throw new Error(errorData.error || 'Falha ao salvar a inscrição no servidor.');
-        }
-
-        log.info('Inscrição salva com sucesso no servidor!');
-        toast.success('Notificações ativadas com sucesso!');
-        set({ pushState: 'granted' });
-
-    } catch (error: any) {
-        log.error('Falha no processo de inscrição de notificação.', error);
-        if (Notification.permission === 'denied') {
-            set({ pushState: 'denied' });
-            toast.error('Você bloqueou as notificações. Altere nas configurações do navegador.');
-        } else {
-             if (error.message.toLowerCase().includes("service worker")) {
-                toast.error('Erro ao ativar serviço de notificações. Tente recarregar a página.');
-            } else {
-                toast.error('Não foi possível ativar as notificações.');
-            }
-        }
-    } finally {
-        log.info('Processo de inscrição finalizado.');
+      if (get().pushState === 'denied' || get().pushState === 'unsupported') {
+        toast('As notificações estão bloqueadas ou não são suportadas neste navegador.');
         set({ isSubscribing: false });
+        return;
+      }
+
+      log.info('Solicitando permissão para notificações...');
+      const permission = await Notification.requestPermission();
+      log.info(`Permissão de notificação: ${permission}`);
+      if (permission !== 'granted') {
+        throw new Error('Permissão para notificações não concedida.');
+      }
+
+      log.info('Aguardando o Service Worker ficar pronto...');
+      const registration = await navigator.serviceWorker.ready;
+      log.info('Service Worker está pronto.');
+
+      log.info('Inscrevendo no Push Manager...');
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+      const subscriptionObject = subscription.toJSON();
+      log.info('Inscrição criada com sucesso no navegador.', safeSubscriptionLog(subscriptionObject));
+
+      log.info('Obtendo sessão do Supabase para enviar ao servidor...');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Usuário não autenticado para salvar inscrição.');
+      }
+
+      log.info('Sessão do usuário obtida. Enviando inscrição para /api/store-push-subscription...');
+      const response = await fetch('/api/store-push-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ subscription_object: subscriptionObject }),
+      });
+      log.info('Resposta recebida do servidor.', { status: response.status });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        log.error('Servidor retornou um erro ao salvar a inscrição.', { status: response.status, code: errorData?.error ? 'server_error' : 'unknown' });
+        throw new Error(errorData.error || 'Falha ao salvar a inscrição no servidor.');
+      }
+
+      log.info('Inscrição salva com sucesso no servidor!');
+      toast.success('Notificações ativadas com sucesso!');
+      set({ pushState: 'granted' });
+    } catch (error: any) {
+      log.error('Falha no processo de inscrição de notificação.', { name: error?.name, message: error?.message });
+      if (Notification.permission === 'denied') {
+        set({ pushState: 'denied' });
+        toast.error('Você bloqueou as notificações. Altere nas configurações do navegador.');
+      } else if (error.message.toLowerCase().includes('service worker')) {
+        toast.error('Erro ao ativar serviço de notificações. Tente recarregar a página.');
+      } else {
+        toast.error('Não foi possível ativar as notificações.');
+      }
+    } finally {
+      log.info('Processo de inscrição finalizado.');
+      set({ isSubscribing: false });
     }
   },
 
@@ -178,28 +173,28 @@ export const usePwaStore = create<PwaState>((set, get) => ({
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
-      
+
       if (subscription) {
         const subscriptionObject = subscription.toJSON();
         fetch('/api/unlink-push-subscription', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subscription_object: subscriptionObject }),
-        });
-        log.info('Desvinculando inscrição de push do backend.');
+        }).catch(() => undefined);
+        log.info('Desvinculando inscrição de push do backend.', { endpoint: subscriptionObject.endpoint });
       }
-    } catch (error) {
-      log.error('Erro ao desvincular a inscrição de push:', error);
+    } catch (error: any) {
+      log.error('Erro ao desvincular a inscrição de push.', { name: error?.name, message: error?.message });
     }
   },
 
   relinkSubscriptionOnLogin: async () => {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-      
+
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
-      
+
       if (subscription) {
         log.info('Inscrição existente encontrada no dispositivo. Re-vinculando com o usuário atual.');
         const subscriptionObject = subscription.toJSON();
@@ -207,23 +202,23 @@ export const usePwaStore = create<PwaState>((set, get) => ({
         if (!session) return;
 
         const response = await fetch('/api/store-push-subscription', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({ subscription_object: subscriptionObject }),
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ subscription_object: subscriptionObject }),
         });
 
         if (response.ok) {
-          log.info('Inscrição re-vinculada com sucesso.');
+          log.info('Inscrição re-vinculada com sucesso.', { endpoint: subscriptionObject.endpoint });
           set({ pushState: 'granted' });
         } else {
-          log.error('Falha ao re-vincular a inscrição.');
+          log.error('Falha ao re-vincular a inscrição.', { status: response.status });
         }
       }
-    } catch (error) {
-      log.error('Erro durante o re-vínculo da inscrição de push:', error);
+    } catch (error: any) {
+      log.error('Erro durante o re-vínculo da inscrição de push.', { name: error?.name, message: error?.message });
     }
   },
 }));
