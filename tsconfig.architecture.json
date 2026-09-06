@@ -13,12 +13,22 @@
     "api/admin/_utils.ts",
     "api/admin/reports.ts",
     "api/admin/media-upload.ts",
+    "api/admin/venue-claims.ts",
     "api/admin-login.ts",
     "api/send-push.ts",
     "api/send-wink-push.ts",
     "api/send-album-request-push.ts",
     "api/send-generic-push.ts",
     "api/store-push-subscription.ts",
-    "api/unlink-push-subscription.ts"
+    "api/unlink-push-subscription.ts",
+    "api/mercadopago-webhook.ts",
+    "api/create-mercadopago-preference.ts",
+    "api/create-donation-preference.ts",
+    "api/owner/b2b-context.ts",
+    "api/owner/campaign-status.ts",
+    "api/owner/create-campaign.ts",
+    "api/owner/create-wallet-preference.ts",
+    "pages/Owner/OwnerLayout.tsx",
+    "pages/Owner/views/OwnerMarketingSecureView.tsx"
   ]
 }
