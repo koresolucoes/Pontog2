@@ -1,4 +1,5 @@
 export * from './authorization/public';
+export * from './maps/public';
 export * from './media/public';
 export * from './moderation/public';
 export * from './notifications/public';
