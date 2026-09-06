@@ -7,7 +7,7 @@ import {
   createMercadoPagoPreference,
   createPaymentAdminClient,
   getPaymentRuntimeConfig,
-} from '../../engines/payments/server';
+} from '../../engines/payments/server.js';
 
 const requestIdempotencyKey = (req: VercelRequest): string | null => {
   const raw = req.headers['idempotency-key'];
