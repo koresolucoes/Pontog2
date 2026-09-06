@@ -1,106 +1,41 @@
 // api/send-wink-push.ts
-import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import webpush from 'web-push';
+import { dispatchAuthorizedUserNotification } from '../engines/notifications/server';
 
-webpush.setVapidDetails(
-  `mailto:${process.env.VAPID_CONTACT_EMAIL!}`,
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+function getBearerToken(req: VercelRequest): string | null {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return null;
+  return header.slice('Bearer '.length).trim() || null;
+}
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
+function statusForError(message: string): number {
+  if (/authentication|access token/i.test(message)) return 401;
+  if (/blocked|recipient|wink event|authorized/i.test(message)) return 403;
+  return 400;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).end('Method Not Allowed');
   }
 
+  const accessToken = getBearerToken(req);
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Authorization header missing or invalid.' });
+  }
+
   try {
-    const { receiver_id } = req.body;
-    if (!receiver_id) {
-      return res.status(400).json({ error: 'receiver_id is required' });
-    }
-    
-    const supabaseAdmin = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false, autoRefreshToken: false } }
-    ) as any;
-
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ error: 'Authorization header missing' });
-    }
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user: senderUser } } = await supabaseAdmin.auth.getUser(token);
-
-    if (!senderUser) {
-      return res.status(401).json({ error: 'Sender not authenticated' });
-    }
-
-    // 1. Verifica se o destinatário quer receber notificações de 'new_wink'
-    const { data: preferences, error: prefError } = await supabaseAdmin
-        .from('notification_preferences')
-        .select('enabled')
-        .eq('user_id', receiver_id)
-        .eq('notification_type', 'new_wink')
-        .limit(1);
-        
-    if (prefError) throw prefError;
-        
-    if (!preferences || preferences.length === 0 || !preferences[0].enabled) {
-        return res.status(200).json({ success: true, message: 'User has disabled new wink notifications.' });
-    }
-    
-    const { data: senderProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('username')
-        .eq('id', senderUser.id)
-        .single();
-    
-    if (!senderProfile) {
-        return res.status(404).json({ error: 'Sender profile not found' });
-    }
-
-    const { data: subscriptions, error: subscriptionError } = await supabaseAdmin
-      .from('push_subscriptions')
-      .select('subscription_details')
-      .eq('user_id', receiver_id);
-
-    if (subscriptionError) {
-        throw subscriptionError;
-    }
-
-    if (!subscriptions || subscriptions.length === 0) {
-      return res.status(200).json({ success: true, message: 'No subscription found.' });
-    }
-
-    const payload = JSON.stringify({
-      title: `Você recebeu um novo chamado! 😉`,
-      body: `${senderProfile.username} chamou você.`,
-    });
-    
-    const sendPromises = subscriptions.map((sub: any) => {
-        const subscription = sub.subscription_details as any;
-        return webpush.sendNotification(subscription, payload).catch(async (error) => {
-            if (error.statusCode === 410 || error.statusCode === 404) {
-                console.log(`Subscription for user ${receiver_id} is gone. Deleting endpoint: ${subscription.endpoint}`);
-                await supabaseAdmin.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint);
-            } else {
-                console.error('Error sending wink push notification:', error);
-            }
-        });
+    const result = await dispatchAuthorizedUserNotification({
+      accessToken,
+      eventType: 'wink',
+      hintedRecipientId: req.body?.receiver_id,
     });
 
-    await Promise.all(sendPromises);
-
-    return res.status(200).json({ success: true });
-
+    return res.status(200).json(result);
   } catch (error: any) {
-    console.error('Internal server error in send-wink-push:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    const message = error?.message || 'Notification delivery failed.';
+    console.error('Wink notification rejected:', error);
+    return res.status(statusForError(message)).json({ error: message });
   }
 }

@@ -1,7 +1,12 @@
 import type { EngineContract, RequestContext } from '../../core';
 
+export type NotificationTemplate =
+  | 'message.received'
+  | 'wink.received'
+  | 'album.access_requested';
+
 export interface NotificationCommand {
-  template: string;
+  template: NotificationTemplate;
   recipientId: string;
   data?: Readonly<Record<string, unknown>>;
   deduplicationKey?: string;
