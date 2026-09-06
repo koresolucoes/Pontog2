@@ -8,6 +8,11 @@ on:
       - 'modules/**'
       - 'plugins/**'
       - 'composition/**'
+      - 'api/send-push.ts'
+      - 'api/send-wink-push.ts'
+      - 'api/send-album-request-push.ts'
+      - 'api/send-generic-push.ts'
+      - 'api/admin/media-upload.ts'
       - 'tsconfig.architecture.json'
       - '.github/workflows/architecture-check.yml'
   push:
@@ -18,6 +23,11 @@ on:
       - 'modules/**'
       - 'plugins/**'
       - 'composition/**'
+      - 'api/send-push.ts'
+      - 'api/send-wink-push.ts'
+      - 'api/send-album-request-push.ts'
+      - 'api/send-generic-push.ts'
+      - 'api/admin/media-upload.ts'
       - 'tsconfig.architecture.json'
       - '.github/workflows/architecture-check.yml'
 
