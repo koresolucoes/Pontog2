@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Home, LayoutGrid, Map as MapIcon, Users, PlaySquare, Flame, Newspaper, MessageCircle, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Toaster, toast } from 'react-hot-toast';
@@ -12,38 +12,65 @@ import { useAdStore } from './stores/adStore';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { HomeView } from './components/HomeView';
-import { UserGrid } from './components/UserGrid';
 import { Map } from './components/Map';
-import { Inbox } from './components/Inbox';
-import { ProfileView } from './components/ProfileView';
-import { ProfileModal } from './components/ProfileModal';
-import { ChatWindow } from './components/ChatWindow';
-import { AgoraView } from './components/AgoraView';
 import { PwaInstallButton } from './components/PwaInstallButton';
 import { usePwaStore } from './stores/pwaStore';
-import { SubscriptionModal } from './components/SubscriptionModal';
-import { DonationModal } from './components/DonationModal';
-import { AdminPanel } from './pages/Admin/AdminPanel';
-import { OwnerPanel } from './pages/Owner/OwnerPanel';
 import { Onboarding } from './components/Onboarding';
 import { Sidebar } from './components/Sidebar';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { SuspendedScreen } from './components/SuspendedScreen';
 import { LegacyTribePromptModal } from './components/LegacyTribePromptModal';
-import { NewsView } from './components/NewsView';
-import { VenueDetailModal } from './components/VenueDetailModal';
 import { GuidedTour } from './components/GuidedTour';
-import { CommunityView } from './components/CommunityView';
-import { VideosView } from './components/VideosView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 
+const UserGrid = lazy(() => import('./components/UserGrid').then((module) => ({ default: module.UserGrid })));
+const Inbox = lazy(() => import('./components/Inbox').then((module) => ({ default: module.Inbox })));
+const ProfileView = lazy(() => import('./components/ProfileView').then((module) => ({ default: module.ProfileView })));
+const ProfileModal = lazy(() => import('./components/ProfileModal').then((module) => ({ default: module.ProfileModal })));
+const ChatWindow = lazy(() => import('./components/ChatWindow').then((module) => ({ default: module.ChatWindow })));
+const AgoraView = lazy(() => import('./components/AgoraView').then((module) => ({ default: module.AgoraView })));
+const SubscriptionModal = lazy(() => import('./components/SubscriptionModal').then((module) => ({ default: module.SubscriptionModal })));
+const DonationModal = lazy(() => import('./components/DonationModal').then((module) => ({ default: module.DonationModal })));
+const AdminPanel = lazy(() => import('./pages/Admin/AdminPanel').then((module) => ({ default: module.AdminPanel })));
+const OwnerPanel = lazy(() => import('./pages/Owner/OwnerPanel').then((module) => ({ default: module.OwnerPanel })));
+const NewsView = lazy(() => import('./components/NewsView').then((module) => ({ default: module.NewsView })));
+const VenueDetailModal = lazy(() => import('./components/VenueDetailModal').then((module) => ({ default: module.VenueDetailModal })));
+const CommunityView = lazy(() => import('./components/CommunityView').then((module) => ({ default: module.CommunityView })));
+const VideosView = lazy(() => import('./components/VideosView').then((module) => ({ default: module.VideosView })));
+
+const FullScreenLoader: React.FC = () => (
+    <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <div className="relative">
+            <div className="w-16 h-16 rounded-full border-4 border-slate-700 opacity-30"></div>
+            <div className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-t-primary-600 animate-spin"></div>
+        </div>
+    </div>
+);
+
+const ViewLoader: React.FC = () => (
+    <div className="h-full w-full bg-dark-900/70 flex items-center justify-center">
+        <div className="relative">
+            <div className="w-10 h-10 rounded-full border-4 border-slate-700 opacity-30"></div>
+            <div className="absolute top-0 left-0 w-10 h-10 rounded-full border-4 border-t-primary-600 animate-spin"></div>
+        </div>
+    </div>
+);
+
 const App: React.FC = () => {
     if (window.location.pathname.startsWith('/admin')) {
-        return <AdminPanel />;
+        return (
+            <Suspense fallback={<FullScreenLoader />}>
+                <AdminPanel />
+            </Suspense>
+        );
     }
     if (window.location.pathname.startsWith('/owner')) {
-        return <OwnerPanel />;
+        return (
+            <Suspense fallback={<FullScreenLoader />}>
+                <OwnerPanel />
+            </Suspense>
+        );
     }
 
     const { t } = useTranslation();
@@ -51,15 +78,15 @@ const App: React.FC = () => {
     const { activeView, setActiveView, chatUser, setChatUser, isSubscriptionModalOpen, isDonationModalOpen, setSidebarOpen, isSuggestVenueModalOpen, isCommunityPostCreateOpen } = useUiStore();
     const { totalUnreadCount, fetchConversations, fetchWinks, fetchAccessRequests } = useInboxStore();
     const { setInstallPromptEvent, subscribeToPushNotifications } = usePwaStore();
-    const { 
-        selectedUser, 
-        setSelectedUser, 
+    const {
+        selectedUser,
+        setSelectedUser,
         selectedVenue,
         setSelectedVenue,
-        requestLocationPermission, 
-        stopLocationWatch, 
+        requestLocationPermission,
+        stopLocationWatch,
         cleanupRealtime,
-        fetchVenues 
+        fetchVenues
     } = useMapStore();
 
     const [showAuth, setShowAuth] = useState(false);
@@ -76,7 +103,7 @@ const App: React.FC = () => {
 
         window.addEventListener('hashchange', handleHashChange);
         window.addEventListener('popstate', handleHashChange);
-        
+
         // Initial sync
         const hash = window.location.hash.replace('#', '');
         if (hash && ['home', 'grid', 'agora', 'communities', 'inbox', 'profile', 'news', 'videos', 'map'].includes(hash)) {
@@ -156,7 +183,7 @@ const App: React.FC = () => {
                 cleanupRealtime();
             }
         }
-        
+
         if (!session) {
             stopLocationWatch();
             cleanupRealtime();
@@ -187,7 +214,9 @@ const App: React.FC = () => {
                 <div className="h-screen w-screen bg-dark-900 relative overflow-hidden flex flex-col">
                     <AnimatedBackground />
                     <div className="relative z-10 flex-1 overflow-hidden">
-                        <NewsView />
+                        <Suspense fallback={<ViewLoader />}>
+                            <NewsView />
+                        </Suspense>
                     </div>
                 </div>
             );
@@ -218,14 +247,9 @@ const App: React.FC = () => {
                     style: { color: '#f8fafc', padding: '16px', fontSize: '14px', fontWeight: '600', boxShadow: '0 20px 50px -10px rgba(0,0,0,0.7)' },
                 }}
             />
-            
+
             {loading ? (
-                <div className="min-h-screen bg-dark-900 flex items-center justify-center">
-                    <div className="relative">
-                        <div className="w-16 h-16 rounded-full border-4 border-slate-700 opacity-30"></div>
-                        <div className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-t-primary-600 animate-spin"></div>
-                    </div>
-                </div>
+                <FullScreenLoader />
             ) : (!session || !user) ? (
                 renderUnauthenticatedView()
             ) : (user.status === 'suspended' || user.status === 'banned') ? (
@@ -240,7 +264,7 @@ const App: React.FC = () => {
 
                     <Sidebar />
 
-                    <button 
+                    <button
                         onClick={() => setSidebarOpen(true)}
                         className="tour-step-menu fixed top-4 left-4 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-dark-900/50 backdrop-blur-md border border-white/10 text-white shadow-lg hover:bg-slate-800 active:scale-95 transition-all"
                     >
@@ -254,44 +278,60 @@ const App: React.FC = () => {
 
                         {activeView !== 'map' && (
                             <div key={activeView} className="fixed inset-0 z-10 w-full h-full animate-fade-in overflow-hidden">
-                                {renderOtherViews()}
+                                <Suspense fallback={<ViewLoader />}>
+                                    {renderOtherViews()}
+                                </Suspense>
                             </div>
                         )}
                     </main>
-                    
+
                     {selectedUser && (
-                        <ProfileModal 
-                            user={selectedUser} 
-                            onClose={() => setSelectedUser(null)}
-                            onStartChat={(userToChat) => setChatUser(userToChat)}
-                        />
+                        <Suspense fallback={null}>
+                            <ProfileModal
+                                user={selectedUser}
+                                onClose={() => setSelectedUser(null)}
+                                onStartChat={(userToChat) => setChatUser(userToChat)}
+                            />
+                        </Suspense>
                     )}
 
                     {selectedVenue && (
-                        <VenueDetailModal 
-                            venue={selectedVenue}
-                            onClose={() => setSelectedVenue(null)}
-                        />
+                        <Suspense fallback={null}>
+                            <VenueDetailModal
+                                venue={selectedVenue}
+                                onClose={() => setSelectedVenue(null)}
+                            />
+                        </Suspense>
                     )}
 
                     {chatUser && (
-                        <ChatWindow 
-                            user={{
-                                id: chatUser.id,
-                                name: chatUser.username,
-                                imageUrl: chatUser.avatar_url,
-                                last_seen: chatUser.last_seen,
-                                subscription_tier: chatUser.subscription_tier,
-                                is_verified: chatUser.is_verified,
-                                current_checkin_venue_id: chatUser.current_checkin_venue_id,
-                                current_checkin_venue_name: chatUser.current_checkin_venue_name,
-                            }} 
-                            onClose={() => setChatUser(null)}
-                        />
+                        <Suspense fallback={null}>
+                            <ChatWindow
+                                user={{
+                                    id: chatUser.id,
+                                    name: chatUser.username,
+                                    imageUrl: chatUser.avatar_url,
+                                    last_seen: chatUser.last_seen,
+                                    subscription_tier: chatUser.subscription_tier,
+                                    is_verified: chatUser.is_verified,
+                                    current_checkin_venue_id: chatUser.current_checkin_venue_id,
+                                    current_checkin_venue_name: chatUser.current_checkin_venue_name,
+                                }}
+                                onClose={() => setChatUser(null)}
+                            />
+                        </Suspense>
                     )}
-                    
-                    {isSubscriptionModalOpen && <SubscriptionModal />}
-                    {isDonationModalOpen && <DonationModal />}
+
+                    {isSubscriptionModalOpen && (
+                        <Suspense fallback={null}>
+                            <SubscriptionModal />
+                        </Suspense>
+                    )}
+                    {isDonationModalOpen && (
+                        <Suspense fallback={null}>
+                            <DonationModal />
+                        </Suspense>
+                    )}
                     <LegacyTribePromptModal />
 
                     <PwaInstallButton />
@@ -341,30 +381,30 @@ const LucideIconMap: Record<string, React.FC<any>> = {
 
 const NavButton: React.FC<NavButtonProps> = ({ icon, label, isActive, onClick, isPlus = false, isFire = false, notificationCount = 0, className = "" }) => {
     const IconComponent = LucideIconMap[icon] || Home; // fallback to Home
-    
+
     return (
     <button
         onClick={onClick}
         className={`relative flex flex-col items-center justify-center py-2 px-1 min-w-[50px] w-full transition-all duration-300 group focus:outline-none rounded-xl ${className}`}
         aria-label={label}
     >
-        <motion.div 
+        <motion.div
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.9 }}
             className="relative"
         >
-            <div 
+            <div
                 className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300
-                    ${isActive 
-                        ? isFire ? 'bg-gradient-to-tr from-orange-500 to-red-600 shadow-[0_0_15px_rgba(234,88,12,0.5)]' 
-                        : 'bg-primary-500 shadow-[0_0_15px_rgba(245,12,105,0.4)]' 
+                    ${isActive
+                        ? isFire ? 'bg-gradient-to-tr from-orange-500 to-red-600 shadow-[0_0_15px_rgba(234,88,12,0.5)]'
+                        : 'bg-primary-500 shadow-[0_0_15px_rgba(245,12,105,0.4)]'
                         : 'bg-transparent'}`
                 }
             >
-                <IconComponent 
-                    size={22} 
+                <IconComponent
+                    size={22}
                     strokeWidth={isActive ? 2.5 : 2}
-                    className={`transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-primary-500'}`} 
+                    className={`transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-primary-500'}`}
                 />
                 {isActive && (
                     <motion.div
