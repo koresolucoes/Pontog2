@@ -1,4 +1,4 @@
-import type { AgoraFeedPage } from '../domain/agora-feed';
+import type { AgoraFeedPage } from '../domain/agora-feed.js';
 
 export interface AgoraFeedRepository {
   getPage(actorUserId: string, page: number, limit: number): Promise<AgoraFeedPage>;
