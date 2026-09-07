@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import type { Venue, VenueCheckin, VenueReview, User } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 import { useMapStore } from '../stores/mapStore';
 import { useAgoraStore } from '../stores/agoraStore';
+import { useEventStore, type EventFeedItem } from '../stores/eventStore';
 import { profileQueries } from '../modules/profiles/public';
 import { useHardwareBack } from '../lib/useHardwareBack';
 
@@ -18,6 +19,8 @@ type SafetyStats = {
   userHasReviewed: boolean;
 };
 
+type VenueCheckinWithEvent = VenueCheckin & { event_id?: string | null; event_title?: string | null };
+
 const EmptyData = ({ icon, title, text }: { icon: string; title: string; text: string }) => (
   <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] p-5 text-center">
     <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-[18px] bg-white/[0.04] text-white/25"><span className="material-symbols-rounded">{icon}</span></span>
@@ -26,12 +29,19 @@ const EmptyData = ({ icon, title, text }: { icon: string; title: string; text: s
   </div>
 );
 
+const formatEventDate = (value: string) => new Intl.DateTimeFormat('pt-BR', {
+  weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+}).format(new Date(value));
+
 export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClose }) => {
   useHardwareBack(true, onClose);
   const user = useAuthStore((state) => state.user);
   const setSelectedUser = useMapStore((state) => state.setSelectedUser);
   const publishAgoraCheckin = useAgoraStore((state) => state.publishAgoraCheckin);
-  const [checkins, setCheckins] = useState<VenueCheckin[]>([]);
+  const fetchVenueEvents = useEventStore((state) => state.fetchVenueEvents);
+  const setSelectedEvent = useEventStore((state) => state.setSelectedEvent);
+  const [checkins, setCheckins] = useState<VenueCheckinWithEvent[]>([]);
+  const [venueEvents, setVenueEvents] = useState<EventFeedItem[]>([]);
   const [reviews, setReviews] = useState<VenueReview[]>([]);
   const [safetyStats, setSafetyStats] = useState<SafetyStats | null>(null);
   const [reviewsLoading, setReviewsLoading] = useState(true);
@@ -64,7 +74,12 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
       setCheckins([]);
       return;
     }
-    setCheckins((data || []) as VenueCheckin[]);
+    setCheckins((data || []) as VenueCheckinWithEvent[]);
+  };
+
+  const fetchEvents = async () => {
+    const events = await fetchVenueEvents(venue.id);
+    setVenueEvents(events);
   };
 
   const fetchReviews = async () => {
@@ -141,22 +156,17 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
     }
   };
 
-  useEffect(() => { void Promise.all([fetchCheckins(), fetchReviews(), fetchSafety()]); }, [venue.id]);
+  useEffect(() => { void Promise.all([fetchCheckins(), fetchEvents(), fetchReviews(), fetchSafety()]); }, [venue.id]);
 
   const handleCheckin = async () => {
     if (!user || busy) return toast.error('Entre para fazer check-in.');
     setBusy(true);
     try {
-      if (isCurrentCheckin) {
-        const { error } = await supabase.rpc('set_my_checkin_v1', { p_venue_id: null });
-        if (error) throw error;
-        toast.success('Check-in encerrado.');
-      } else {
-        const { error } = await supabase.from('venue_checkins').insert({ venue_id: venue.id, user_id: user.id });
-        if (error) throw error;
-        const { error: profileError } = await supabase.rpc('set_my_checkin_v1', { p_venue_id: venue.id });
-        if (profileError) throw profileError;
-        toast.success(`Check-in feito em ${venue.name}.`);
+      const { error } = await supabase.rpc('set_my_checkin_v1', { p_venue_id: isCurrentCheckin ? null : venue.id });
+      if (error) throw error;
+      if (isCurrentCheckin) toast.success('Check-in encerrado.');
+      else {
+        toast.success(`Você está em ${venue.name}.`);
         void publishAgoraCheckin(venue.name, venue.image_url || '');
       }
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -179,7 +189,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
     });
     if (error) {
       console.error('Venue review insert failed:', error);
-      toast.error('Sua avaliação não foi publicada. Nada foi salvo localmente.');
+      toast.error('Sua avaliação não foi publicada.');
     } else {
       toast.success('Avaliação publicada.');
       setNewReview('');
@@ -244,24 +254,31 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
 
               <section className="pg-surface p-4">
                 <div className="flex items-center justify-between"><div><p className="pg-eyebrow">Quem está aqui</p><h3 className="mt-1 text-sm font-black text-white">{checkins.length ? `${checkins.length} agora` : 'Sem check-ins visíveis'}</h3></div><span className="material-symbols-rounded text-[var(--pg-online)]">group</span></div>
-                {checkins.length > 0 && <div className="mt-4 flex -space-x-2">{checkins.slice(0,8).map((checkin) => <button key={checkin.user_id} onClick={() => setSelectedUser({ id: checkin.user_id, username: checkin.username, avatar_url: checkin.avatar_url } as User)} className="h-11 w-11 overflow-hidden rounded-full border-2 border-[#09090d]"><img src={checkin.avatar_url} alt={checkin.username} className="h-full w-full object-cover"/></button>)}</div>}
+                {checkins.length > 0 && <><div className="mt-4 flex -space-x-2">{checkins.slice(0,8).map((checkin) => <button key={checkin.user_id} onClick={() => setSelectedUser({ id: checkin.user_id, username: checkin.username, avatar_url: checkin.avatar_url } as User)} className="h-11 w-11 overflow-hidden rounded-full border-2 border-[#09090d]"><img src={checkin.avatar_url} alt={checkin.username} className="h-full w-full object-cover"/></button>)}</div>{checkins.some((item) => item.event_title) && <p className="mt-3 text-xs text-white/35">Algumas pessoas estão aqui por um evento acontecendo neste local.</p>}</>}
               </section>
 
-              {(venue.description || venue.opening_hours || venue.website || venue.phone) && <section className="pg-surface p-4"><p className="pg-eyebrow">Sobre o local</p>{venue.description && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/62">{venue.description}</p>}{venue.opening_hours && <p className="mt-3 text-xs font-semibold text-white/42">Horário informado: {venue.opening_hours}</p>}{venue.website && <a href={venue.website} target="_blank" rel="noreferrer" className="mt-3 block text-sm font-bold text-[var(--pg-primary)]">Visitar site</a>}</section>}
+              {venueEvents.length > 0 && <section className="space-y-3">
+                <div><p className="pg-eyebrow">Programação</p><h3 className="mt-1 font-bricolage text-xl font-black text-white">Próximos eventos</h3></div>
+                <div className="space-y-2">{venueEvents.slice(0,4).map((event) => <button key={event.id} onClick={() => { setSelectedEvent(event); onClose(); }} className="pg-surface flex w-full items-center gap-3 p-3 text-left transition hover:border-[rgba(245,12,105,.18)] hover:bg-[rgba(245,12,105,.04)]">
+                  <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-[16px] bg-[rgba(245,12,105,.1)] text-[var(--pg-primary)]"><span className="text-[10px] font-black uppercase">{new Date(event.start_time).toLocaleDateString('pt-BR',{month:'short'})}</span><strong className="text-lg leading-none">{new Date(event.start_time).getDate()}</strong></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-white/80">{event.title}</p><p className="mt-1 text-xs text-white/38">{formatEventDate(event.start_time)}</p><div className="mt-1 flex gap-3 text-[10px] font-bold text-white/30"><span>{event.going_count} vão</span><span className="text-[var(--pg-online)]">{event.here_now_count} aqui</span></div></div>
+                  <span className="material-symbols-rounded text-white/20">chevron_right</span>
+                </button>)}</div>
+              </section>}
+
+              {(venue.description || venue.opening_hours || venue.website || venue.phone) && <section className="pg-surface p-4"><p className="pg-eyebrow">Sobre o local</p>{venue.description && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/62">{venue.description}</p>}{venue.opening_hours && <p className="mt-3 text-xs font-semibold text-white/42">Horário: {venue.opening_hours}</p>}{venue.website && <a href={venue.website} target="_blank" rel="noreferrer" className="mt-3 block text-sm font-bold text-[var(--pg-primary)]">Visitar site</a>}</section>}
 
               <section className="space-y-3">
                 <div className="flex items-end justify-between"><div><p className="pg-eyebrow">Segurança LGBTQ+</p><h3 className="mt-1 font-bricolage text-xl font-black text-white">Experiência da comunidade</h3></div>{user && <button onClick={() => setShowSafetyForm((v) => !v)} className="pg-btn pg-btn-secondary !min-h-[40px] !rounded-full !px-4 !text-xs">Avaliar</button>}</div>
-                {safetyLoading ? <div className="h-28 animate-pulse rounded-[22px] bg-white/[0.03]"/> : safetyError ? <EmptyData icon="cloud_off" title="Dados indisponíveis" text="Não conseguimos carregar as avaliações de segurança agora. Tente novamente mais tarde."/> : !safetyStats?.totalReviews ? <EmptyData icon="shield" title="Ainda sem avaliações suficientes" text="Se você conhece este local, compartilhe sua experiência para ajudar outras pessoas."/> : <div className="grid grid-cols-3 gap-2"><Metric label="Respeito" value={`${safetyStats.staffRespectAvg.toFixed(1)}/5`}/><Metric label="Banheiro inclusivo" value={`${Math.round(safetyStats.inclusiveBathroomsPercent)}%`}/><Metric label="Assistência" value={`${safetyStats.safetyAssistanceAvg.toFixed(1)}/5`}/></div>}
+                {safetyLoading ? <div className="h-28 animate-pulse rounded-[22px] bg-white/[0.03]"/> : safetyError ? <EmptyData icon="cloud_off" title="Não foi possível carregar" text="Tente novamente em alguns instantes."/> : !safetyStats?.totalReviews ? <EmptyData icon="shield" title="Ainda sem avaliações" text="Se você conhece este local, compartilhe sua experiência para ajudar outras pessoas."/> : <div className="grid grid-cols-3 gap-2"><Metric label="Respeito" value={`${safetyStats.staffRespectAvg.toFixed(1)}/5`}/><Metric label="Banheiro inclusivo" value={`${Math.round(safetyStats.inclusiveBathroomsPercent)}%`}/><Metric label="Assistência" value={`${safetyStats.safetyAssistanceAvg.toFixed(1)}/5`}/></div>}
                 {showSafetyForm && <div className="pg-surface space-y-4 p-4"><Scale label="Respeito da equipe" value={ratingRespect} onChange={setRatingRespect}/><Scale label="Ajuda em situação de risco" value={ratingAssistance} onChange={setRatingAssistance}/><label className="flex items-center justify-between gap-3 text-sm font-bold text-white/65">Banheiro inclusivo<input type="checkbox" checked={inclusiveBathrooms} onChange={(e) => setInclusiveBathrooms(e.target.checked)}/></label><button onClick={publishSafety} disabled={busy} className="pg-btn pg-btn-primary w-full">Publicar avaliação</button></div>}
               </section>
 
               <section className="space-y-3">
                 <div className="flex items-end justify-between"><div><p className="pg-eyebrow">Avaliações</p><h3 className="mt-1 font-bricolage text-xl font-black text-white">Como foi a experiência?</h3></div>{user && <button onClick={() => setShowReviewForm((v) => !v)} className="pg-btn pg-btn-secondary !min-h-[40px] !rounded-full !px-4 !text-xs">Escrever</button>}</div>
-                {showReviewForm && <div className="pg-surface p-4"><textarea value={newReview} onChange={(e) => setNewReview(e.target.value.slice(0,2000))} rows={4} className="pg-field resize-none" placeholder="Conte o que realmente aconteceu…"/><button onClick={publishReview} disabled={busy || !newReview.trim()} className="pg-btn pg-btn-primary mt-3 w-full">Publicar</button></div>}
-                {reviewsLoading ? <div className="space-y-2">{[1,2].map((i) => <div key={i} className="h-28 animate-pulse rounded-[22px] bg-white/[0.03]"/>)}</div> : reviewError ? <EmptyData icon="cloud_off" title="Avaliações indisponíveis" text="Nenhuma avaliação local ou simulada será exibida enquanto o banco estiver indisponível."/> : reviews.length === 0 ? <EmptyData icon="rate_review" title="Seja a primeira pessoa a avaliar" text="Ainda não há avaliações reais publicadas para este local."/> : <div className="space-y-2">{reviews.map((review) => <article key={review.id} className="pg-surface p-4"><div className="flex items-center gap-3">{review.avatar_url ? <img src={review.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover"/> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05] text-white/25"><span className="material-symbols-rounded">person</span></span>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-white/75">{review.username}</p><p className="text-[10px] text-white/28">{new Date(review.created_at).toLocaleDateString('pt-BR')}</p></div></div><p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/58">{review.comment}</p></article>)}</div>}
+                {showReviewForm && <div className="pg-surface p-4"><textarea value={newReview} onChange={(e) => setNewReview(e.target.value.slice(0,2000))} rows={4} className="pg-field resize-none" placeholder="Conte como foi sua experiência…"/><button onClick={publishReview} disabled={busy || !newReview.trim()} className="pg-btn pg-btn-primary mt-3 w-full">Publicar</button></div>}
+                {reviewsLoading ? <div className="space-y-2">{[1,2].map((i) => <div key={i} className="h-28 animate-pulse rounded-[22px] bg-white/[0.03]"/>)}</div> : reviewError ? <EmptyData icon="cloud_off" title="Avaliações indisponíveis" text="Não conseguimos carregar as avaliações agora."/> : reviews.length === 0 ? <EmptyData icon="rate_review" title="Seja a primeira pessoa a avaliar" text="Ainda não há avaliações publicadas para este local."/> : <div className="space-y-2">{reviews.map((review) => <article key={review.id} className="pg-surface p-4"><div className="flex items-center gap-3">{review.avatar_url ? <img src={review.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover"/> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05] text-white/25"><span className="material-symbols-rounded">person</span></span>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-white/75">{review.username}</p><p className="text-[10px] text-white/28">{new Date(review.created_at).toLocaleDateString('pt-BR')}</p></div></div><p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/58">{review.comment}</p></article>)}</div>}
               </section>
-
-              <section className="rounded-[22px] border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-relaxed text-white/32"><strong className="text-white/55">Sobre dados de confiança:</strong> o Ponto G exibe apenas informações enviadas ao banco por pessoas usuárias ou fontes verificadas. Ausência de dados nunca é convertida em nota, avaliação ou estimativa fictícia.</section>
             </div>
           </div>
         </article>
