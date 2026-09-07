@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hits=$(grep -R -n -E "\.from\(['\"]profiles['\"]\)" \
+          hits=$(grep -R -n -E "\.from\(['\"]profiles['\"]\)|profiles![A-Za-z0-9_]+\(|profiles\([^)]" \
             stores components pages modules engines lib \
             --include='*.ts' --include='*.tsx' \
             --exclude-dir=node_modules \
@@ -40,7 +40,7 @@ jobs:
             | grep -v '^engines/notifications/' || true)
           if [ -n "$hits" ]; then
             echo "$hits"
-            echo 'Direct client access to public.profiles remains.' >&2
+            echo 'Direct or embedded client access to public.profiles remains.' >&2
             exit 1
           fi
       - name: Reject private album writes to public bucket
