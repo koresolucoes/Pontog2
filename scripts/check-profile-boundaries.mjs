@@ -7,10 +7,13 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', 'coverage'])
 
 // Server-only paths are allowed to query the internal table when the request is
 // already behind an authenticated/service-role boundary. Browser code must use
-// the Profiles module/RPC projections instead.
+// the Profiles module/RPC projections instead. Keep this allowlist exact: adding
+// a broad client directory here would hide a privacy regression.
 const ALLOWED = [
   /^api\//,
   /^modules\/social\/infrastructure\/agora-feed\.supabase\.ts$/,
+  /^engines\/notifications\/connection\.ts$/,
+  /^engines\/notifications\/server\.ts$/,
 ];
 
 const offenders = [];
