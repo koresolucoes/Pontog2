@@ -34,6 +34,7 @@ set search_path = pg_catalog, public
 as $$
 declare
   v_user_id uuid := auth.uid();
+  v_video_id integer := video_id;
   v_inserted integer := 0;
 begin
   if v_user_id is null then
@@ -50,7 +51,7 @@ begin
   end if;
 
   if not exists (
-    select 1 from public.videos v where v.id = video_id
+    select 1 from public.videos v where v.id = v_video_id
   ) then
     return;
   end if;
@@ -61,20 +62,20 @@ begin
     event_bucket
   )
   values (
-    video_id,
+    v_video_id,
     v_user_id,
     date_trunc('hour', now())
   )
-  on conflict (video_id, user_id, event_bucket) do nothing;
+  on conflict on constraint video_view_events_dedupe do nothing;
 
   get diagnostics v_inserted = row_count;
   if v_inserted = 0 then
     return;
   end if;
 
-  update public.videos
-  set views_count = coalesce(views_count, 0) + 1
-  where id = video_id;
+  update public.videos v
+  set views_count = coalesce(v.views_count, 0) + 1
+  where v.id = v_video_id;
 end;
 $$;
 
