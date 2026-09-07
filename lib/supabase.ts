@@ -1,18 +1,25 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// As variáveis de ambiente são injetadas pelo Vercel (ou seu bundler como o Vite)
-// Use VITE_ para variáveis que precisam ser expostas ao cliente (navegador)
-const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "https://wwmiqdovqgysncmqnmvp.supabase.co";
-const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWlxZG92cWd5c25jbXFubXZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzODU2MzEsImV4cCI6MjA3NTk2MTYzMX0.fVUzmHHZORcdI5SSm1HwSjEcDw_VZKyApw-qEi-kRkU";
+const viteEnv = ((import.meta as any).env ?? {}) as Record<string, string | undefined>;
+const nodeEnv = typeof process !== 'undefined' ? (process.env ?? {}) : {};
+
+const supabaseUrl =
+    viteEnv.VITE_SUPABASE_URL ||
+    nodeEnv.VITE_SUPABASE_URL ||
+    nodeEnv.SUPABASE_URL ||
+    'https://wwmiqdovqgysncmqnmvp.supabase.co';
+
+const supabaseAnonKey =
+    viteEnv.VITE_SUPABASE_ANON_KEY ||
+    nodeEnv.VITE_SUPABASE_ANON_KEY ||
+    nodeEnv.SUPABASE_ANON_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWlxZG92cWd5c25jbXFubXZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzODU2MzEsImV4cCI6MjA3NTk2MTYzMX0.fVUzmHHZORcdI5SSm1HwSjEcDw_VZKyApw-qEi-kRkU';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-    // This provides a clear error during development if variables are missing.
-    console.error("Supabase URL and Anon Key must be provided.");
+    console.error('Supabase URL and Anon Key must be provided.');
 }
 
-
-export const supabase = createClient(supabaseUrl!, supabaseAnonKey!) as any;
+export const supabase = createClient(supabaseUrl, supabaseAnonKey) as any;
 
 const BUCKET_NAME = 'user_uploads';
 
@@ -24,26 +31,16 @@ interface ImageOptions {
 
 /**
  * Constrói a URL pública para um arquivo no Supabase Storage.
- * @param path O caminho do arquivo no bucket (ex: user_id/image.png)
- * @param options Opções de transformação de imagem (largura, altura, redimensionamento)
- * @returns A URL pública completa para a imagem.
+ * Use somente para mídia deliberadamente pública.
  */
 export const getPublicImageUrl = (path: string | null | undefined, options?: ImageOptions): string => {
-    // Retorna um placeholder elegante se não houver caminho
-    if (!path) return 'https://placehold.co/400x400/1f2937/d1d5db/png?text=G'; 
-    
-    // Se já for uma URL completa, caminho relativo ou formato de dados (base64/blob), retorna como está.
+    void options;
+    if (!path) return 'https://placehold.co/400x400/1f2937/d1d5db/png?text=G';
+
     if (path.startsWith('http') || path.startsWith('/') || path.startsWith('./') || path.startsWith('data:') || path.startsWith('blob:')) {
         return path;
     }
-    
-    // Configurações de transformação desativadas para evitar erros no tier gratuito do Supabase.
-    // O Supabase Image Transformations (como resize, quality) é um recurso pago.
-    // const transformOptions = options ? { ... } : undefined;
 
     const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
-
-    // OTIMIZAÇÃO DE PERFORMANCE:
-    // Removemos o timestamp (?t=...) para permitir que o navegador faça cache das imagens.
     return data.publicUrl;
 };
