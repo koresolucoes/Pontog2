@@ -9,6 +9,7 @@ import { useMapStore } from './stores/mapStore';
 import { useInboxStore } from './stores/inboxStore';
 import { useUserActionsStore } from './stores/userActionsStore';
 import { useAdStore } from './stores/adStore';
+import { mountFeatureRealtime } from './composition/featureRealtimeLifecycle';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { HomeView } from './components/HomeView';
@@ -189,6 +190,31 @@ const App: React.FC = () => {
             cleanupRealtime();
         }
     }, [session, user, loading, requestLocationPermission, stopLocationWatch, cleanupRealtime, fetchConversations, fetchWinks, fetchAccessRequests, fetchVenues]);
+
+    // Feature realtime follows the visible screen instead of staying connected for the full session.
+    useEffect(() => {
+        if (!session?.user?.id || !user || loading || user.status !== 'active') return;
+
+        let cancelled = false;
+        let dispose: (() => void) | undefined;
+
+        void mountFeatureRealtime(activeView)
+            .then((nextDispose) => {
+                if (cancelled) {
+                    nextDispose?.();
+                    return;
+                }
+                dispose = nextDispose;
+            })
+            .catch((error) => {
+                console.error(`Failed to mount realtime lifecycle for view ${activeView}:`, error);
+            });
+
+        return () => {
+            cancelled = true;
+            dispose?.();
+        };
+    }, [activeView, session?.user?.id, user?.id, user?.status, loading]);
 
     const renderOtherViews = () => {
         switch (activeView) {
