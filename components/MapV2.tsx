@@ -23,6 +23,14 @@ const ACTIVE_FILTER_COUNT = (filters: ReturnType<typeof useMapStore.getState>['f
 
 const BH_CENTER = { lat: -19.9191, lng: -43.9386 };
 
+const formatEventDate = (value: string) => new Intl.DateTimeFormat('pt-BR', {
+  weekday: 'short',
+  day: '2-digit',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+}).format(new Date(value));
+
 export const MapV2: React.FC = () => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<MapMode>('people');
@@ -144,6 +152,41 @@ export const MapV2: React.FC = () => {
           {mode !== 'events' && <button type="button" onClick={() => setFiltersOpen(true)} className="pg-icon-btn relative !h-10 !w-10 shrink-0" aria-label="Filtros"><span className="material-symbols-rounded text-lg">tune</span>{activeFilters > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-500 px-1 text-[9px] font-black text-white">{activeFilters}</span>}</button>}
         </div>
       </div>
+
+      {mode === 'events' && events.length > 0 && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[88px] z-[44]">
+          <div className="pointer-events-auto flex snap-x snap-mandatory gap-2 overflow-x-auto px-3 pb-3 pt-4 no-scrollbar sm:px-5">
+            {events.map((event) => {
+              const hasPin = event.lat != null && event.lng != null;
+              const isLive = Date.now() >= new Date(event.start_time).getTime() && Date.now() <= new Date(event.end_time || new Date(new Date(event.start_time).getTime() + 6 * 3600000).toISOString()).getTime();
+              return (
+                <button key={event.id} type="button" onClick={() => setSelectedEvent(event)} className="pg-glass min-w-[270px] max-w-[300px] snap-start rounded-[24px] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,.46)] transition hover:border-[rgba(245,12,105,.2)] sm:min-w-[310px]">
+                  <div className="flex items-start gap-3">
+                    <div className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-[16px] ${isLive ? 'bg-[rgba(34,197,94,.12)] text-[var(--pg-online)]' : 'bg-[rgba(245,12,105,.12)] text-[var(--pg-primary)]'}`}>
+                      <span className="text-[9px] font-black uppercase">{new Date(event.start_time).toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                      <strong className="text-lg leading-none">{new Date(event.start_time).getDate()}</strong>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-1.5">
+                        {isLive && <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-300">Agora</span>}
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${hasPin ? 'bg-white/[0.05] text-white/42' : 'bg-amber-400/[0.08] text-amber-200/55'}`}>{hasPin ? 'No mapa' : 'Local confirmado'}</span>
+                      </div>
+                      <h3 className="truncate text-sm font-black text-white/82">{event.title}</h3>
+                      <p className="mt-1 truncate text-[11px] text-white/38">{event.location_name || event.venue_name || 'Belo Horizonte'}</p>
+                      <p className="mt-1 text-[10px] font-semibold text-white/28">{formatEventDate(event.start_time)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-4 border-t border-white/[0.055] pt-2.5 text-[10px] font-bold text-white/34">
+                    <span><b className="text-white/58">{event.interested_count}</b> interesses</span>
+                    <span><b className="text-white/58">{event.going_count}</b> vão</span>
+                    <span className="ml-auto text-[var(--pg-online)]"><b>{event.here_now_count}</b> aqui</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {profile?.is_traveling && mode !== 'events' && <button type="button" onClick={() => triggerLegacyAction(2)} className="pg-glass absolute left-1/2 z-[44] flex -translate-x-1/2 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold text-white shadow-lg" style={{ top: '154px' }}><span className="material-symbols-rounded filled text-[16px] text-sky-300">flight</span><span>Modo Viajante ativo</span><span className="text-white/35">·</span><span className="text-primary-300">Alterar</span></button>}
 
