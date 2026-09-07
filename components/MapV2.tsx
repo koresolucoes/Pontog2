@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Map as LegacyMap } from './MapLegacy';
 import { PublicMap } from './PublicMap';
 import { FilterModal } from './FilterModal';
+import { EventDetailModal } from './EventDetailModal';
 import { useMapStore } from '../stores/mapStore';
 import { useAgoraStore } from '../stores/agoraStore';
 import { useAuthStore } from '../stores/authStore';
@@ -39,6 +40,7 @@ export const MapV2: React.FC = () => {
   const profile = useAuthStore((state) => state.profile);
   const activeView = useUiStore((state) => state.activeView);
   const events = useEventStore((state) => state.events);
+  const selectedEvent = useEventStore((state) => state.selectedEvent);
   const eventsLoading = useEventStore((state) => state.loading);
   const fetchEvents = useEventStore((state) => state.fetchEvents);
   const setSelectedEvent = useEventStore((state) => state.setSelectedEvent);
@@ -105,6 +107,7 @@ export const MapV2: React.FC = () => {
     else {
       setMoreOpen(false);
       setFiltersOpen(false);
+      setSelectedEvent(null);
     }
   }, [activeView, myLocation?.lat, myLocation?.lng]);
 
@@ -158,6 +161,7 @@ export const MapV2: React.FC = () => {
       {error && mode !== 'events' && <div className="absolute inset-x-4 bottom-28 z-[46] flex justify-center"><button type="button" onClick={() => requestLocationPermission()} className="pg-btn pg-btn-secondary !rounded-full !border-red-500/20 !bg-red-500/10 !text-red-200"><span className="material-symbols-rounded">refresh</span>Tentar localização novamente</button></div>}
 
       {filtersOpen && <FilterModal onClose={() => setFiltersOpen(false)} />}
+      {selectedEvent && <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
     </div>
   );
 };
