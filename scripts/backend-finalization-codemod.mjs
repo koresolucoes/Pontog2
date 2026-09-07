@@ -9,7 +9,8 @@ function replaceExact(content, needle, replacement, label) {
 }
 
 function replaceRegex(content, regex, replacement, expectedCount, label) {
-  const matches = [...content.matchAll(regex)];
+  const countingRegex = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`);
+  const matches = [...content.matchAll(countingRegex)];
   if (matches.length !== expectedCount) {
     throw new Error(`${label}: expected ${expectedCount} matches, found ${matches.length}`);
   }
