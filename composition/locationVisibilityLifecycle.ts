@@ -12,7 +12,7 @@ export function mountLocationVisibilityLifecycle(): () => void {
     }
 
     if (document.hidden) {
-      // Keep Presence/Reatime alive, but stop GPS + nearby polling while the app is backgrounded.
+      // Keep Presence/Realtime alive, but stop GPS + nearby polling while the app is backgrounded.
       mapState.stopLocationWatch();
       return;
     }
