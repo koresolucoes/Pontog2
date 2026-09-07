@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
-  BadgeCheck,
   ChevronDown,
   Compass,
   EyeOff,
@@ -15,6 +14,7 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useMapStore } from '../stores/mapStore';
 import { PublicMap } from './PublicMap';
@@ -26,32 +26,50 @@ interface LandingPageProps {
 }
 
 type LandingCopy = {
-  navHow: string;
-  navPlaces: string;
-  navSafety: string;
   enter: string;
-  heroEyebrow: string;
-  heroTitleA: string;
-  heroTitleB: string;
+  navPulse: string;
+  navCity: string;
+  navControl: string;
+  heroKicker: string;
+  heroTitle: string;
+  heroAccent: string;
   heroText: string;
   heroCta: string;
   heroSecondary: string;
-  proofLabel: string;
-  proofNow: string;
-  proofNear: string;
-  proofConversation: string;
-  productEyebrow: string;
-  productTitle: string;
-  productText: string;
-  placesEyebrow: string;
-  placesTitle: string;
-  placesText: string;
+  signature: string;
+  preview: string;
+  nearYou: string;
+  now: string;
+  cityStripA: string;
+  cityStripB: string;
+  cityStripC: string;
+  cityStripD: string;
+  agoraEyebrow: string;
+  agoraTitle: string;
+  agoraText: string;
+  agoraCta: string;
+  mapEyebrow: string;
+  mapTitle: string;
+  mapText: string;
   locate: string;
   locating: string;
   locationDenied: string;
-  safetyEyebrow: string;
-  safetyTitle: string;
-  safetyText: string;
+  chatEyebrow: string;
+  chatTitle: string;
+  chatText: string;
+  chatBubbleA: string;
+  chatBubbleB: string;
+  privacyEyebrow: string;
+  privacyTitle: string;
+  privacyText: string;
+  presence: string;
+  approximate: string;
+  publicPhotos: string;
+  privateAlbum: string;
+  invisible: string;
+  placeEyebrow: string;
+  placeTitle: string;
+  placeText: string;
   finalEyebrow: string;
   finalTitle: string;
   finalText: string;
@@ -63,105 +81,159 @@ type LandingCopy = {
 
 const COPY: Record<'pt' | 'en' | 'es', LandingCopy> = {
   pt: {
-    navHow: 'Como funciona',
-    navPlaces: 'Locais',
-    navSafety: 'Segurança',
     enter: 'Entrar',
-    heroEyebrow: 'O radar LGBTQ+ da sua cidade',
-    heroTitleA: 'Perto. Agora.',
-    heroTitleB: 'Conectados.',
-    heroText: 'Pessoas, lugares e momentos LGBTQ+ ao seu redor — com você no controle do que mostra e de quando aparece.',
+    navPulse: 'Agora',
+    navCity: 'Cidade',
+    navControl: 'Privacidade',
+    heroKicker: 'Noite, cidade, pessoas',
+    heroTitle: 'A cidade está acontecendo',
+    heroAccent: 'agora.',
+    heroText: 'Veja quem está perto, onde existe movimento e quem quer conversar — antes de decidir para onde ir.',
     heroCta: 'Entrar no Ponto G',
-    heroSecondary: 'Ver como funciona',
-    proofLabel: 'Preview do app',
-    proofNow: 'Disponível agora',
-    proofNear: 'Perto de você',
-    proofConversation: 'Conversa liberada',
-    productEyebrow: 'Uma cidade mais viva quando você sabe onde olhar',
-    productTitle: 'Não é só mais um app de encontros.',
-    productText: 'O Ponto G une descoberta, intenção em tempo real, lugares LGBTQ+ e conversa em uma experiência só.',
-    placesEyebrow: 'Guia local',
-    placesTitle: 'A cidade também faz parte da conversa.',
-    placesText: 'Descubra bares, festas, saunas e outros pontos LGBTQ+ cadastrados na plataforma. Sua localização só é solicitada quando você decidir usar.',
+    heroSecondary: 'Sentir o pulso',
+    signature: 'Perto. Agora. Conectados.',
+    preview: 'Preview da experiência',
+    nearYou: 'perto de você',
+    now: 'Agora',
+    cityStripA: 'Quem está por perto',
+    cityStripB: 'Quem quer agora',
+    cityStripC: 'Onde está acontecendo',
+    cityStripD: 'Como você quer aparecer',
+    agoraEyebrow: 'Intenção em tempo real',
+    agoraTitle: 'Quem quer agora?',
+    agoraText: 'O modo Agora dura uma hora. É um sinal claro, temporário e direto de que você está aberto a uma conexão naquele momento.',
+    agoraCta: 'Ver o Agora',
+    mapEyebrow: 'Veja a cidade respirar',
+    mapTitle: 'Pessoas e lugares no mesmo mapa mental.',
+    mapText: 'Bares, festas, saunas e outros pontos LGBTQ+ entram na conversa junto com proximidade e presença. Sua localização só é pedida quando você escolher usar.',
     locate: 'Ver perto de mim',
     locating: 'Localizando…',
     locationDenied: 'Não foi possível usar sua localização. Você ainda pode explorar os locais disponíveis.',
-    safetyEyebrow: 'Você decide como aparecer',
-    safetyTitle: 'Conexão sem abrir mão do controle.',
-    safetyText: 'Privacidade não é um slogan. O produto foi desenhado para dar escolhas claras sobre presença, localização, acesso a mídia e contato.',
-    finalEyebrow: 'Seu próximo ponto pode estar perto',
-    finalTitle: 'Entre e veja o que está acontecendo agora.',
-    finalText: 'Crie seu perfil, escolha como quer aparecer e descubra pessoas e lugares no seu ritmo.',
+    chatEyebrow: 'Conexão com contexto',
+    chatTitle: 'Algumas conversas começam antes do “oi”.',
+    chatText: 'Vocês podem estar no mesmo local, no mesmo modo Agora ou simplesmente perto. O contexto reduz atrito e deixa a conversa menos aleatória.',
+    chatBubbleA: 'Vocês estão no mesmo local.',
+    chatBubbleB: 'Quer continuar por mensagem?',
+    privacyEyebrow: 'Você decide quanto aparece',
+    privacyTitle: 'Nem todo mundo precisa saber tudo sobre você.',
+    privacyText: 'Controle presença, localização aproximada, fotos públicas, mídia privada e quando quer desaparecer da descoberta.',
+    presence: 'Sua presença',
+    approximate: 'Localização aproximada',
+    publicPhotos: 'Fotos públicas',
+    privateAlbum: 'Álbum privado',
+    invisible: 'Modo invisível',
+    placeEyebrow: 'Seu lugar também pode ser um ponto',
+    placeTitle: 'A vida LGBTQ+ também acontece fora da tela.',
+    placeText: 'Locais podem fazer parte do mapa, receber check-ins e entrar na descoberta da comunidade sem transformar a landing em um catálogo genérico.',
+    finalEyebrow: 'A noite está aí',
+    finalTitle: 'Talvez sua próxima conexão esteja a alguns quarteirões.',
+    finalText: 'Entre no Ponto G e veja a cidade por outro ângulo.',
     terms: 'Termos',
     privacy: 'Privacidade',
     guidelines: 'Diretrizes',
     adults: 'Somente para maiores de 18 anos.',
   },
   en: {
-    navHow: 'How it works',
-    navPlaces: 'Places',
-    navSafety: 'Safety',
     enter: 'Sign in',
-    heroEyebrow: 'Your city’s LGBTQ+ radar',
-    heroTitleA: 'Nearby. Now.',
-    heroTitleB: 'Connected.',
-    heroText: 'People, places and LGBTQ+ moments around you — with you in control of what you share and when you appear.',
+    navPulse: 'Now',
+    navCity: 'City',
+    navControl: 'Privacy',
+    heroKicker: 'Night, city, people',
+    heroTitle: 'The city is happening',
+    heroAccent: 'now.',
+    heroText: 'See who is nearby, where there is movement and who wants to connect — before deciding where to go.',
     heroCta: 'Enter Ponto G',
-    heroSecondary: 'See how it works',
-    proofLabel: 'App preview',
-    proofNow: 'Available now',
-    proofNear: 'Near you',
-    proofConversation: 'Conversation unlocked',
-    productEyebrow: 'A more alive city when you know where to look',
-    productTitle: 'Not just another dating app.',
-    productText: 'Ponto G brings discovery, real-time intent, LGBTQ+ places and conversation into one experience.',
-    placesEyebrow: 'Local guide',
-    placesTitle: 'The city is part of the conversation too.',
-    placesText: 'Discover bars, parties, saunas and other LGBTQ+ places listed on the platform. We only ask for your location when you choose to use it.',
-    locate: 'See what’s near me',
+    heroSecondary: 'Feel the pulse',
+    signature: 'Nearby. Now. Connected.',
+    preview: 'Experience preview',
+    nearYou: 'near you',
+    now: 'Now',
+    cityStripA: 'Who is nearby',
+    cityStripB: 'Who wants now',
+    cityStripC: 'Where it is happening',
+    cityStripD: 'How you want to appear',
+    agoraEyebrow: 'Real-time intent',
+    agoraTitle: 'Who wants now?',
+    agoraText: 'Now Mode lasts one hour. It is a clear, temporary signal that you are open to a connection in that moment.',
+    agoraCta: 'See Now',
+    mapEyebrow: 'Watch the city breathe',
+    mapTitle: 'People and places in the same mental map.',
+    mapText: 'Bars, parties, saunas and other LGBTQ+ places join proximity and presence. We only ask for location when you choose to use it.',
+    locate: 'See what is near me',
     locating: 'Locating…',
     locationDenied: 'We could not use your location. You can still explore available places.',
-    safetyEyebrow: 'You decide how to appear',
-    safetyTitle: 'Connect without giving up control.',
-    safetyText: 'Privacy is not a slogan. The product gives you clear choices over presence, location, media access and contact.',
-    finalEyebrow: 'Your next point may be nearby',
-    finalTitle: 'Come in and see what is happening now.',
-    finalText: 'Create your profile, choose how you want to appear and discover people and places at your own pace.',
+    chatEyebrow: 'Connection with context',
+    chatTitle: 'Some conversations begin before “hi”.',
+    chatText: 'You may be at the same place, in Now Mode or simply nearby. Context reduces friction and makes conversation less random.',
+    chatBubbleA: 'You are at the same place.',
+    chatBubbleB: 'Want to continue by message?',
+    privacyEyebrow: 'You decide how much you show',
+    privacyTitle: 'Not everyone needs to know everything about you.',
+    privacyText: 'Control presence, approximate location, public photos, private media and when you want to disappear from discovery.',
+    presence: 'Your presence',
+    approximate: 'Approximate location',
+    publicPhotos: 'Public photos',
+    privateAlbum: 'Private album',
+    invisible: 'Invisible mode',
+    placeEyebrow: 'Your place can become a point too',
+    placeTitle: 'LGBTQ+ life also happens off-screen.',
+    placeText: 'Places can appear on the map, receive check-ins and enter community discovery without turning the landing into a generic directory.',
+    finalEyebrow: 'The night is out there',
+    finalTitle: 'Your next connection may be a few blocks away.',
+    finalText: 'Enter Ponto G and see the city from another angle.',
     terms: 'Terms',
     privacy: 'Privacy',
     guidelines: 'Guidelines',
     adults: 'For adults 18+ only.',
   },
   es: {
-    navHow: 'Cómo funciona',
-    navPlaces: 'Lugares',
-    navSafety: 'Seguridad',
     enter: 'Entrar',
-    heroEyebrow: 'El radar LGBTQ+ de tu ciudad',
-    heroTitleA: 'Cerca. Ahora.',
-    heroTitleB: 'Conectados.',
-    heroText: 'Personas, lugares y momentos LGBTQ+ a tu alrededor — con el control de qué muestras y cuándo apareces.',
+    navPulse: 'Ahora',
+    navCity: 'Ciudad',
+    navControl: 'Privacidad',
+    heroKicker: 'Noche, ciudad, personas',
+    heroTitle: 'La ciudad está pasando',
+    heroAccent: 'ahora.',
+    heroText: 'Mira quién está cerca, dónde hay movimiento y quién quiere conectar antes de decidir adónde ir.',
     heroCta: 'Entrar a Ponto G',
-    heroSecondary: 'Ver cómo funciona',
-    proofLabel: 'Vista previa de la app',
-    proofNow: 'Disponible ahora',
-    proofNear: 'Cerca de ti',
-    proofConversation: 'Conversación habilitada',
-    productEyebrow: 'Una ciudad más viva cuando sabes dónde mirar',
-    productTitle: 'No es solo otra app de citas.',
-    productText: 'Ponto G reúne descubrimiento, intención en tiempo real, lugares LGBTQ+ y conversación en una sola experiencia.',
-    placesEyebrow: 'Guía local',
-    placesTitle: 'La ciudad también forma parte de la conversación.',
-    placesText: 'Descubre bares, fiestas, saunas y otros puntos LGBTQ+ registrados en la plataforma. Solo pedimos tu ubicación cuando decides usarla.',
+    heroSecondary: 'Sentir el pulso',
+    signature: 'Cerca. Ahora. Conectados.',
+    preview: 'Vista previa de la experiencia',
+    nearYou: 'cerca de ti',
+    now: 'Ahora',
+    cityStripA: 'Quién está cerca',
+    cityStripB: 'Quién quiere ahora',
+    cityStripC: 'Dónde está pasando',
+    cityStripD: 'Cómo quieres aparecer',
+    agoraEyebrow: 'Intención en tiempo real',
+    agoraTitle: '¿Quién quiere ahora?',
+    agoraText: 'El modo Ahora dura una hora. Es una señal clara y temporal de que estás abierto a una conexión en ese momento.',
+    agoraCta: 'Ver Ahora',
+    mapEyebrow: 'Mira la ciudad respirar',
+    mapTitle: 'Personas y lugares en el mismo mapa mental.',
+    mapText: 'Bares, fiestas, saunas y otros lugares LGBTQ+ se mezclan con proximidad y presencia. Solo pedimos ubicación cuando eliges usarla.',
     locate: 'Ver cerca de mí',
     locating: 'Localizando…',
     locationDenied: 'No pudimos usar tu ubicación. Aun así puedes explorar los lugares disponibles.',
-    safetyEyebrow: 'Tú decides cómo aparecer',
-    safetyTitle: 'Conecta sin perder el control.',
-    safetyText: 'La privacidad no es un eslogan. El producto ofrece decisiones claras sobre presencia, ubicación, acceso a medios y contacto.',
-    finalEyebrow: 'Tu próximo punto puede estar cerca',
-    finalTitle: 'Entra y descubre qué está pasando ahora.',
-    finalText: 'Crea tu perfil, elige cómo quieres aparecer y descubre personas y lugares a tu ritmo.',
+    chatEyebrow: 'Conexión con contexto',
+    chatTitle: 'Algunas conversaciones empiezan antes del “hola”.',
+    chatText: 'Pueden estar en el mismo lugar, en modo Ahora o simplemente cerca. El contexto reduce fricción y hace la conversación menos aleatoria.',
+    chatBubbleA: 'Están en el mismo lugar.',
+    chatBubbleB: '¿Quieres seguir por mensaje?',
+    privacyEyebrow: 'Tú decides cuánto mostrar',
+    privacyTitle: 'No todo el mundo necesita saber todo sobre ti.',
+    privacyText: 'Controla presencia, ubicación aproximada, fotos públicas, medios privados y cuándo quieres desaparecer del descubrimiento.',
+    presence: 'Tu presencia',
+    approximate: 'Ubicación aproximada',
+    publicPhotos: 'Fotos públicas',
+    privateAlbum: 'Álbum privado',
+    invisible: 'Modo invisible',
+    placeEyebrow: 'Tu lugar también puede ser un punto',
+    placeTitle: 'La vida LGBTQ+ también ocurre fuera de la pantalla.',
+    placeText: 'Los lugares pueden formar parte del mapa, recibir check-ins y entrar en el descubrimiento sin convertir la landing en un directorio genérico.',
+    finalEyebrow: 'La noche está ahí',
+    finalTitle: 'Tu próxima conexión puede estar a pocas cuadras.',
+    finalText: 'Entra a Ponto G y mira la ciudad desde otro ángulo.',
     terms: 'Términos',
     privacy: 'Privacidad',
     guidelines: 'Directrices',
@@ -169,104 +241,86 @@ const COPY: Record<'pt' | 'en' | 'es', LandingCopy> = {
   },
 };
 
-const featureCards = [
-  {
-    icon: Compass,
-    label: 'Descobrir',
-    title: 'Quem faz sentido agora.',
-    text: 'Pessoas próximas, online, no Agora ou com interesses que combinam com o momento.',
-    tone: 'from-fuchsia-500/20 to-transparent',
-  },
-  {
-    icon: Flame,
-    label: 'Agora',
-    title: 'Intenção que não fica velha.',
-    text: 'Sinalize por tempo limitado que você está disponível e encontre quem está na mesma energia.',
-    tone: 'from-[rgba(245,12,105,.22)] to-transparent',
-  },
-  {
-    icon: MapPin,
-    label: 'Mapa',
-    title: 'A cena ao seu redor.',
-    text: 'Locais LGBTQ+, check-ins e contexto de proximidade sem transformar sua posição em vitrine.',
-    tone: 'from-violet-500/20 to-transparent',
-  },
-  {
-    icon: MessageCircle,
-    label: 'Conversas',
-    title: 'Conexão com contexto.',
-    text: 'Converse, compartilhe localização ou mídia privada e controle quem tem acesso ao quê.',
-    tone: 'from-sky-500/20 to-transparent',
-  },
-] as const;
+const HeroRadar = ({ copy }: { copy: LandingCopy }) => {
+  const people = [
+    { initials: 'R', label: 'Rafa, 29', note: copy.nearYou, x: '8%', y: '16%', ring: 'border-emerald-400' },
+    { initials: 'L', label: 'Leo, 32', note: copy.now, x: '64%', y: '24%', ring: 'border-[var(--pg-primary)]' },
+    { initials: 'D', label: 'Dani, 27', note: copy.nearYou, x: '46%', y: '66%', ring: 'border-white/25' },
+  ];
 
-const trustItems = [
-  { icon: EyeOff, title: 'Presença sob seu controle', text: 'Escolha quando aparecer e use recursos de privacidade quando precisar.' },
-  { icon: LockKeyhole, title: 'Mídia privada por acesso', text: 'Álbuns privados usam acesso específico, expiração e visualização única quando configurada.' },
-  { icon: ShieldCheck, title: 'Bloqueio e denúncia', text: 'Ferramentas de segurança ficam disponíveis nos fluxos de perfil e comunidade.' },
-  { icon: BadgeCheck, title: 'Confiança progressiva', text: 'Perfis podem solicitar verificação e a comunidade conta com sinais claros de presença e intenção.' },
-] as const;
-
-const ProductPreview = ({ copy }: { copy: LandingCopy }) => (
-  <div className="relative mx-auto w-full max-w-[520px]">
-    <div className="absolute -inset-12 -z-10 rounded-full bg-[radial-gradient(circle,rgba(245,12,105,.18),transparent_62%)] blur-2xl" />
-    <div className="overflow-hidden rounded-[34px] border border-white/[0.09] bg-[#09090d]/95 shadow-[0_36px_100px_rgba(0,0,0,.58)] backdrop-blur-3xl">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-[.2em] text-white/30">{copy.proofLabel}</p>
-          <p className="mt-1 font-bricolage text-lg font-black text-white">Ponto G</p>
+  return (
+    <div className="relative mx-auto min-h-[520px] w-full max-w-[590px]">
+      <div className="absolute inset-0 rounded-[42px] border border-white/[0.07] bg-[#09090c]/88 shadow-[0_42px_120px_rgba(0,0,0,.58)] backdrop-blur-3xl" />
+      <div className="absolute inset-0 overflow-hidden rounded-[42px]">
+        <div className="absolute inset-0 opacity-40" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px)', backgroundSize: '46px 46px' }} />
+        <div className="absolute left-1/2 top-1/2 h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.055]" />
+        <div className="absolute left-1/2 top-1/2 h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.055]" />
+        <motion.div
+          className="absolute left-1/2 top-1/2 h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[rgba(245,12,105,.18)]"
+          animate={{ scale: [1, 1.22, 1], opacity: [.35, .08, .35] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <div className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/[0.1] bg-black/70 shadow-[0_0_40px_rgba(245,12,105,.18)]">
+          <span className="h-3 w-3 rounded-full bg-[var(--pg-primary)] shadow-[0_0_18px_rgba(245,12,105,.9)]" />
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-[var(--pg-primary)]">
-          <Sparkles size={18} />
-        </div>
+        <span className="absolute left-1/2 top-[57%] -translate-x-1/2 text-[9px] font-black uppercase tracking-[.18em] text-white/28">VOCÊ</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 p-3">
-        <div className="col-span-2 relative min-h-[190px] overflow-hidden rounded-[24px] border border-white/[0.06] bg-[#111116] p-4">
-          <div className="absolute inset-0 opacity-40" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px)', backgroundSize: '34px 34px' }} />
-          <div className="relative flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[.15em] text-white/38">{copy.proofNear}</span>
-            <MapPin size={16} className="text-violet-300" />
-          </div>
-          <div className="relative mt-8">
-            <span className="absolute left-[12%] top-4 h-12 w-12 rounded-full border-2 border-emerald-400 bg-gradient-to-br from-white/18 to-white/5 shadow-[0_0_0_5px_rgba(52,211,153,.08)]" />
-            <span className="absolute right-[16%] top-16 h-14 w-14 rounded-full border-2 border-[var(--pg-primary)] bg-gradient-to-br from-white/18 to-white/5 shadow-[0_0_24px_rgba(245,12,105,.22)]" />
-            <span className="absolute left-[43%] top-20 h-10 w-10 rounded-full border-2 border-white/25 bg-gradient-to-br from-white/14 to-white/4" />
-          </div>
-        </div>
+      <div className="absolute left-5 top-5 rounded-full border border-white/[0.08] bg-black/55 px-3 py-2 text-[9px] font-black uppercase tracking-[.17em] text-white/36 backdrop-blur-xl">{copy.preview}</div>
 
-        <div className="flex min-h-[190px] flex-col justify-between rounded-[24px] border border-[rgba(245,12,105,.18)] bg-gradient-to-b from-[rgba(245,12,105,.13)] to-white/[0.025] p-4">
-          <span className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-[var(--pg-primary)] text-white shadow-[0_8px_30px_rgba(245,12,105,.28)]"><Flame size={19} /></span>
-          <div>
-            <p className="font-space text-2xl font-black text-white">42:18</p>
-            <p className="mt-1 text-[10px] font-black uppercase tracking-[.13em] text-[var(--pg-primary)]">{copy.proofNow}</p>
+      {people.map((person, index) => (
+        <motion.div
+          key={person.label}
+          className="absolute"
+          style={{ left: person.x, top: person.y }}
+          animate={{ y: [0, index % 2 === 0 ? -8 : 8, 0] }}
+          transition={{ duration: 5 + index, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <div className="flex items-center gap-2.5 rounded-[22px] border border-white/[0.08] bg-black/70 p-2.5 pr-4 shadow-[0_18px_55px_rgba(0,0,0,.45)] backdrop-blur-xl">
+            <div className={`flex h-12 w-12 items-center justify-center rounded-[17px] border-2 ${person.ring} bg-gradient-to-br from-fuchsia-500/25 via-violet-500/20 to-white/[0.04] font-bricolage text-sm font-black text-white`}>{person.initials}</div>
+            <div><p className="text-xs font-black text-white/86">{person.label}</p><p className="mt-0.5 text-[10px] font-bold text-white/35">{person.note}</p></div>
           </div>
-        </div>
+        </motion.div>
+      ))}
 
-        <div className="col-span-3 flex items-center gap-3 rounded-[24px] border border-white/[0.06] bg-white/[0.025] p-3.5">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.05]"><Users size={18} className="text-white/60" /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-black text-white">{copy.proofConversation}</p>
-            <p className="mt-0.5 text-[11px] text-white/36">Agora vocês podem continuar por mensagem.</p>
+      <motion.div
+        className="absolute bottom-5 right-5 flex items-center gap-3 rounded-[24px] border border-[rgba(245,12,105,.2)] bg-[rgba(245,12,105,.1)] p-3 pr-4 backdrop-blur-xl"
+        animate={{ scale: [1, 1.02, 1] }}
+        transition={{ duration: 3.4, repeat: Infinity }}
+      >
+        <span className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[var(--pg-primary)] text-white shadow-[0_10px_28px_rgba(245,12,105,.3)]"><Flame size={19} /></span>
+        <div><p className="text-[9px] font-black uppercase tracking-[.16em] text-[var(--pg-primary)]">{copy.now}</p><p className="font-space text-xl font-black text-white">42:18</p></div>
+      </motion.div>
+    </div>
+  );
+};
+
+const PulseStrip = ({ copy }: { copy: LandingCopy }) => {
+  const items = [
+    [Compass, copy.cityStripA],
+    [Flame, copy.cityStripB],
+    [MapPin, copy.cityStripC],
+    [EyeOff, copy.cityStripD],
+  ] as const;
+  return (
+    <div className="border-y border-white/[0.055] bg-white/[0.012]">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-y divide-white/[0.055] px-4 sm:grid-cols-4 sm:divide-y-0 sm:px-6 lg:px-8">
+        {items.map(([Icon, label]) => (
+          <div key={label} className="flex min-h-[98px] items-center gap-3 px-4 sm:px-6">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-white/[0.035] text-white/55"><Icon size={18} /></span>
+            <span className="text-xs font-black uppercase tracking-[.12em] text-white/40">{label}</span>
           </div>
-          <MessageCircle size={18} className="text-[var(--pg-primary)]" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-5 border-t border-white/[0.06] px-4 py-3 text-white/32">
-        {[Compass, MapPin, Flame, MessageCircle, Users].map((Icon, index) => (
-          <div key={index} className={`flex justify-center ${index === 2 ? 'text-[var(--pg-primary)]' : ''}`}><Icon size={18} /></div>
         ))}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
   const { i18n } = useTranslation();
   const venues = useMapStore((state) => state.venues);
   const fetchVenues = useMapStore((state) => state.fetchVenues);
-  const [mapCenter, setMapCenter] = useState<Coordinates>({ lat: -23.5505, lng: -46.6333 });
+  const [mapCenter, setMapCenter] = useState<Coordinates>({ lat: -19.9208, lng: -43.9378 });
   const [locationState, setLocationState] = useState<'idle' | 'loading' | 'ready' | 'denied'>('idle');
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType | null>(null);
   const [languageOpen, setLanguageOpen] = useState(false);
@@ -274,11 +328,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
   const lang: 'pt' | 'en' | 'es' = i18n.language.startsWith('en') ? 'en' : i18n.language.startsWith('es') ? 'es' : 'pt';
   const copy = COPY[lang];
 
-  useEffect(() => {
-    void fetchVenues();
-  }, [fetchVenues]);
+  useEffect(() => { void fetchVenues(); }, [fetchVenues]);
 
-  const visibleVenues = useMemo(() => venues.filter((venue) => Boolean(venue.lat && venue.lng)).slice(0, 6), [venues]);
+  const visibleVenues = useMemo(() => venues.filter((venue) => Boolean(venue.lat && venue.lng)).slice(0, 8), [venues]);
 
   const locate = () => {
     if (!navigator.geolocation || locationState === 'loading') return;
@@ -297,35 +349,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#050507] text-white selection:bg-[var(--pg-primary)] selection:text-white">
-      <div className="pointer-events-none fixed inset-0 z-0 opacity-70" aria-hidden="true">
-        <div className="absolute left-1/2 top-[-220px] h-[620px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(245,12,105,.12),rgba(116,53,255,.05)_40%,transparent_70%)] blur-3xl" />
+      <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
+        <div className="absolute left-1/2 top-[-260px] h-[700px] w-[980px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(245,12,105,.13),rgba(113,63,255,.055)_38%,transparent_70%)] blur-3xl" />
+        <div className="absolute bottom-0 right-[-180px] h-[520px] w-[520px] rounded-full bg-[radial-gradient(circle,rgba(82,49,185,.08),transparent_68%)] blur-3xl" />
       </div>
 
-      <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.06] bg-[#050507]/78 backdrop-blur-2xl">
-        <div className="mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.055] bg-[#050507]/76 backdrop-blur-2xl">
+        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2.5" aria-label="Ponto G">
             <span className="flex h-9 w-9 items-center justify-center rounded-[14px] bg-gradient-to-br from-[var(--pg-primary)] to-violet-600 font-bricolage text-lg font-black shadow-[0_8px_28px_rgba(245,12,105,.2)]">G</span>
             <span className="font-bricolage text-lg font-black tracking-[-.03em]">Ponto G</span>
           </button>
-
           <div className="hidden items-center gap-7 md:flex">
-            <a href="#produto" className="text-sm font-bold text-white/48 transition hover:text-white">{copy.navHow}</a>
-            <a href="#locais" className="text-sm font-bold text-white/48 transition hover:text-white">{copy.navPlaces}</a>
-            <a href="#seguranca" className="text-sm font-bold text-white/48 transition hover:text-white">{copy.navSafety}</a>
+            <a href="#agora" className="text-sm font-bold text-white/45 transition hover:text-white">{copy.navPulse}</a>
+            <a href="#cidade" className="text-sm font-bold text-white/45 transition hover:text-white">{copy.navCity}</a>
+            <a href="#controle" className="text-sm font-bold text-white/45 transition hover:text-white">{copy.navControl}</a>
           </div>
-
           <div className="flex items-center gap-2">
             <div className="relative">
               <button type="button" onClick={() => setLanguageOpen((value) => !value)} className="flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-black uppercase tracking-[.08em] text-white/52 transition hover:bg-white/[0.05] hover:text-white" aria-label="Idioma">
                 <Globe2 size={16} /> {lang}<ChevronDown size={13} />
               </button>
-              {languageOpen && (
-                <div className="absolute right-0 top-12 w-36 overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#101014]/95 p-1.5 shadow-2xl backdrop-blur-2xl">
-                  {[['pt', 'Português'], ['en', 'English'], ['es', 'Español']].map(([code, label]) => (
-                    <button key={code} type="button" onClick={() => { void i18n.changeLanguage(code); setLanguageOpen(false); }} className={`w-full rounded-[13px] px-3 py-2 text-left text-xs font-bold ${lang === code ? 'bg-white/[0.07] text-white' : 'text-white/48 hover:bg-white/[0.04] hover:text-white'}`}>{label}</button>
-                  ))}
-                </div>
-              )}
+              {languageOpen && <div className="absolute right-0 top-12 w-36 overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#101014]/95 p-1.5 shadow-2xl backdrop-blur-2xl">{[['pt','Português'],['en','English'],['es','Español']].map(([code,label]) => <button key={code} type="button" onClick={() => { void i18n.changeLanguage(code); setLanguageOpen(false); }} className={`w-full rounded-[13px] px-3 py-2 text-left text-xs font-bold ${lang === code ? 'bg-white/[0.07] text-white' : 'text-white/48 hover:bg-white/[0.04] hover:text-white'}`}>{label}</button>)}</div>}
             </div>
             <button type="button" onClick={onEnter} className="rounded-full bg-white px-4 py-2.5 text-sm font-black text-black transition hover:scale-[1.02] active:scale-[.98] sm:px-5">{copy.enter}</button>
           </div>
@@ -333,136 +378,89 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
       </nav>
 
       <main className="relative z-10">
-        <section className="mx-auto grid min-h-[92svh] w-full max-w-7xl items-center gap-14 px-4 pb-16 pt-28 sm:px-6 md:grid-cols-[1.05fr_.95fr] lg:gap-20 lg:px-8">
+        <section className="mx-auto grid min-h-[94svh] max-w-7xl items-center gap-14 px-4 pb-16 pt-28 sm:px-6 md:grid-cols-[.92fr_1.08fr] lg:gap-20 lg:px-8">
           <div className="max-w-2xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[rgba(245,12,105,.18)] bg-[rgba(245,12,105,.07)] px-3 py-2 text-[10px] font-black uppercase tracking-[.16em] text-[var(--pg-primary)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--pg-primary)] shadow-[0_0_12px_rgba(245,12,105,.8)]" />
-              {copy.heroEyebrow}
-            </div>
-            <h1 className="font-bricolage text-[clamp(3.5rem,8vw,7.6rem)] font-black leading-[.86] tracking-[-.065em] text-white">
-              {copy.heroTitleA}<br />
-              <span className="bg-gradient-to-r from-[var(--pg-primary)] via-fuchsia-400 to-violet-400 bg-clip-text text-transparent">{copy.heroTitleB}</span>
+            <p className="text-[10px] font-black uppercase tracking-[.2em] text-[var(--pg-primary)]">{copy.heroKicker}</p>
+            <h1 className="mt-5 font-bricolage text-[clamp(3.8rem,7.4vw,7.5rem)] font-black leading-[.87] tracking-[-.065em] text-white">
+              {copy.heroTitle}<br/><span className="bg-gradient-to-r from-[var(--pg-primary)] via-fuchsia-400 to-violet-400 bg-clip-text text-transparent">{copy.heroAccent}</span>
             </h1>
             <p className="mt-7 max-w-xl text-lg font-medium leading-8 text-white/52 sm:text-xl">{copy.heroText}</p>
-
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <button type="button" onClick={onEnter} className="group flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-black text-black shadow-[0_18px_50px_rgba(255,255,255,.08)] transition hover:scale-[1.02] active:scale-[.985]">
-                {copy.heroCta}<ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-              </button>
-              <a href="#produto" className="flex min-h-[54px] items-center justify-center rounded-full border border-white/[0.09] bg-white/[0.025] px-7 text-sm font-black text-white/65 transition hover:bg-white/[0.055] hover:text-white">{copy.heroSecondary}</a>
+              <button type="button" onClick={onEnter} className="group flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-black text-black transition hover:scale-[1.02] active:scale-[.985]">{copy.heroCta}<ArrowRight size={18} className="transition-transform group-hover:translate-x-1"/></button>
+              <a href="#agora" className="flex min-h-[54px] items-center justify-center rounded-full border border-white/[0.09] bg-white/[0.025] px-7 text-sm font-black text-white/65 transition hover:bg-white/[0.055] hover:text-white">{copy.heroSecondary}</a>
             </div>
-
-            <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-[11px] font-bold text-white/32">
-              <span className="flex items-center gap-1.5"><ShieldCheck size={14} />18+</span>
-              <span className="flex items-center gap-1.5"><EyeOff size={14} />Controle de presença</span>
-              <span className="flex items-center gap-1.5"><LockKeyhole size={14} />Mídia privada</span>
-            </div>
+            <div className="mt-8 flex items-center gap-2 text-xs font-black uppercase tracking-[.14em] text-white/24"><span className="h-1.5 w-1.5 rounded-full bg-[var(--pg-primary)]"/>{copy.signature}</div>
           </div>
-
-          <ProductPreview copy={copy} />
+          <HeroRadar copy={copy}/>
         </section>
 
-        <section id="produto" className="border-y border-white/[0.055] bg-white/[0.012] py-24 sm:py-32">
-          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[.18em] text-[var(--pg-primary)]">{copy.productEyebrow}</p>
-                <h2 className="mt-4 max-w-xl font-bricolage text-4xl font-black leading-[.98] tracking-[-.045em] text-white sm:text-5xl">{copy.productTitle}</h2>
-              </div>
-              <p className="max-w-2xl text-base leading-7 text-white/45 lg:justify-self-end lg:text-lg">{copy.productText}</p>
-            </div>
+        <PulseStrip copy={copy}/>
 
-            <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {featureCards.map(({ icon: Icon, label, title, text, tone }) => (
-                <article key={label} className="group relative min-h-[270px] overflow-hidden rounded-[28px] border border-white/[0.07] bg-[#0d0d11] p-5 transition hover:-translate-y-1 hover:border-white/[0.12]">
-                  <div className={`absolute inset-x-0 top-0 h-36 bg-gradient-to-b ${tone} opacity-80`} />
-                  <div className="relative flex h-full flex-col">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/[0.07] bg-white/[0.05] text-white"><Icon size={21} /></span>
-                    <div className="mt-auto pt-16">
-                      <p className="text-[10px] font-black uppercase tracking-[.15em] text-white/28">{label}</p>
-                      <h3 className="mt-2 font-bricolage text-xl font-black tracking-[-.025em] text-white">{title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-white/40">{text}</p>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="locais" className="py-24 sm:py-32">
-          <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[.8fr_1.2fr] lg:items-center lg:px-8">
+        <section id="agora" className="relative overflow-hidden py-28 sm:py-36">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_48%,rgba(245,12,105,.12),transparent_32%)]" />
+          <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[.8fr_1.2fr] lg:px-8">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-violet-300">{copy.placesEyebrow}</p>
-              <h2 className="mt-4 font-bricolage text-4xl font-black leading-[.98] tracking-[-.045em] text-white sm:text-5xl">{copy.placesTitle}</h2>
-              <p className="mt-5 max-w-lg text-base leading-7 text-white/45">{copy.placesText}</p>
-              <button type="button" onClick={locate} disabled={locationState === 'loading'} className="mt-7 inline-flex min-h-[48px] items-center gap-2 rounded-full border border-white/[0.09] bg-white/[0.035] px-5 text-sm font-black text-white/70 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-50">
-                <Navigation size={17} />{locationState === 'loading' ? copy.locating : copy.locate}
-              </button>
-              {locationState === 'denied' && <p className="mt-3 max-w-md text-xs leading-5 text-amber-200/55">{copy.locationDenied}</p>}
-
-              {visibleVenues.length > 0 && (
-                <div className="mt-8 space-y-2">
-                  {visibleVenues.slice(0, 3).map((venue) => (
-                    <button key={venue.id} type="button" onClick={onEnter} className="flex w-full max-w-md items-center gap-3 rounded-[18px] border border-white/[0.055] bg-white/[0.02] p-2.5 text-left transition hover:bg-white/[0.045]">
-                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[14px] bg-white/[0.04]">{venue.image_url ? <img src={venue.image_url} alt="" className="h-full w-full object-cover" loading="lazy" /> : <span className="flex h-full items-center justify-center"><MapPin size={17} className="text-white/25" /></span>}</div>
-                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-white/72">{venue.name}</p><p className="mt-0.5 truncate text-[11px] text-white/30">{venue.type || 'Local LGBTQ+'}</p></div>
-                      <ArrowRight size={15} className="text-white/24" />
-                    </button>
-                  ))}
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-[var(--pg-primary)]">{copy.agoraEyebrow}</p>
+              <h2 className="mt-5 font-bricolage text-[clamp(3.6rem,7vw,7rem)] font-black leading-[.86] tracking-[-.06em] text-white">{copy.agoraTitle}</h2>
+              <p className="mt-6 max-w-lg text-base leading-7 text-white/45 sm:text-lg">{copy.agoraText}</p>
+              <button type="button" onClick={onEnter} className="mt-8 inline-flex min-h-[50px] items-center gap-2 rounded-full border border-[rgba(245,12,105,.2)] bg-[rgba(245,12,105,.09)] px-6 text-sm font-black text-[var(--pg-primary)] transition hover:bg-[rgba(245,12,105,.14)]"><Flame size={18}/>{copy.agoraCta}</button>
+            </div>
+            <div className="relative mx-auto w-full max-w-[650px]">
+              <div className="absolute -inset-16 -z-10 bg-[radial-gradient(circle,rgba(245,12,105,.14),transparent_65%)] blur-2xl"/>
+              <div className="overflow-hidden rounded-[34px] border border-white/[0.08] bg-[#0b0b0f] shadow-[0_36px_110px_rgba(0,0,0,.5)]">
+                <div className="relative min-h-[430px] p-5 sm:p-7">
+                  <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/[0.08] via-transparent to-violet-500/[0.06]"/>
+                  <div className="relative flex items-center justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.18em] text-white/30">AGORA</p><p className="mt-1 font-bricolage text-xl font-black text-white">Disponível por 1 hora</p></div><div className="rounded-full border border-[rgba(245,12,105,.18)] bg-[rgba(245,12,105,.08)] px-4 py-2 font-space text-xl font-black text-[var(--pg-primary)]">42:18</div></div>
+                  <div className="mt-16 grid grid-cols-[.9fr_1.1fr] gap-3">
+                    <div className="rounded-[28px] border border-white/[0.07] bg-white/[0.025] p-4"><div className="aspect-[4/5] rounded-[22px] bg-gradient-to-br from-fuchsia-500/25 via-violet-500/20 to-white/[0.04]"/><p className="mt-3 font-bricolage text-lg font-black text-white">Leo, 32</p><p className="mt-1 text-xs text-white/35">No Agora agora</p></div>
+                    <div className="flex flex-col justify-end rounded-[28px] border border-white/[0.07] bg-white/[0.025] p-5"><span className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[var(--pg-primary)] text-white"><Flame size={21}/></span><p className="mt-auto font-bricolage text-3xl font-black leading-none text-white">Sem deixar dúvida.</p><p className="mt-3 text-sm leading-6 text-white/40">Um sinal temporário de intenção, não mais um status esquecido no perfil.</p></div>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            <div className="overflow-hidden rounded-[30px] border border-white/[0.07] bg-[#0b0b0e] p-2 shadow-[0_30px_80px_rgba(0,0,0,.35)]">
-              <PublicMap venues={visibleVenues} center={mapCenter} onVenueClick={onEnter} />
+              </div>
             </div>
           </div>
         </section>
 
-        <section id="seguranca" className="border-y border-white/[0.055] bg-white/[0.012] py-24 sm:py-32">
-          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="max-w-3xl">
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-emerald-300">{copy.safetyEyebrow}</p>
-              <h2 className="mt-4 font-bricolage text-4xl font-black leading-[.98] tracking-[-.045em] text-white sm:text-5xl">{copy.safetyTitle}</h2>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-white/45">{copy.safetyText}</p>
+        <section id="cidade" className="border-y border-white/[0.055] bg-white/[0.012] py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="grid gap-10 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
+              <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-violet-300">{copy.mapEyebrow}</p><h2 className="mt-4 font-bricolage text-4xl font-black leading-[.95] tracking-[-.05em] text-white sm:text-6xl">{copy.mapTitle}</h2></div>
+              <div className="lg:justify-self-end"><p className="max-w-xl text-base leading-7 text-white/45">{copy.mapText}</p><button type="button" onClick={locate} disabled={locationState === 'loading'} className="mt-6 inline-flex min-h-[48px] items-center gap-2 rounded-full border border-white/[0.09] bg-white/[0.035] px-5 text-sm font-black text-white/70 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-50"><Navigation size={17}/>{locationState === 'loading' ? copy.locating : copy.locate}</button>{locationState === 'denied' && <p className="mt-3 max-w-md text-xs leading-5 text-amber-200/55">{copy.locationDenied}</p>}</div>
             </div>
-            <div className="mt-12 grid gap-3 sm:grid-cols-2">
-              {trustItems.map(({ icon: Icon, title, text }) => (
-                <article key={title} className="flex gap-4 rounded-[24px] border border-white/[0.065] bg-[#0c0c10] p-5">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-emerald-400/[0.08] text-emerald-300"><Icon size={20} /></span>
-                  <div><h3 className="text-sm font-black text-white/80">{title}</h3><p className="mt-1.5 text-sm leading-6 text-white/38">{text}</p></div>
-                </article>
-              ))}
-            </div>
+            <div className="relative mt-12 overflow-hidden rounded-[34px] border border-white/[0.08] bg-[#09090d] p-2 shadow-[0_32px_90px_rgba(0,0,0,.38)]"><PublicMap venues={visibleVenues} center={mapCenter} onVenueClick={onEnter}/>{visibleVenues.length > 0 && <div className="pointer-events-none absolute bottom-5 left-5 right-5 flex gap-2 overflow-hidden">{visibleVenues.slice(0,3).map((venue) => <div key={venue.id} className="min-w-0 flex-1 rounded-[18px] border border-white/[0.08] bg-black/70 p-3 backdrop-blur-xl"><p className="truncate text-xs font-black text-white/75">{venue.name}</p><p className="mt-1 truncate text-[10px] uppercase tracking-[.12em] text-white/28">{venue.type || 'local'}</p></div>)}</div>}</div>
           </div>
         </section>
 
-        <section className="px-4 py-28 sm:px-6 sm:py-36">
-          <div className="relative mx-auto max-w-5xl overflow-hidden rounded-[36px] border border-[rgba(245,12,105,.15)] bg-[#0b0b0f] px-6 py-14 text-center shadow-[0_34px_100px_rgba(0,0,0,.4)] sm:px-10 sm:py-20">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(245,12,105,.14),transparent_50%)]" />
-            <div className="relative">
-              <p className="text-[10px] font-black uppercase tracking-[.18em] text-[var(--pg-primary)]">{copy.finalEyebrow}</p>
-              <h2 className="mx-auto mt-4 max-w-3xl font-bricolage text-4xl font-black leading-[.98] tracking-[-.05em] text-white sm:text-6xl">{copy.finalTitle}</h2>
-              <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-white/45">{copy.finalText}</p>
-              <button type="button" onClick={onEnter} className="group mt-8 inline-flex min-h-[54px] items-center gap-2 rounded-full bg-white px-7 text-sm font-black text-black transition hover:scale-[1.02] active:scale-[.985]">{copy.heroCta}<ArrowRight size={18} className="transition-transform group-hover:translate-x-1" /></button>
+        <section className="py-28 sm:py-36">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
+            <div className="order-2 lg:order-1">
+              <div className="mx-auto max-w-[560px] space-y-3">
+                <div className="ml-auto max-w-[75%] rounded-[24px_24px_7px_24px] bg-white px-4 py-3 text-sm font-bold text-black shadow-2xl">{copy.chatBubbleA}</div>
+                <div className="max-w-[80%] rounded-[24px_24px_24px_7px] border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/70">{copy.chatBubbleB}</div>
+                <div className="flex items-center gap-3 rounded-[26px] border border-white/[0.07] bg-[#0c0c10] p-4"><span className="flex h-12 w-12 items-center justify-center rounded-[17px] bg-violet-500/12 text-violet-300"><MapPin size={20}/></span><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-white/28">Contexto</p><p className="mt-1 text-sm font-black text-white/75">Mesmo local · presença próxima</p></div><MessageCircle size={19} className="ml-auto text-[var(--pg-primary)]"/></div>
+              </div>
             </div>
+            <div className="order-1 lg:order-2"><p className="text-[10px] font-black uppercase tracking-[.2em] text-sky-300">{copy.chatEyebrow}</p><h2 className="mt-4 font-bricolage text-4xl font-black leading-[.95] tracking-[-.05em] text-white sm:text-6xl">{copy.chatTitle}</h2><p className="mt-5 max-w-lg text-base leading-7 text-white/45">{copy.chatText}</p></div>
           </div>
         </section>
+
+        <section id="controle" className="border-y border-white/[0.055] bg-white/[0.012] py-28 sm:py-36">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[.85fr_1.15fr] lg:px-8">
+            <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-emerald-300">{copy.privacyEyebrow}</p><h2 className="mt-4 font-bricolage text-4xl font-black leading-[.95] tracking-[-.05em] text-white sm:text-6xl">{copy.privacyTitle}</h2><p className="mt-5 max-w-lg text-base leading-7 text-white/45">{copy.privacyText}</p></div>
+            <div className="rounded-[32px] border border-white/[0.08] bg-[#0b0b0f] p-5 sm:p-7"><div className="flex items-center justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.18em] text-white/28">{copy.presence}</p><p className="mt-1 font-bricolage text-xl font-black text-white">Controle de presença</p></div><EyeOff size={20} className="text-emerald-300"/></div><div className="mt-7 space-y-2">{[[copy.approximate,true],[copy.publicPhotos,true],[copy.privateAlbum,false],[copy.invisible,false]].map(([label,on]) => <div key={String(label)} className="flex items-center justify-between rounded-[20px] border border-white/[0.06] bg-white/[0.025] px-4 py-3.5"><span className="text-sm font-bold text-white/60">{label}</span><span className={`relative h-6 w-11 rounded-full ${on ? 'bg-emerald-400/25' : 'bg-white/[0.07]'}`}><span className={`absolute top-1 h-4 w-4 rounded-full transition ${on ? 'right-1 bg-emerald-300' : 'left-1 bg-white/35'}`}/></span></div>)}</div><div className="mt-4 flex items-center gap-2 text-[11px] font-semibold text-white/28"><LockKeyhole size={14}/>Você controla o que libera.</div></div>
+          </div>
+        </section>
+
+        <section className="py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"><div className="grid gap-8 rounded-[36px] border border-violet-400/[0.12] bg-gradient-to-br from-violet-500/[0.08] via-[#0a0a0e] to-[rgba(245,12,105,.05)] p-7 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-end"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-violet-300">{copy.placeEyebrow}</p><h2 className="mt-4 max-w-3xl font-bricolage text-4xl font-black leading-[.95] tracking-[-.05em] text-white sm:text-5xl">{copy.placeTitle}</h2><p className="mt-5 max-w-2xl text-base leading-7 text-white/45">{copy.placeText}</p></div><button type="button" onClick={onEnter} className="inline-flex min-h-[50px] items-center gap-2 rounded-full border border-white/[0.09] bg-white/[0.04] px-6 text-sm font-black text-white/70 transition hover:bg-white/[0.07] hover:text-white"><Users size={17}/>Entrar</button></div></div>
+        </section>
+
+        <section className="px-4 pb-32 pt-12 sm:px-6 sm:pb-40"><div className="relative mx-auto max-w-5xl overflow-hidden rounded-[40px] border border-[rgba(245,12,105,.15)] bg-[#0a0a0e] px-6 py-16 text-center shadow-[0_38px_110px_rgba(0,0,0,.45)] sm:px-10 sm:py-24"><div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(245,12,105,.15),transparent_50%)]"/><div className="relative"><p className="text-[10px] font-black uppercase tracking-[.2em] text-[var(--pg-primary)]">{copy.finalEyebrow}</p><h2 className="mx-auto mt-4 max-w-4xl font-bricolage text-4xl font-black leading-[.95] tracking-[-.055em] text-white sm:text-7xl">{copy.finalTitle}</h2><p className="mx-auto mt-5 max-w-xl text-base leading-7 text-white/45">{copy.finalText}</p><button type="button" onClick={onEnter} className="group mt-9 inline-flex min-h-[54px] items-center gap-2 rounded-full bg-white px-7 text-sm font-black text-black transition hover:scale-[1.02] active:scale-[.985]">{copy.heroCta}<ArrowRight size={18} className="transition-transform group-hover:translate-x-1"/></button></div></div></section>
       </main>
 
-      <footer className="relative z-10 border-t border-white/[0.055] px-4 py-8 sm:px-6">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 text-xs text-white/30 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="font-bricolage text-sm font-black text-white/55">Ponto G</p><p className="mt-1">{copy.adults}</p></div>
-          <div className="flex flex-wrap gap-5 font-bold">
-            <button type="button" onClick={() => setActiveLegalDoc('terms')} className="hover:text-white">{copy.terms}</button>
-            <button type="button" onClick={() => setActiveLegalDoc('privacy')} className="hover:text-white">{copy.privacy}</button>
-            <button type="button" onClick={() => setActiveLegalDoc('guidelines')} className="hover:text-white">{copy.guidelines}</button>
-          </div>
-        </div>
-      </footer>
+      <footer className="relative z-10 border-t border-white/[0.055] px-4 py-8 sm:px-6"><div className="mx-auto flex max-w-7xl flex-col gap-5 text-xs text-white/30 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bricolage text-sm font-black text-white/55">Ponto G</p><p className="mt-1">{copy.adults}</p></div><div className="flex flex-wrap gap-5 font-bold"><button type="button" onClick={() => setActiveLegalDoc('terms')} className="hover:text-white">{copy.terms}</button><button type="button" onClick={() => setActiveLegalDoc('privacy')} className="hover:text-white">{copy.privacy}</button><button type="button" onClick={() => setActiveLegalDoc('guidelines')} className="hover:text-white">{copy.guidelines}</button></div></div></footer>
 
-      {activeLegalDoc && <LegalModal type={activeLegalDoc} onClose={() => setActiveLegalDoc(null)} />}
+      {activeLegalDoc && <LegalModal type={activeLegalDoc} onClose={() => setActiveLegalDoc(null)}/>}
     </div>
   );
 };
