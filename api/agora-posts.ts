@@ -2,11 +2,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   authenticateServerUser,
   createServerAuthorizationClient,
-} from '../engines/authorization/server';
+} from '../engines/authorization/server.js';
 import {
   createAgoraFeedQueries,
   createSupabaseAgoraFeedRepository,
-} from '../modules/social/public';
+} from '../modules/social/public.js';
 
 const parsePositiveInteger = (value: unknown, fallback: number): number => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
