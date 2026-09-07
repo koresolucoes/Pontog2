@@ -26,19 +26,24 @@ export const uploadPublicProfileMedia = async (
   userId: string,
   file: File,
   kind: PublicProfileMediaKind,
-): Promise<string> => {
-  validatePublicProfileMedia(file, kind);
-  const extension = sanitizeExtension(file.name, kind === 'video' ? 'mp4' : 'jpg');
-  const filePath = `${userId}/profile/${kind}_${Date.now()}.${extension}`;
+): Promise<string | null> => {
+  try {
+    validatePublicProfileMedia(file, kind);
+    const extension = sanitizeExtension(file.name, kind === 'video' ? 'mp4' : 'jpg');
+    const filePath = `${userId}/profile/${kind}_${Date.now()}.${extension}`;
 
-  const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(filePath, file, {
-    cacheControl: '3600',
-    upsert: false,
-    contentType: file.type || undefined,
-  });
+    const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type || undefined,
+    });
 
-  if (error) throw error;
-  return filePath;
+    if (error) throw error;
+    return filePath;
+  } catch (error) {
+    console.error(`Public profile ${kind} upload failed:`, error);
+    return null;
+  }
 };
 
 export const publicProfileMediaUrl = (path: string | null | undefined): string => getPublicImageUrl(path);
