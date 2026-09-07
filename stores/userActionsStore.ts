@@ -7,6 +7,7 @@ import { useHomeStore } from './homeStore';
 import { useInboxStore } from './inboxStore';
 import { useUiStore } from './uiStore';
 import { useAuthStore } from './authStore';
+import { socialActions } from '../modules/social/public';
 
 export const reportReasons = [
     { key: 'spam', label: 'Spam ou publicidade' },
@@ -58,62 +59,51 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
     isFetchingFavorites: false,
 
     blockUser: async (userToBlock) => {
-        const { id: blocked_id, username } = userToBlock;
-        const currentUser = useAuthStore.getState().user;
-
-        if (!currentUser) {
+        const { id: blockedId, username } = userToBlock;
+        if (!useAuthStore.getState().user) {
             toast.error('Você precisa estar logado para bloquear usuários.');
             return;
         }
 
-        const { error } = await supabase.from('blocks').insert({
-            blocker_id: currentUser.id,
-            blocked_id,
-        });
-
-        if (error) {
+        try {
+            await socialActions.blockUser(blockedId);
+        } catch (error) {
             toast.error(`Erro ao bloquear ${username}.`);
             console.error('Error blocking user:', error);
             return;
         }
 
         toast.success(`${username} foi bloqueado.`);
-
         const { chatUser, setChatUser } = useUiStore.getState();
         const { selectedUser, setSelectedUser } = useMapStore.getState();
-
-        if (chatUser?.id === blocked_id) setChatUser(null);
-        if (selectedUser?.id === blocked_id) setSelectedUser(null);
+        if (chatUser?.id === blockedId) setChatUser(null);
+        if (selectedUser?.id === blockedId) setSelectedUser(null);
 
         const { myLocation, fetchNearbyUsers } = useMapStore.getState();
         if (myLocation) fetchNearbyUsers(myLocation);
         useHomeStore.getState().fetchPopularUsers();
-        useInboxStore.getState().fetchConversations();
+        useInboxStore.getState().fetchConversations(true);
     },
 
-    reportUser: async (reportedId: string, reason: string, comments: string) => {
-        const currentUser = useAuthStore.getState().user;
-        if (!currentUser) {
+    reportUser: async (reportedId, reason, comments) => {
+        if (!useAuthStore.getState().user) {
             toast.error('Você precisa estar logado para denunciar.');
             return false;
         }
 
-        const { error } = await supabase.from('reports').insert({
-            reporter_id: currentUser.id,
-            reported_id: reportedId,
-            reason,
-            comments: comments || null,
-        });
-
-        if (error) {
-            if (error.code === '23505') toast.error('Você já denunciou este perfil.');
-            else toast.error('Ocorreu um erro ao enviar a denúncia.');
+        try {
+            await socialActions.reportUser(reportedId, reason, comments || null);
+            toast.success('Denúncia enviada. Nossa equipe irá analisar.');
+            return true;
+        } catch (error: any) {
+            if (error?.code === '23505' || error?.message?.includes('already_reported')) {
+                toast.error('Você já denunciou este perfil.');
+            } else {
+                toast.error('Ocorreu um erro ao enviar a denúncia.');
+            }
             console.error('Error reporting user:', error);
             return false;
         }
-
-        toast.success('Denúncia enviada. Nossa equipe irá analisar.');
-        return true;
     },
 
     fetchBlockedUsers: async () => {
@@ -124,16 +114,12 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
         set({ isFetchingBlocked: false });
     },
 
-    unblockUser: async (userId: string) => {
-        const currentUser = useAuthStore.getState().user;
-        if (!currentUser) return;
+    unblockUser: async (userId) => {
+        if (!useAuthStore.getState().user) return;
 
-        const { error } = await supabase.from('blocks').delete().match({
-            blocker_id: currentUser.id,
-            blocked_id: userId,
-        });
-
-        if (error) {
+        try {
+            await socialActions.unblockUser(userId);
+        } catch (error) {
             toast.error('Erro ao desbloquear usuário.');
             console.error('Error unblocking user:', error);
             return;
@@ -141,26 +127,21 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
 
         toast.success('Usuário desbloqueado.');
         set(state => ({ blockedUsers: state.blockedUsers.filter(u => u.blocked_id !== userId) }));
-
         const { myLocation, fetchNearbyUsers } = useMapStore.getState();
         if (myLocation) fetchNearbyUsers(myLocation);
         useHomeStore.getState().fetchPopularUsers();
-        useInboxStore.getState().fetchConversations();
+        useInboxStore.getState().fetchConversations(true);
     },
 
-    favoriteUser: async (userId: string) => {
-        const currentUser = useAuthStore.getState().user;
-        if (!currentUser) return;
+    favoriteUser: async (userId) => {
+        if (!useAuthStore.getState().user) return;
 
         const previousIds = get().favoriteIds;
-        set({ favoriteIds: [...previousIds, userId] });
+        if (!previousIds.includes(userId)) set({ favoriteIds: [...previousIds, userId] });
 
-        const { error } = await supabase.from('favorites').insert({
-            user_id: currentUser.id,
-            favorite_id: userId,
-        });
-
-        if (error) {
+        try {
+            await socialActions.setFavorite(userId, true);
+        } catch (error) {
             set({ favoriteIds: previousIds });
             toast.error('Erro ao adicionar aos favoritos.');
             console.error('Error favoriting user:', error);
@@ -171,19 +152,15 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
         get().fetchFavorites(true);
     },
 
-    unfavoriteUser: async (userId: string) => {
-        const currentUser = useAuthStore.getState().user;
-        if (!currentUser) return;
+    unfavoriteUser: async (userId) => {
+        if (!useAuthStore.getState().user) return;
 
         const previousIds = get().favoriteIds;
         set({ favoriteIds: previousIds.filter(id => id !== userId) });
 
-        const { error } = await supabase.from('favorites').delete().match({
-            user_id: currentUser.id,
-            favorite_id: userId,
-        });
-
-        if (error) {
+        try {
+            await socialActions.setFavorite(userId, false);
+        } catch (error) {
             set({ favoriteIds: previousIds });
             toast.error('Erro ao remover dos favoritos.');
             console.error('Error unfavoriting user:', error);
@@ -198,7 +175,6 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
     fetchFavorites: async (force = false) => {
         const now = Date.now();
         if (!force && now - get().lastFavoritesFetch < 60000 && get().favoriteUsers.length > 0) return;
-
         set({ isFetchingFavorites: true });
 
         const currentUserId = (await supabase.auth.getSession()).data.session?.user?.id;
@@ -208,7 +184,6 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
         }
 
         const { data, error } = await supabase.rpc('get_my_favorite_users');
-
         if (error) {
             console.error('Error fetching favorites:', error);
         } else {
@@ -221,7 +196,6 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
                 is_verified: !!item.is_verified,
                 subscription_tier: item.subscription_tier || 'free',
             }));
-
             set({
                 favoriteUsers: mappedData,
                 favoriteIds: mappedData.map(u => u.favorite_id),
