@@ -8,7 +8,6 @@ import { useInboxStore } from './inboxStore';
 import { useUiStore } from './uiStore';
 import { useAuthStore } from './authStore';
 
-// The same reasons from the DB enum
 export const reportReasons = [
     { key: 'spam', label: 'Spam ou publicidade' },
     { key: 'inappropriate_photos', label: 'Fotos inapropriadas' },
@@ -57,20 +56,19 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
     favoriteUsers: [],
     favoriteIds: [],
     isFetchingFavorites: false,
-    
+
     blockUser: async (userToBlock) => {
         const { id: blocked_id, username } = userToBlock;
         const currentUser = useAuthStore.getState().user;
 
         if (!currentUser) {
-            toast.error("Você precisa estar logado para bloquear usuários.");
+            toast.error('Você precisa estar logado para bloquear usuários.');
             return;
         }
-        
-        // FIX: Pass blocker_id explicitly to satisfy RLS policy (auth.uid() = blocker_id)
-        const { error } = await supabase.from('blocks').insert({ 
+
+        const { error } = await supabase.from('blocks').insert({
             blocker_id: currentUser.id,
-            blocked_id: blocked_id 
+            blocked_id,
         });
 
         if (error) {
@@ -81,51 +79,39 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
 
         toast.success(`${username} foi bloqueado.`);
 
-        // Close any open modals/chat windows for the blocked user
         const { chatUser, setChatUser } = useUiStore.getState();
         const { selectedUser, setSelectedUser } = useMapStore.getState();
 
-        if (chatUser?.id === blocked_id) {
-            setChatUser(null);
-        }
-        if (selectedUser?.id === blocked_id) {
-            setSelectedUser(null);
-        }
-        
-        // Refresh all user lists to remove the blocked user
+        if (chatUser?.id === blocked_id) setChatUser(null);
+        if (selectedUser?.id === blocked_id) setSelectedUser(null);
+
         const { myLocation, fetchNearbyUsers } = useMapStore.getState();
-        if (myLocation) {
-            fetchNearbyUsers(myLocation); // for map and grid
-        }
-        useHomeStore.getState().fetchPopularUsers(); // for home
-        useInboxStore.getState().fetchConversations(); // for inbox
+        if (myLocation) fetchNearbyUsers(myLocation);
+        useHomeStore.getState().fetchPopularUsers();
+        useInboxStore.getState().fetchConversations();
     },
 
     reportUser: async (reportedId: string, reason: string, comments: string) => {
         const currentUser = useAuthStore.getState().user;
         if (!currentUser) {
-            toast.error("Você precisa estar logado para denunciar.");
+            toast.error('Você precisa estar logado para denunciar.');
             return false;
         }
 
-        // FIX: Pass reporter_id explicitly
         const { error } = await supabase.from('reports').insert({
             reporter_id: currentUser.id,
             reported_id: reportedId,
-            reason: reason,
+            reason,
             comments: comments || null,
         });
 
         if (error) {
-            if (error.code === '23505') { // Unique constraint violation
-                toast.error('Você já denunciou este perfil.');
-            } else {
-                toast.error('Ocorreu um erro ao enviar a denúncia.');
-            }
+            if (error.code === '23505') toast.error('Você já denunciou este perfil.');
+            else toast.error('Ocorreu um erro ao enviar a denúncia.');
             console.error('Error reporting user:', error);
             return false;
         }
-        
+
         toast.success('Denúncia enviada. Nossa equipe irá analisar.');
         return true;
     },
@@ -133,12 +119,8 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
     fetchBlockedUsers: async () => {
         set({ isFetchingBlocked: true });
         const { data, error } = await supabase.rpc('get_my_blocked_users');
-        if (error) {
-            // Don't show toast on 404 or empty, just log
-            console.error('Error fetching blocked users:', error);
-        } else {
-            set({ blockedUsers: data || [] });
-        }
+        if (error) console.error('Error fetching blocked users:', error);
+        else set({ blockedUsers: data || [] });
         set({ isFetchingBlocked: false });
     },
 
@@ -146,10 +128,9 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
         const currentUser = useAuthStore.getState().user;
         if (!currentUser) return;
 
-        // FIX: Match both blocker_id and blocked_id for safety and RLS
         const { error } = await supabase.from('blocks').delete().match({
             blocker_id: currentUser.id,
-            blocked_id: userId
+            blocked_id: userId,
         });
 
         if (error) {
@@ -159,15 +140,10 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
         }
 
         toast.success('Usuário desbloqueado.');
-        set(state => ({
-            blockedUsers: state.blockedUsers.filter(u => u.blocked_id !== userId)
-        }));
-        
-        // Refresh user lists as this user should now be visible again
+        set(state => ({ blockedUsers: state.blockedUsers.filter(u => u.blocked_id !== userId) }));
+
         const { myLocation, fetchNearbyUsers } = useMapStore.getState();
-        if (myLocation) {
-            fetchNearbyUsers(myLocation);
-        }
+        if (myLocation) fetchNearbyUsers(myLocation);
         useHomeStore.getState().fetchPopularUsers();
         useInboxStore.getState().fetchConversations();
     },
@@ -175,44 +151,39 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
     favoriteUser: async (userId: string) => {
         const currentUser = useAuthStore.getState().user;
         if (!currentUser) return;
-        
-        // Optimistic UI update
+
         const previousIds = get().favoriteIds;
         set({ favoriteIds: [...previousIds, userId] });
 
         const { error } = await supabase.from('favorites').insert({
             user_id: currentUser.id,
-            favorite_id: userId
+            favorite_id: userId,
         });
 
         if (error) {
-            // Revert optimistic update
             set({ favoriteIds: previousIds });
             toast.error('Erro ao adicionar aos favoritos.');
             console.error('Error favoriting user:', error);
             return;
         }
-        
+
         toast.success('Adicionado aos favoritos.', { icon: '⭐️' });
-        // Refresh favorite users list in background
-        get().fetchFavorites();
+        get().fetchFavorites(true);
     },
 
     unfavoriteUser: async (userId: string) => {
         const currentUser = useAuthStore.getState().user;
         if (!currentUser) return;
-        
-        // Optimistic UI update
+
         const previousIds = get().favoriteIds;
         set({ favoriteIds: previousIds.filter(id => id !== userId) });
 
         const { error } = await supabase.from('favorites').delete().match({
             user_id: currentUser.id,
-            favorite_id: userId
+            favorite_id: userId,
         });
 
         if (error) {
-            // Revert optimistic update
             set({ favoriteIds: previousIds });
             toast.error('Erro ao remover dos favoritos.');
             console.error('Error unfavoriting user:', error);
@@ -220,10 +191,7 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
         }
 
         toast.success('Removido dos favoritos.');
-        // Refresh favorite users list
-        set(state => ({
-            favoriteUsers: state.favoriteUsers.filter(u => u.favorite_id !== userId)
-        }));
+        set(state => ({ favoriteUsers: state.favoriteUsers.filter(u => u.favorite_id !== userId) }));
     },
 
     lastFavoritesFetch: 0,
@@ -232,57 +200,32 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
         if (!force && now - get().lastFavoritesFetch < 60000 && get().favoriteUsers.length > 0) return;
 
         set({ isFetchingFavorites: true });
-        
+
         const currentUserId = (await supabase.auth.getSession()).data.session?.user?.id;
         if (!currentUserId) {
-             set({ isFetchingFavorites: false });
-             return;
+            set({ isFetchingFavorites: false });
+            return;
         }
 
-        const { data, error } = await supabase
-            .from('favorites')
-            .select(`
-                favorite_id,
-                created_at,
-                profiles:favorite_id (
-                    username,
-                    avatar_url,
-                    date_of_birth,
-                    is_verified,
-                    subscription_tier
-                )
-            `)
-            .eq('user_id', currentUserId)
-            .order('created_at', { ascending: false });
+        const { data, error } = await supabase.rpc('get_my_favorite_users');
 
         if (error) {
             console.error('Error fetching favorites:', error);
         } else {
-            const mappedData = data.map((item: any) => {
-                const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
-                let age = null;
-                if (profile?.date_of_birth) {
-                    const dob = new Date(profile.date_of_birth);
-                    const diff_ms = Date.now() - dob.getTime();
-                    const age_dt = new Date(diff_ms); 
-                    age = Math.abs(age_dt.getUTCFullYear() - 1970);
-                }
-                
-                return {
-                    favorite_id: item.favorite_id,
-                    username: profile?.username,
-                    avatar_url: profile?.avatar_url,
-                    age: age,
-                    distance_km: null,
-                    is_verified: profile?.is_verified,
-                    subscription_tier: profile?.subscription_tier
-                };
-            });
+            const mappedData: FavoriteUser[] = (data || []).map((item: any) => ({
+                favorite_id: item.favorite_id,
+                username: item.username || 'Usuário',
+                avatar_url: item.avatar_url,
+                age: item.age || 0,
+                distance_km: item.distance_km ?? null,
+                is_verified: !!item.is_verified,
+                subscription_tier: item.subscription_tier || 'free',
+            }));
 
-            set({ 
+            set({
                 favoriteUsers: mappedData,
                 favoriteIds: mappedData.map(u => u.favorite_id),
-                lastFavoritesFetch: now
+                lastFavoritesFetch: now,
             });
         }
         set({ isFetchingFavorites: false });
