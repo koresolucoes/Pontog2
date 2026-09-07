@@ -192,7 +192,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
                     wink_created_at: wink.wink_created_at,
                     age: calculateAge(wink.date_of_birth),
                     avatar_url: getPublicImageUrl(wink.avatar_url),
-                    public_photos: Array.isArray(wink.public_photos) ? wink.public_photos.map(getPublicImageUrl) : [],
+                    public_photos: Array.isArray(wink.public_photos) ? wink.public_photos.map((photo: string) => getPublicImageUrl(photo)) : [],
                 }));
             } catch (err: any) {
                 console.warn('Fallback: get_my_winks RPC failed, using safe public profiles:', err.message || err);
@@ -215,7 +215,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
                             wink_created_at: w.created_at,
                             age: sender.age || 0,
                             avatar_url: getPublicImageUrl(sender.avatar_url),
-                            public_photos: Array.isArray(sender.public_photos) ? sender.public_photos.map(getPublicImageUrl) : [],
+                            public_photos: Array.isArray(sender.public_photos) ? sender.public_photos.map((photo: string) => getPublicImageUrl(photo)) : [],
                         }];
                     });
                 } catch (fallbackErr) {
@@ -314,7 +314,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
                 viewed_at: view.viewed_at,
                 age: calculateAge(view.date_of_birth),
                 avatar_url: getPublicImageUrl(view.avatar_url),
-                public_photos: (view.public_photos || []).map(getPublicImageUrl),
+                public_photos: (view.public_photos || []).map((photo: string) => getPublicImageUrl(photo)),
             }));
 
             set({ profileViews: viewsWithAgeAndUrls, loadingProfileViews: false, lastViewsFetch: now });
