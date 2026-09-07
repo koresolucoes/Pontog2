@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { usePwaStore } from '../stores/pwaStore';
 import { useUiStore } from '../stores/uiStore';
@@ -7,529 +6,193 @@ import { useNotificationStore } from '../stores/notificationStore';
 import { useInboxStore } from '../stores/inboxStore';
 import { EditProfileModal } from './EditProfileModal';
 import { MyAlbumsModal } from './MyAlbumsModal';
-import { NotificationType } from '../types';
-import { format } from 'date-fns';
 import { BlockedUsersModal } from './BlockedUsersModal';
-import { AdSenseUnit } from './AdSenseUnit';
 import { VerificationModal } from './VerificationModal';
 import { useTranslation } from 'react-i18next';
 import { cleanTag, parseTags } from '../lib/utils';
 import { useVideoStore } from '../stores/videoStore';
 import { reverseGeocode } from '../lib/geocode';
-
-
-const ToggleSwitch: React.FC<{
-    label: string;
-    isChecked: boolean;
-    onChange: (enabled: boolean) => void;
-    isPremiumFeature?: boolean;
-}> = ({ label, isChecked, onChange, isPremiumFeature = false }) => {
-    const { user } = useAuthStore();
-    const { setSubscriptionModalOpen } = useUiStore();
-    const isPlus = user?.subscription_tier === 'plus';
-
-    const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        e.stopPropagation(); 
-        if (isPremiumFeature && !isPlus) {
-            setSubscriptionModalOpen(true);
-        }
-    };
-
-    const handleToggleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        e.stopPropagation();
-        if (isPremiumFeature && !isPlus) {
-            setSubscriptionModalOpen(true);
-            e.preventDefault(); 
-            return;
-        }
-        onChange(e.target.checked);
-    };
-    
-    return (
-        <div className="flex items-center justify-between p-4 rounded-2xl bg-dark-800/40 border border-white/5 cursor-pointer transition-all hover:bg-dark-800/60 active:scale-[0.99]" onClick={handleContainerClick}>
-             <div className="flex items-center gap-3">
-                <span className="font-medium text-slate-200 text-sm">{label}</span>
-                {isPremiumFeature && !isPlus && <span className="material-symbols-rounded filled !text-[16px] text-yellow-400 drop-shadow-sm">auto_awesome</span>}
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer" onClick={e => e.stopPropagation()}>
-                <input 
-                    type="checkbox" 
-                    checked={isChecked}
-                    onChange={handleToggleChange}
-                    className="sr-only peer"
-                    disabled={isPremiumFeature && !isPlus}
-                />
-                <div className="w-11 h-6 bg-dark-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-primary-500/30 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500 shadow-inner"></div>
-            </label>
-        </div>
-    );
-};
-
-const ActionButton: React.FC<{
-    icon: string;
-    label: string;
-    onClick: () => void;
-    variant?: 'default' | 'danger' | 'premium';
-    subtitle?: string;
-}> = ({ icon, label, onClick, variant = 'default', subtitle }) => {
-    const baseClasses = "w-full p-4 rounded-2xl border flex items-center justify-between group transition-all active:scale-98 shadow-sm";
-    const variantClasses = {
-        default: "bg-dark-800/40 border-white/5 hover:bg-dark-800/60 text-slate-200",
-        danger: "bg-red-500/5 border-red-500/10 hover:bg-red-500/10 text-red-400",
-        premium: "bg-gradient-to-r from-dark-800/60 to-dark-800/40 border-yellow-500/20 hover:border-yellow-500/40 text-yellow-400"
-    };
-
-    return (
-        <button onClick={onClick} className={`${baseClasses} ${variantClasses[variant]}`}>
-            <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${variant === 'danger' ? 'bg-red-500/10' : 'bg-dark-700/50'} shadow-inner`}>
-                    <span className={`material-symbols-rounded text-2xl ${variant === 'premium' ? 'filled' : ''}`}>{icon}</span>
-                </div>
-                <div className="text-left">
-                    <span className={`font-bold block text-sm ${variant === 'default' ? 'text-slate-100' : ''}`}>{label}</span>
-                    {subtitle && <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{subtitle}</span>}
-                </div>
-            </div>
-            <span className="material-symbols-rounded text-slate-600 group-hover:text-slate-400 transition-colors">chevron_right</span>
-        </button>
-    );
-}
-
-const StatCard: React.FC<{ icon: string; label: string; count: number | string; onClick: () => void; color: string }> = ({ icon, label, count, onClick, color }) => (
-    <button onClick={onClick} className="flex-1 bg-dark-800/40 backdrop-blur-md border border-white/5 rounded-2xl p-3 flex items-center gap-3 hover:bg-dark-800/60 transition-all active:scale-95 group">
-        <div className={`w-10 h-10 rounded-full bg-${color}-500/10 flex items-center justify-center group-hover:scale-110 transition-transform`}>
-            <span className={`material-symbols-rounded text-${color}-500 text-xl filled`}>{icon}</span>
-        </div>
-        <div className="text-left">
-            <span className="block text-xl font-black text-white font-outfit leading-none">{count}</span>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{label}</span>
-        </div>
-    </button>
-);
+import { Button } from './ui/Button';
 
 export const ProfileView: React.FC = () => {
-    const { user, signOut, toggleIncognitoMode } = useAuthStore();
-    const { setSubscriptionModalOpen, setDonationModalOpen, setActiveView } = useUiStore();
-    const { 
-        pushState, 
-        checkPushSupport, 
-        subscribeToPushNotifications,
-        isSubscribing 
-    } = usePwaStore();
-    const {
-        preferences,
-        loading: loadingPreferences,
-        fetchPreferences,
-        updatePreference
-    } = useNotificationStore();
-    const { winks, profileViews } = useInboxStore();
+  const { user, signOut, toggleIncognitoMode } = useAuthStore();
+  const { setSubscriptionModalOpen, setDonationModalOpen, setActiveView } = useUiStore();
+  const { pushState, checkPushSupport, subscribeToPushNotifications, isSubscribing } = usePwaStore();
+  const { preferences, loading: loadingPreferences, fetchPreferences, updatePreference } = useNotificationStore();
+  const { winks, profileViews } = useInboxStore();
+  const { t } = useTranslation();
+  const videos = useVideoStore((state) => state.videos);
 
-    const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
-    const [isMyAlbumsOpen, setIsMyAlbumsOpen] = useState(false);
-    const [isBlockedUsersModalOpen, setIsBlockedUsersModalOpen] = useState(false);
-    const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
-    const { t } = useTranslation();
-    const videos = useVideoStore((state) => state.videos);
-    const userVideos = videos.filter(v => v.user_id === user?.id);
-    const [locationName, setLocationName] = useState<{city: string, state: string} | null>(null);
+  const [isEditProfileOpen, setEditProfileOpen] = useState(false);
+  const [isMyAlbumsOpen, setMyAlbumsOpen] = useState(false);
+  const [isBlockedUsersOpen, setBlockedUsersOpen] = useState(false);
+  const [isVerificationOpen, setVerificationOpen] = useState(false);
+  const [locationName, setLocationName] = useState<{ city: string; state: string } | null>(null);
 
-    useEffect(() => {
-        if (user?.lat && user?.lng) {
-            reverseGeocode(user.lat, user.lng).then(setLocationName);
-        }
-    }, [user?.lat, user?.lng]);
+  useEffect(() => { checkPushSupport(); }, [checkPushSupport]);
+  useEffect(() => { if (pushState === 'granted') fetchPreferences(); }, [pushState, fetchPreferences]);
+  useEffect(() => {
+    if (user?.lat && user?.lng) reverseGeocode(user.lat, user.lng).then(setLocationName).catch(() => setLocationName(null));
+  }, [user?.lat, user?.lng]);
 
+  const userVideos = useMemo(() => videos.filter((video) => video.user_id === user?.id), [videos, user?.id]);
+  if (!user) return null;
 
-    useEffect(() => {
-        checkPushSupport();
-    }, [checkPushSupport]);
+  const allPhotos = Array.from(new Set([user.avatar_url, ...(user.public_photos || [])].filter(Boolean))) as string[];
+  const interests = [...parseTags(user.tribes), ...parseTags(user.kinks)].map(cleanTag).filter(Boolean);
+  const locationText = locationName ? `${locationName.city}, ${locationName.state}` : user.city ? `${user.city}${user.state ? `, ${user.state}` : ''}` : 'Localização aproximada';
+  const profileSignals = [
+    !!user.avatar_url,
+    !!user.status_text,
+    !!user.date_of_birth,
+    !!user.position,
+    !!user.looking_for?.length,
+    !!user.tribes?.length,
+    !!user.public_photos?.length,
+    !!user.is_verified,
+  ];
+  const profileCompletion = Math.round((profileSignals.filter(Boolean).length / profileSignals.length) * 100);
 
-    useEffect(() => {
-        if (pushState === 'granted') {
-            fetchPreferences();
-        }
-    }, [pushState, fetchPreferences]);
+  const notificationEnabled = (type: 'new_message' | 'new_wink' | 'new_album_request') => preferences.find((item) => item.notification_type === type)?.enabled ?? true;
 
-    if (!user) return null;
-
-    const renderPushSection = () => {
-        switch (pushState) {
-            case 'granted':
-                return (
-                    <div className="space-y-2">
-                        {loadingPreferences ? <p className="text-slate-400 text-xs p-2">{t('profile.loading', { defaultValue: 'Carregando...' })}</p> : (
-                            <>
-                                <ToggleSwitch 
-                                    label={t('profile.new_messages', { defaultValue: 'Novas Mensagens' })}
-                                    isChecked={preferences.find(p => p.notification_type === 'new_message')?.enabled ?? true}
-                                    onChange={(enabled) => updatePreference('new_message', enabled)}
-                                />
-                                <ToggleSwitch 
-                                    label={t('profile.new_winks', { defaultValue: 'Novos Chamados (Winks)' })}
-                                    isChecked={preferences.find(p => p.notification_type === 'new_wink')?.enabled ?? true}
-                                    onChange={(enabled) => updatePreference('new_wink', enabled)}
-                                />
-                                <ToggleSwitch 
-                                    label={t('profile.album_requests', { defaultValue: 'Solicitações de Álbuns' })}
-                                    isChecked={preferences.find(p => p.notification_type === 'new_album_request')?.enabled ?? true}
-                                    onChange={(enabled) => updatePreference('new_album_request', enabled)}
-                                />
-                            </>
-                        )}
-                    </div>
-                );
-            case 'denied':
-                return <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold text-center uppercase tracking-wide">{t('profile.notifications_blocked', { defaultValue: 'Notificações bloqueadas no navegador' })}</div>;
-            case 'unsupported':
-                return <div className="p-4 rounded-2xl bg-slate-800/50 text-slate-500 text-xs font-medium text-center">{t('profile.unsupported_browser', { defaultValue: 'Navegador não suportado' })}</div>;
-            case 'prompt':
-            default:
-                return (
-                    <ActionButton 
-                        icon="notifications" 
-                        label={t('profile.enable_notifications', { defaultValue: 'Ativar Notificações' })} 
-                        onClick={subscribeToPushNotifications} 
-                        subtitle={isSubscribing ? t('profile.activating', { defaultValue: 'Ativando...' }) : t('profile.dont_miss_messages', { defaultValue: 'Não perca nenhuma mensagem' })}
-                    />
-                );
-        }
-    }
-
-    const allPhotos = [user.avatar_url, ...(user.public_photos || [])].filter(Boolean);
-
-    return (
-        <>
-            <div className="bg-[#0f0f13] h-full overflow-y-auto pb-24 no-scrollbar font-sans">
-                {/* Header (Logo & Bell) - As seen in the design */}
-                <div className="flex justify-between items-center px-6 pt-6 pb-2">
-                    <div className="flex items-center gap-2">
-                        <img src="/logo.png" className="w-8 h-8 rounded-full" alt="Ponto G" />
-                        <h1 className="text-xl font-bold text-pink-500 tracking-tight">Ponto G</h1>
-                    </div>
-                    <button onClick={() => setActiveView('inbox')} className="text-white hover:text-pink-400 transition-colors">
-                        <span className="material-symbols-rounded">notifications</span>
-                    </button>
+  return (
+    <>
+      <div className="pg-page h-full overflow-y-auto pb-28 no-scrollbar">
+        <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-2 sm:px-6">
+          <section className="relative overflow-hidden rounded-[30px] border border-white/[0.08] bg-[#111116] shadow-[0_24px_70px_rgba(0,0,0,.28)]">
+            <div className="relative aspect-[4/3] min-h-[330px] sm:aspect-[16/10]">
+              <img src={user.avatar_url} alt={user.display_name || user.username} className="h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-[#0b0b0f]" />
+              <div className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.14em] text-white/70 backdrop-blur-xl">Como as pessoas te veem</div>
+              <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                <div className="flex items-center gap-2">
+                  <h1 className="font-bricolage text-[32px] font-black tracking-[-0.04em] text-white sm:text-[38px]">{user.display_name || user.username}{user.age ? `, ${user.age}` : ''}</h1>
+                  {user.is_verified && <span className="material-symbols-rounded filled text-primary-400">verified</span>}
                 </div>
-
-                {/* Avatar Section */}
-                <div className="flex justify-center mt-4">
-                    <div className="relative">
-                        <div className="w-32 h-32 rounded-full p-[3px] bg-gradient-to-tr from-pink-600 via-purple-500 to-indigo-500 shadow-xl shadow-pink-900/20">
-                            <img loading="lazy" src={user.avatar_url} alt={user.username} className="w-full h-full rounded-full object-cover border-4 border-[#0f0f13]" />
-                        </div>
-                        <div className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 border-[3px] border-[#0f0f13] rounded-full flex items-center justify-center shadow-sm">
-                            <span className="material-symbols-rounded text-white text-[12px] font-bold">check</span>
-                        </div>
-                    </div>
+                <p className="mt-1.5 text-sm font-semibold text-white/50">{locationText}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {user.can_host && <span className="pg-chip !min-h-[30px] !bg-tertiary-500/10 !text-tertiary-500"><span className="material-symbols-rounded !text-[14px]">home</span>Tem local</span>}
+                  {user.is_incognito && <span className="pg-chip !min-h-[30px]"><span className="material-symbols-rounded !text-[14px]">visibility_off</span>Invisível</span>}
+                  {user.subscription_tier === 'plus' && <span className="pg-chip !min-h-[30px] !border-primary-500/20 !bg-primary-500/10 !text-primary-300"><span className="material-symbols-rounded filled !text-[14px]">auto_awesome</span>Plus</span>}
                 </div>
-
-                {/* Info Section */}
-                <div className="text-center mt-4 px-4">
-                    <h2 className="text-2xl font-black text-white flex items-center justify-center gap-2">
-                        {user.display_name || user.username}, {user.age || 'N/A'}
-                        {user.is_verified && (
-                            <span className="material-symbols-rounded text-pink-500 text-xl" title="Verificado">verified</span>
-                        )}
-                    </h2>
-                    <p className="text-sm text-orange-200/80 font-medium mt-1">
-                        {locationName ? `${locationName.city}, ${locationName.state}` : (user.city ? `${user.city}, ${user.state || 'SP'}` : t('profile.locating', { defaultValue: 'Buscando localização...' }))}
-                    </p>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-center gap-3 mt-6 px-6">
-                    <button 
-                        onClick={() => setIsEditProfileOpen(true)}
-                        className="flex-1 bg-dark-800/80 border border-white/10 text-white font-semibold py-3 rounded-full flex justify-center items-center gap-2 hover:bg-dark-700 transition-colors"
-                    >
-                        <span className="material-symbols-rounded text-lg">edit</span> Editar Perfil
-                    </button>
-                    {user.subscription_tier !== 'plus' && (
-                        <button 
-                            onClick={() => setSubscriptionModalOpen(true)}
-                            className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold py-3 rounded-full flex justify-center items-center gap-2 shadow-lg shadow-pink-900/30 hover:shadow-pink-900/50 transition-all"
-                        >
-                            <span className="material-symbols-rounded text-lg">stars</span> Seja Premium
-                        </button>
-                    )}
-                </div>
-
-                {/* Sobre Mim */}
-                <div className="mt-8 px-5">
-                    <h3 className="text-[11px] font-black text-orange-400/90 uppercase tracking-widest mb-3 ml-1">Sobre Mim</h3>
-                    <div className="bg-[#1a1a20] p-4 rounded-2xl text-slate-300 text-sm leading-relaxed border border-white/5">
-                        {user.status_text || 'Sem descrição.'}
-                    </div>
-                </div>
-
-                {/* Interesses */}
-                <div className="mt-6 px-5">
-                    <h3 className="text-[11px] font-black text-orange-400/90 uppercase tracking-widest mb-3 ml-1">Interesses</h3>
-                    <div className="bg-[#1a1a20] p-4 rounded-2xl flex flex-wrap gap-2 border border-white/5">
-                        {(() => {
-                            const validKinks = parseTags(user.kinks);
-                            const validTribes = parseTags(user.tribes);
-                            
-                            if (validKinks.length === 0 && validTribes.length === 0) {
-                                return <span className="text-slate-500 text-xs">Nenhum interesse listado.</span>;
-                            }
-
-                            return (
-                                <>
-                                    {validKinks.map((rawKink, idx) => {
-                                        const kink = cleanTag(rawKink);
-                                        const colors = [
-                                            'bg-pink-500/10 text-pink-300 border-pink-500/20',
-                                            'bg-purple-500/10 text-purple-300 border-purple-500/20',
-                                            'bg-green-500/10 text-green-300 border-green-500/20',
-                                            'bg-blue-500/10 text-blue-300 border-blue-500/20',
-                                            'bg-orange-500/10 text-orange-300 border-orange-500/20'
-                                        ];
-                                        const colorClass = colors[idx % colors.length];
-                                        return (
-                                            <span key={kink} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${colorClass}`}>
-                                                #{kink}
-                                            </span>
-                                        );
-                                    })}
-                                    {validTribes.map((rawTribe) => {
-                                        const tribe = cleanTag(rawTribe);
-                                        return (
-                                            <span key={tribe} className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-800 text-slate-300 border-white/10">
-                                                #{tribe}
-                                            </span>
-                                        );
-                                    })}
-                                </>
-                            );
-                        })()}
-                    </div>
-                </div>
-
-                {/* Grid Detalhes */}
-                <div className="mt-6 px-5">
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                        {user.gender_identity && (
-                        <InfoItem 
-                            icon="wc" 
-                            label={t('profile_modal.gender_identity', { defaultValue: 'Identidade' })} 
-                            value={t(`constants.options.${user.gender_identity}`, { defaultValue: user.gender_identity })} 
-                        />
-                        )}
-                        {user.pronouns && (
-                        <InfoItem 
-                            icon="match_case" 
-                            label={t('profile_modal.pronouns', { defaultValue: 'Pronomes' })} 
-                            value={t(`constants.options.${user.pronouns}`, { defaultValue: user.pronouns })} 
-                        />
-                        )}
-                        {user.sexual_orientation && (
-                        <InfoItem 
-                            icon="favorite" 
-                            label={t('profile_modal.sexual_orientation', { defaultValue: 'Orientação' })} 
-                            value={t(`constants.options.${user.sexual_orientation}`, { defaultValue: user.sexual_orientation })} 
-                        />
-                        )}
-                        {user.relationship_status && (
-                        <InfoItem 
-                            icon="diversity_1" 
-                            label={t('profile_modal.relationship_status', { defaultValue: 'Status' })} 
-                            value={t(`constants.options.${user.relationship_status}`, { defaultValue: user.relationship_status })} 
-                        />
-                        )}
-                        {user.height_cm && <InfoItem icon="height" label={t('profile_modal.height', { defaultValue: 'Altura' })} value={`${user.height_cm} cm`} />}
-                        {user.weight_kg && <InfoItem icon="monitor_weight" label={t('profile_modal.weight', { defaultValue: 'Peso' })} value={`${user.weight_kg} kg`} />}
-                        {user.position && (
-                        <InfoItem 
-                            icon="transgender" 
-                            label={t('profile_modal.position', { defaultValue: 'Posição' })} 
-                            value={t(`constants.positions.${user.position}`, { defaultValue: user.position })} 
-                        />
-                        )}
-                        {user.hiv_status && (
-                        <InfoItem 
-                            icon="health_and_safety" 
-                            label={t('profile_modal.hiv_status', { defaultValue: 'Status HIV' })} 
-                            value={t(`constants.hiv_statuses.${user.hiv_status}`, { defaultValue: user.hiv_status })} 
-                        />
-                        )}
-                    </div>
-                </div>
-
-                {/* Galeria Pública */}
-                <div className="mt-6 px-5">
-                    <h3 className="text-[11px] font-black text-orange-400/90 uppercase tracking-widest mb-3 ml-1">Galeria Pública</h3>
-                    {allPhotos.length > 0 ? (
-                        <div className="grid grid-cols-3 gap-2 auto-rows-[100px]">
-                            {allPhotos.slice(0, 5).map((photo, i) => {
-                                let colSpan = 'col-span-1';
-                                let rowSpan = 'row-span-1';
-                                
-                                // Emulate the masonry layout for 5 photos
-                                if (allPhotos.length >= 3 && i === 2) {
-                                    rowSpan = 'row-span-2';
-                                }
-                                
-                                const isLastAndMore = i === 4 && allPhotos.length > 5;
-                                
-                                return (
-                                    <div key={i} className={`relative rounded-xl overflow-hidden ${colSpan} ${rowSpan}`}>
-                                        <img src={photo} className="w-full h-full object-cover" alt="Gallery item" />
-                                        {isLastAndMore && (
-                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-black text-xl">
-                                                +{allPhotos.length - 5}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="bg-[#1a1a20] p-6 rounded-2xl text-center border border-white/5">
-                            <span className="material-symbols-rounded text-slate-500 text-3xl mb-2">no_photography</span>
-                            <p className="text-slate-400 text-sm">Sem fotos na galeria.</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Vídeos Públicos */}
-                <div className="mt-6 px-5">
-                    <h3 className="text-[11px] font-black text-red-500/90 uppercase tracking-widest mb-3 ml-1 flex items-center gap-1">
-                        <span className="material-symbols-rounded text-[14px]">play_circle</span> Vídeos ({userVideos.length})
-                    </h3>
-                    {userVideos.length > 0 ? (
-                        <div className="grid grid-cols-3 gap-2">
-                            {userVideos.map((video, i) => (
-                                <div key={video.id} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-slate-800 cursor-pointer group" onClick={() => {
-                                    useUiStore.getState().setActiveView('videos');
-                                }}>
-                                    {video.thumbnail_url ? (
-                                        <img src={video.thumbnail_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt={video.title} />
-                                    ) : (
-                                        <video src={video.video_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                                    )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2">
-                                        <div className="flex items-center gap-1 text-white/90">
-                                            <span className="material-symbols-rounded text-[12px]">play_arrow</span>
-                                            <span className="text-[10px] font-bold">{video.views_count || 0}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="bg-[#1a1a20] p-6 rounded-2xl text-center border border-white/5">
-                            <span className="material-symbols-rounded text-slate-500 text-3xl mb-2">videocam_off</span>
-                            <p className="text-slate-400 text-sm">Nenhum vídeo publicado.</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Álbum Privado */}
-                <div className="mt-6 px-5 pb-6">
-                    <div onClick={() => setIsMyAlbumsOpen(true)} className="bg-[#2a171d] border border-pink-900/40 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-[#331c23] transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className="w-11 h-11 bg-pink-900/40 rounded-full flex items-center justify-center shadow-inner">
-                                <span className="material-symbols-rounded text-pink-400">lock</span>
-                            </div>
-                            <div>
-                                <h4 className="text-white font-bold text-sm tracking-wide">Álbum Privado</h4>
-                                <p className="text-pink-200/50 text-xs font-medium mt-0.5">Gerenciar fotos ocultas</p>
-                            </div>
-                        </div>
-                        <div className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center">
-                            <span className="material-symbols-rounded text-pink-400/80">chevron_right</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Dashboard Stats */}
-                <div className="px-5 mt-2 space-y-6">
-                    <div className="grid grid-cols-2 gap-3">
-                        <StatCard 
-                            icon="favorite" 
-                            label="Winks" 
-                            count={winks.length} 
-                            color="pink"
-                            onClick={() => setActiveView('inbox')} 
-                        />
-                        <StatCard 
-                            icon="visibility" 
-                            label={t('profile.views', { defaultValue: 'Visitas' })} 
-                            count={profileViews.length} 
-                            color="purple"
-                            onClick={() => setActiveView('inbox')} 
-                        />
-                    </div>
-
-                    <section className="space-y-3">
-                         <h3 className="text-[10px] font-bold uppercase text-slate-500 ml-2 tracking-widest">{t('profile.my_account', { defaultValue: 'Minha Conta' })}</h3>
-                         <div className="space-y-2">
-                            {!user.is_verified && (
-                                <ActionButton 
-                                    icon="verified" 
-                                    label={t('profile.verify_profile', { defaultValue: 'Verificar Perfil' })} 
-                                    onClick={() => setIsVerificationModalOpen(true)} 
-                                    subtitle={t('profile.verify_profile_subtitle', { defaultValue: 'Ganhe o selo de verificado' })}
-                                />
-                            )}
-                            <ToggleSwitch
-                                label={t('profile.invisible_mode', { defaultValue: 'Modo Invisível' })}
-                                isChecked={user.is_incognito}
-                                onChange={toggleIncognitoMode}
-                                isPremiumFeature={true}
-                            />
-                            <ActionButton icon="block" label={t('profile.blocked_users', { defaultValue: 'Bloqueados' })} onClick={() => setIsBlockedUsersModalOpen(true)} />
-                         </div>
-                    </section>
-
-                    <section className="space-y-3">
-                        <h3 className="text-[10px] font-bold uppercase text-slate-500 ml-2 tracking-widest">{t('profile.notifications', { defaultValue: 'Notificações' })}</h3>
-                        {renderPushSection()}
-                    </section>
-
-                    <section className="space-y-3">
-                        <h3 className="text-[10px] font-bold uppercase text-slate-500 ml-2 tracking-widest">{t('profile.app', { defaultValue: 'App' })}</h3>
-                         <div className="space-y-2">
-                             <ActionButton icon="volunteer_activism" label={t('profile.support_project', { defaultValue: 'Apoie o Projeto' })} onClick={() => setDonationModalOpen(true)} subtitle={t('profile.support_subtitle', { defaultValue: 'Ajude a manter o app no ar' })} />
-                             
-                             <div className="my-2 rounded-2xl overflow-hidden shadow-md border border-white/5">
-                                <AdSenseUnit
-                                    client="ca-pub-9015745232467355"
-                                    slot="4962199596"
-                                    format="auto"
-                                    responsive={true}
-                                    className="bg-slate-800/30 min-h-[80px] flex items-center justify-center"
-                                />
-                            </div>
-
-                            <ActionButton icon="logout" label={t('profile.logout', { defaultValue: 'Sair da Conta' })} onClick={signOut} variant="danger" />
-                        </div>
-                    </section>
-                    
-                    <div className="text-center py-6">
-                        <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Ponto G v1.2.0 (Beta)</p>
-                        <p className="text-[9px] text-slate-700 font-medium mt-1">Propriedade de Kore Serviços de Tecnologia</p>
-                    </div>
-                </div>
+              </div>
             </div>
-            {isEditProfileOpen && <EditProfileModal onClose={() => setIsEditProfileOpen(false)} />}
-            {isMyAlbumsOpen && <MyAlbumsModal onClose={() => setIsMyAlbumsOpen(false)} />}
-            {isBlockedUsersModalOpen && <BlockedUsersModal onClose={() => setIsBlockedUsersModalOpen(false)} />}
-            <VerificationModal isOpen={isVerificationModalOpen} onClose={() => setIsVerificationModalOpen(false)} />
-        </>
-    );
+
+            <div className="grid grid-cols-2 gap-2 border-t border-white/[0.07] p-3">
+              <Button variant="secondary" icon="edit" onClick={() => setEditProfileOpen(true)}>Editar perfil</Button>
+              {user.subscription_tier === 'plus' ? (
+                <Button variant="secondary" icon="photo_library" onClick={() => setMyAlbumsOpen(true)}>Álbuns</Button>
+              ) : (
+                <Button variant="primary" icon="auto_awesome" onClick={() => setSubscriptionModalOpen(true)}>Conhecer Plus</Button>
+              )}
+            </div>
+          </section>
+
+          <section className="mt-4 grid grid-cols-[1fr_auto] items-center gap-4 rounded-[24px] border border-white/[0.07] bg-white/[0.03] p-4">
+            <div>
+              <div className="flex items-center justify-between gap-3"><p className="text-sm font-black text-white">Perfil {profileCompletion}% completo</p><span className="text-[11px] font-bold text-white/30">{profileCompletion < 100 ? 'Pode melhorar' : 'Excelente'}</span></div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-gradient-to-r from-primary-500 to-secondary-500" style={{ width: `${profileCompletion}%` }} /></div>
+              <p className="mt-2 text-xs leading-relaxed text-white/38">Perfis completos ajudam as pessoas certas a entenderem melhor quem você é e o que procura.</p>
+            </div>
+            <button onClick={() => setEditProfileOpen(true)} className="pg-icon-btn"><span className="material-symbols-rounded">arrow_forward</span></button>
+          </section>
+
+          <section className="mt-6">
+            <div className="mb-3 px-1"><p className="pg-eyebrow">Seu cartão público</p><h2 className="mt-1 font-bricolage text-xl font-black text-white">Sobre você</h2></div>
+            <div className="pg-surface p-4 sm:p-5">
+              <p className="whitespace-pre-wrap text-[15px] leading-6 text-white/65">{user.status_text || 'Adicione uma apresentação para que outras pessoas saibam um pouco mais sobre você.'}</p>
+              {interests.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{interests.slice(0, 12).map((item) => <span key={item} className="pg-chip !min-h-[32px]">#{item}</span>)}</div>}
+            </div>
+          </section>
+
+          {allPhotos.length > 1 && (
+            <section className="mt-6">
+              <div className="mb-3 flex items-center justify-between px-1"><div><p className="pg-eyebrow">Galeria</p><h2 className="mt-1 font-bricolage text-xl font-black text-white">Suas fotos</h2></div><Button variant="secondary" className="!min-h-[40px] !px-3 !text-xs" onClick={() => setEditProfileOpen(true)}>Gerenciar</Button></div>
+              <div className="grid grid-cols-3 gap-2">{allPhotos.slice(1, 7).map((photo, index) => <img key={`${photo}-${index}`} src={photo} alt="Galeria" className="aspect-[3/4] w-full rounded-[18px] object-cover" />)}</div>
+            </section>
+          )}
+
+          {userVideos.length > 0 && (
+            <section className="mt-6">
+              <div className="mb-3 flex items-center justify-between px-1"><div><p className="pg-eyebrow">Vídeos</p><h2 className="mt-1 font-bricolage text-xl font-black text-white">Seu conteúdo</h2></div><button onClick={() => setActiveView('videos')} className="text-xs font-black text-primary-300">Abrir vídeos</button></div>
+              <div className="grid grid-cols-3 gap-2">{userVideos.slice(0, 6).map((video) => <button key={video.id} onClick={() => setActiveView('videos')} className="relative aspect-[9/14] overflow-hidden rounded-[18px] bg-white/[0.04]">{video.thumbnail_url ? <img src={video.thumbnail_url} alt={video.title} className="h-full w-full object-cover" /> : <video src={video.video_url} className="h-full w-full object-cover" />}<span className="absolute bottom-2 left-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white"><span className="material-symbols-rounded filled !text-[18px]">play_arrow</span></span></button>)}</div>
+            </section>
+          )}
+
+          <section className="mt-7">
+            <div className="mb-3 px-1"><p className="pg-eyebrow">Atividade</p><h2 className="mt-1 font-bricolage text-xl font-black text-white">O que chegou até você</h2></div>
+            <div className="grid grid-cols-2 gap-2">
+              <StatTile icon="waving_hand" label="Chamados" value={winks.length} onClick={() => setActiveView('inbox')} />
+              <StatTile icon="visibility" label="Visitas" value={profileViews.length} onClick={() => setActiveView('inbox')} />
+            </div>
+          </section>
+
+          <section className="mt-7">
+            <div className="mb-3 px-1"><p className="pg-eyebrow">Privacidade</p><h2 className="mt-1 font-bricolage text-xl font-black text-white">Controle sua presença</h2></div>
+            <div className="space-y-2">
+              <SettingToggle
+                icon="visibility_off"
+                title="Modo invisível"
+                description={user.subscription_tier === 'plus' ? 'Fique fora da descoberta até decidir aparecer novamente.' : 'Disponível para membros Plus.'}
+                checked={user.is_incognito}
+                onChange={() => user.subscription_tier === 'plus' ? toggleIncognitoMode(!user.is_incognito) : setSubscriptionModalOpen(true)}
+                badge={user.subscription_tier !== 'plus' ? 'PLUS' : undefined}
+              />
+              {!user.is_verified && <SettingLink icon="verified" title="Verificar perfil" description="Aumente confiança sem expor dados públicos extras." onClick={() => setVerificationOpen(true)} />}
+              <SettingLink icon="block" title="Perfis bloqueados" description="Veja e gerencie quem você bloqueou." onClick={() => setBlockedUsersOpen(true)} />
+              <SettingLink icon="photo_library" title="Álbuns privados" description="Controle o que é compartilhado e com quem." onClick={() => setMyAlbumsOpen(true)} />
+            </div>
+          </section>
+
+          <section className="mt-7">
+            <div className="mb-3 px-1"><p className="pg-eyebrow">Notificações</p><h2 className="mt-1 font-bricolage text-xl font-black text-white">Só o que importa</h2></div>
+            {pushState === 'granted' ? (
+              loadingPreferences ? <div className="h-24 animate-pulse rounded-[22px] bg-white/[0.03]" /> : <div className="space-y-2">
+                <SettingToggle icon="chat_bubble" title="Novas mensagens" description="Avisos quando alguém conversar com você." checked={notificationEnabled('new_message')} onChange={() => updatePreference('new_message', !notificationEnabled('new_message'))} />
+                <SettingToggle icon="waving_hand" title="Novos chamados" description="Saiba quando alguém demonstrar interesse." checked={notificationEnabled('new_wink')} onChange={() => updatePreference('new_wink', !notificationEnabled('new_wink'))} />
+                <SettingToggle icon="lock" title="Pedidos de álbum" description="Avisos de solicitações de acesso." checked={notificationEnabled('new_album_request')} onChange={() => updatePreference('new_album_request', !notificationEnabled('new_album_request'))} />
+              </div>
+            ) : pushState === 'denied' ? (
+              <div className="rounded-[22px] border border-red-500/15 bg-red-500/[0.06] p-4 text-sm font-semibold text-red-200/70">Notificações estão bloqueadas nas permissões do navegador.</div>
+            ) : (
+              <Button variant="secondary" fullWidth icon="notifications" loading={isSubscribing} onClick={subscribeToPushNotifications}>Ativar notificações</Button>
+            )}
+          </section>
+
+          <section className="mt-7 space-y-2">
+            <SettingLink icon="volunteer_activism" title="Apoiar o Ponto G" description="Ajude a manter e evoluir a comunidade." onClick={() => setDonationModalOpen(true)} />
+            <button onClick={signOut} className="flex min-h-[52px] w-full items-center gap-3 rounded-[20px] px-4 text-left text-sm font-bold text-red-300 transition hover:bg-red-500/[0.07]"><span className="material-symbols-rounded">logout</span>Sair da conta</button>
+          </section>
+        </div>
+      </div>
+
+      {isEditProfileOpen && <EditProfileModal onClose={() => setEditProfileOpen(false)} />}
+      {isMyAlbumsOpen && <MyAlbumsModal onClose={() => setMyAlbumsOpen(false)} />}
+      {isBlockedUsersOpen && <BlockedUsersModal onClose={() => setBlockedUsersOpen(false)} />}
+      <VerificationModal isOpen={isVerificationOpen} onClose={() => setVerificationOpen(false)} />
+    </>
+  );
 };
 
-const InfoItem = ({ icon, label, value }: { icon: string, label: string, value: string }) => (
-    <div className="flex items-center space-x-3 bg-[#1a1a20] p-3 rounded-xl border border-white/5">
-        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0">
-             <span className="material-symbols-rounded text-lg text-slate-300">{icon}</span>
-        </div>
-        <div className="overflow-hidden">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wide font-bold">{label}</p>
-            <p className="font-semibold text-slate-200 truncate">{value}</p>
-        </div>
-    </div>
+const StatTile: React.FC<{ icon: string; label: string; value: number; onClick: () => void }> = ({ icon, label, value, onClick }) => (
+  <button onClick={onClick} className="pg-surface flex min-h-[86px] items-center gap-3 p-3.5 text-left transition active:scale-[0.985]">
+    <span className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-primary-500/10 text-primary-300"><span className="material-symbols-rounded filled">{icon}</span></span>
+    <span><span className="block font-bricolage text-2xl font-black leading-none text-white">{value}</span><span className="mt-1 block text-[11px] font-bold uppercase tracking-[.12em] text-white/32">{label}</span></span>
+  </button>
 );
 
+const SettingLink: React.FC<{ icon: string; title: string; description: string; onClick: () => void }> = ({ icon, title, description, onClick }) => (
+  <button onClick={onClick} className="flex min-h-[66px] w-full items-center gap-3 rounded-[20px] border border-white/[0.07] bg-white/[0.03] p-3 text-left transition hover:bg-white/[0.05] active:scale-[0.99]">
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-white/[0.045] text-white/50"><span className="material-symbols-rounded !text-[20px]">{icon}</span></span>
+    <span className="min-w-0 flex-1"><span className="block text-sm font-black text-white/75">{title}</span><span className="mt-0.5 block text-[11px] leading-snug text-white/30">{description}</span></span>
+    <span className="material-symbols-rounded !text-[18px] text-white/18">chevron_right</span>
+  </button>
+);
+
+const SettingToggle: React.FC<{ icon: string; title: string; description: string; checked: boolean; onChange: () => void; badge?: string }> = ({ icon, title, description, checked, onChange, badge }) => (
+  <button onClick={onChange} className="flex min-h-[70px] w-full items-center gap-3 rounded-[20px] border border-white/[0.07] bg-white/[0.03] p-3 text-left transition hover:bg-white/[0.05] active:scale-[0.99]">
+    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] ${checked ? 'bg-primary-500/12 text-primary-300' : 'bg-white/[0.045] text-white/40'}`}><span className="material-symbols-rounded !text-[20px]">{icon}</span></span>
+    <span className="min-w-0 flex-1"><span className="flex items-center gap-2 text-sm font-black text-white/75">{title}{badge && <span className="rounded-full bg-primary-500/10 px-2 py-0.5 text-[9px] tracking-[.12em] text-primary-300">{badge}</span>}</span><span className="mt-0.5 block text-[11px] leading-snug text-white/30">{description}</span></span>
+    <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${checked ? 'bg-primary-500' : 'bg-white/10'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${checked ? 'left-6' : 'left-1'}`} /></span>
+  </button>
+);

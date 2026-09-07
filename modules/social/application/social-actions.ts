@@ -1,7 +1,8 @@
-import type { ConnectionRequestResult, ConnectionState, SocialConnection } from '../domain/social-actions.js';
+import type { ConnectionRequestResult, ConnectionState, SocialConnection, WinkResult } from '../domain/social-actions.js';
 
 export interface SocialActionsRepository {
   setFavorite(targetId: string, enabled: boolean): Promise<boolean>;
+  sendWink(targetId: string): Promise<WinkResult>;
   getConnectionState(otherId: string): Promise<ConnectionState | null>;
   getMyConnections(): Promise<SocialConnection[]>;
   requestConnection(targetId: string, firstMessage?: string | null): Promise<ConnectionRequestResult>;
