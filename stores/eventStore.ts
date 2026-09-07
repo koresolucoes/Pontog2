@@ -1,128 +1,158 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { Event, EventAttendee } from '../types';
+import type { Coordinates } from '../types';
 
-interface EventState {
-    events: Event[];
-    myEvents: Event[];
-    loading: boolean;
-    error: string | null;
-    
-    // Actions
-    fetchEvents: () => Promise<void>;
-    fetchMyEvents: () => Promise<void>;
-    createEvent: (data: Partial<Event>) => Promise<Event | null>;
-    attendEvent: (eventId: string, status: 'interested' | 'going') => Promise<void>;
-    unattendEvent: (eventId: string) => Promise<void>;
+export type EventAttendanceStatus = 'interested' | 'going';
+
+export interface EventFeedItem {
+  id: string;
+  venue_id: string | null;
+  title: string;
+  description: string | null;
+  cover_image_url: string | null;
+  category: string;
+  start_time: string;
+  end_time: string | null;
+  location_name: string | null;
+  lat: number | null;
+  lng: number | null;
+  venue_name: string | null;
+  source_url: string | null;
+  tags: string[];
+  interested_count: number;
+  going_count: number;
+  here_now_count: number;
 }
 
+export interface EventAttendeePreview {
+  user_id: string;
+  username: string;
+  avatar_url: string;
+  attendance_status: EventAttendanceStatus;
+  is_checked_in: boolean;
+  checked_in_at: string | null;
+}
+
+interface EventState {
+  events: EventFeedItem[];
+  selectedEvent: EventFeedItem | null;
+  attendees: Record<string, EventAttendeePreview[]>;
+  myAttendance: Record<string, EventAttendanceStatus | null>;
+  loading: boolean;
+  actionBusy: boolean;
+  error: string | null;
+  lastFetchAt: number;
+  setSelectedEvent: (event: EventFeedItem | null) => void;
+  fetchEvents: (coords?: Coordinates | null, force?: boolean) => Promise<void>;
+  fetchVenueEvents: (venueId: string) => Promise<EventFeedItem[]>;
+  fetchAttendees: (eventId: string) => Promise<EventAttendeePreview[]>;
+  hydrateMyAttendance: (eventIds: string[]) => Promise<void>;
+  setAttendance: (eventId: string, status: EventAttendanceStatus | null) => Promise<boolean>;
+  setEventCheckin: (eventId: string, active: boolean) => Promise<boolean>;
+}
+
+const asCount = (value: unknown) => Number(value || 0);
+const mapEvent = (row: any): EventFeedItem => ({
+  id: row.id,
+  venue_id: row.venue_id ?? null,
+  title: row.title,
+  description: row.description ?? null,
+  cover_image_url: row.cover_image_url ?? null,
+  category: row.category || 'other',
+  start_time: row.start_time,
+  end_time: row.end_time ?? null,
+  location_name: row.location_name ?? row.venue_name ?? null,
+  lat: Number.isFinite(Number(row.lat)) ? Number(row.lat) : null,
+  lng: Number.isFinite(Number(row.lng)) ? Number(row.lng) : null,
+  venue_name: row.venue_name ?? null,
+  source_url: row.source_url ?? null,
+  tags: Array.isArray(row.tags) ? row.tags : [],
+  interested_count: asCount(row.interested_count),
+  going_count: asCount(row.going_count),
+  here_now_count: asCount(row.here_now_count),
+});
+
 export const useEventStore = create<EventState>((set, get) => ({
-    events: [],
-    myEvents: [],
-    loading: false,
-    error: null,
+  events: [], selectedEvent: null, attendees: {}, myAttendance: {}, loading: false, actionBusy: false, error: null, lastFetchAt: 0,
+  setSelectedEvent: (selectedEvent) => set({ selectedEvent }),
 
-    fetchEvents: async () => {
-        set({ loading: true, error: null });
-        try {
-            const { data, error } = await supabase
-                .from('events')
-                .select('*, organizer:profiles(*)')
-                .order('start_time', { ascending: true })
-                .gte('start_time', new Date().toISOString()); // Only upcoming events
-                
-            if (error) throw error;
-            set({ events: data as any[] });
-        } catch (error: any) {
-            console.error('Error fetching events:', error);
-            set({ error: error.message });
-        } finally {
-            set({ loading: false });
-        }
-    },
+  fetchEvents: async (coords = null, force = false) => {
+    const now = Date.now();
+    if (!force && get().events.length > 0 && now - get().lastFetchAt < 60000) return;
+    set({ loading: true, error: null });
+    const { data, error } = await supabase.rpc('get_event_feed_v1', { p_lat: coords?.lat ?? null, p_lng: coords?.lng ?? null, p_limit: 60 });
+    if (error) { console.error('Event feed unavailable:', error); set({ loading: false, error: 'Não foi possível carregar os eventos agora.' }); return; }
+    const events = (data || []).map(mapEvent);
+    set({ events, loading: false, lastFetchAt: now });
+    void get().hydrateMyAttendance(events.map((event) => event.id));
+  },
 
-    fetchMyEvents: async () => {
-        set({ loading: true, error: null });
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) return set({ loading: false });
-        
-        try {
-            const { data, error } = await supabase
-                .from('event_attendees')
-                .select('event_id, status, events(*, organizer:profiles(*))')
-                .eq('user_id', userData.user.id);
-                
-            if (error) throw error;
-            const myEvts = data.map((d: any) => ({...d.events, attendeeStatus: d.status})) as any[];
-            set({ myEvents: myEvts });
-        } catch (error: any) {
-            console.error('Error fetching my events:', error);
-            set({ error: error.message });
-        } finally {
-            set({ loading: false });
-        }
-    },
+  fetchVenueEvents: async (venueId) => {
+    const { data, error } = await supabase.rpc('get_venue_events_v1', { p_venue_id: venueId, p_limit: 12 });
+    if (error) { console.warn('Venue events unavailable:', error); return []; }
+    const venueEvents = (data || []).map((row: any) => mapEvent({ ...row, location_name: null, lat: null, lng: null, venue_name: null }));
+    set((state) => {
+      const merged = new Map(state.events.map((event) => [event.id, event]));
+      venueEvents.forEach((event) => {
+        const existing = merged.get(event.id);
+        merged.set(event.id, {
+          ...existing,
+          ...event,
+          lat: event.lat ?? existing?.lat ?? null,
+          lng: event.lng ?? existing?.lng ?? null,
+          location_name: event.location_name ?? existing?.location_name ?? null,
+          venue_name: event.venue_name ?? existing?.venue_name ?? null,
+        });
+      });
+      return { events: Array.from(merged.values()) };
+    });
+    void get().hydrateMyAttendance(venueEvents.map((event) => event.id));
+    return venueEvents;
+  },
 
-    createEvent: async (data: Partial<Event>) => {
-        set({ loading: true, error: null });
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) return null;
-        
-        try {
-            const { data: newEvent, error } = await supabase
-                .from('events')
-                .insert({ ...data, organizer_id: userData.user.id })
-                .select()
-                .single();
-                
-            if (error) throw error;
-            
-            // Auto attend creator as 'going'
-            await supabase.from('event_attendees').insert({
-                event_id: newEvent.id,
-                user_id: userData.user.id,
-                status: 'going'
-            });
-            
-            set(state => ({ events: [...state.events, newEvent] }));
-            get().fetchMyEvents();
-            return newEvent as Event;
-        } catch (error: any) {
-            console.error('Error creating event:', error);
-            set({ error: error.message });
-            return null;
-        } finally {
-            set({ loading: false });
-        }
-    },
+  fetchAttendees: async (eventId) => {
+    const { data, error } = await supabase.rpc('get_event_attendees_v1', { p_event_id: eventId });
+    if (error) { console.warn('Event attendees unavailable:', error); set((state) => ({ attendees: { ...state.attendees, [eventId]: [] } })); return []; }
+    const attendees = (data || []).map((row: any) => ({ user_id: row.user_id, username: row.username || 'Pessoa', avatar_url: row.avatar_url || '', attendance_status: row.attendance_status as EventAttendanceStatus, is_checked_in: Boolean(row.is_checked_in), checked_in_at: row.checked_in_at ?? null }));
+    set((state) => ({ attendees: { ...state.attendees, [eventId]: attendees } }));
+    return attendees;
+  },
 
-    attendEvent: async (eventId: string, status: 'interested' | 'going') => {
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) return;
-        try {
-            const { error } = await supabase
-                .from('event_attendees')
-                .upsert({ event_id: eventId, user_id: userData.user.id, status });
-            if (error) throw error;
-            get().fetchMyEvents();
-        } catch (error: any) {
-            console.error('Error attending event:', error);
-        }
-    },
+  hydrateMyAttendance: async (eventIds) => {
+    if (!eventIds.length) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user?.id;
+    if (!userId) return;
+    const { data, error } = await supabase.from('event_attendees').select('event_id,status').eq('user_id', userId).in('event_id', eventIds);
+    if (error) return;
+    set((state) => {
+      const next = { ...state.myAttendance };
+      eventIds.forEach((id) => { next[id] = null; });
+      (data || []).forEach((row: any) => { next[row.event_id] = row.status as EventAttendanceStatus; });
+      return { myAttendance: next };
+    });
+  },
 
-    unattendEvent: async (eventId: string) => {
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData.user) return;
-        try {
-            const { error } = await supabase
-                .from('event_attendees')
-                .delete()
-                .eq('event_id', eventId)
-                .eq('user_id', userData.user.id);
-            if (error) throw error;
-            get().fetchMyEvents();
-        } catch (error: any) {
-            console.error('Error unattending event:', error);
-        }
-    }
+  setAttendance: async (eventId, status) => {
+    if (get().actionBusy) return false;
+    set({ actionBusy: true });
+    const previous = get().myAttendance[eventId] ?? null;
+    set((state) => ({ myAttendance: { ...state.myAttendance, [eventId]: status } }));
+    const { error } = await supabase.rpc('set_my_event_attendance_v1', { p_event_id: eventId, p_status: status });
+    if (error) { console.error('Event attendance failed:', error); set((state) => ({ actionBusy: false, myAttendance: { ...state.myAttendance, [eventId]: previous } })); return false; }
+    set({ actionBusy: false });
+    await get().fetchEvents(null, true);
+    await get().fetchAttendees(eventId);
+    return true;
+  },
+
+  setEventCheckin: async (eventId, active) => {
+    if (get().actionBusy) return false;
+    set({ actionBusy: true });
+    const { error } = await supabase.rpc('set_my_event_checkin_v1', { p_event_id: eventId, p_active: active });
+    if (error) { console.error('Event check-in failed:', error); set({ actionBusy: false }); return false; }
+    set({ actionBusy: false });
+    await Promise.all([get().fetchEvents(null, true), get().fetchAttendees(eventId)]);
+    return true;
+  },
 }));
