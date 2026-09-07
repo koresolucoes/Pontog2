@@ -3,6 +3,7 @@ import { useUiStore } from '../stores/uiStore';
 import { useAuthStore } from '../stores/authStore';
 import { MyAlbumsModal } from './MyAlbumsModal';
 import { BlockedUsersModal } from './BlockedUsersModal';
+import { AccountDeletionModal } from './AccountDeletionModal';
 import { LegalModal, LegalDocType } from './LegalModals';
 import { useTranslation } from 'react-i18next';
 import { useHardwareBack } from '../lib/useHardwareBack';
@@ -14,11 +15,13 @@ export const Sidebar: React.FC = () => {
 
   const [isMyAlbumsOpen, setIsMyAlbumsOpen] = useState(false);
   const [isBlockedUsersOpen, setIsBlockedUsersOpen] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType | null>(null);
 
   useHardwareBack(isSidebarOpen, () => setSidebarOpen(false));
   useHardwareBack(isMyAlbumsOpen, () => setIsMyAlbumsOpen(false));
   useHardwareBack(isBlockedUsersOpen, () => setIsBlockedUsersOpen(false));
+  useHardwareBack(isDeleteAccountOpen, () => setIsDeleteAccountOpen(false));
   useHardwareBack(!!activeLegalDoc, () => setActiveLegalDoc(null));
 
   if (!user) return null;
@@ -106,7 +109,10 @@ export const Sidebar: React.FC = () => {
             </div>
           </section>
 
-          <button onClick={() => { signOut(); close(); }} className="flex h-12 w-full items-center gap-3 rounded-[18px] px-3 text-sm font-bold text-red-300 transition hover:bg-red-500/10"><span className="material-symbols-rounded">logout</span>Sair da conta</button>
+          <div className="space-y-1">
+            <button onClick={() => { signOut(); close(); }} className="flex h-12 w-full items-center gap-3 rounded-[18px] px-3 text-sm font-bold text-red-300 transition hover:bg-red-500/10"><span className="material-symbols-rounded">logout</span>Sair da conta</button>
+            <button onClick={() => { setIsDeleteAccountOpen(true); close(); }} className="flex h-12 w-full items-center gap-3 rounded-[18px] px-3 text-sm font-bold text-red-400/70 transition hover:bg-red-500/10 hover:text-red-300"><span className="material-symbols-rounded">delete_forever</span>Excluir minha conta</button>
+          </div>
         </div>
 
         <footer className="border-t border-white/[0.06] px-5 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
@@ -116,6 +122,7 @@ export const Sidebar: React.FC = () => {
 
       {isMyAlbumsOpen && <MyAlbumsModal onClose={() => setIsMyAlbumsOpen(false)} />}
       {isBlockedUsersOpen && <BlockedUsersModal onClose={() => setIsBlockedUsersOpen(false)} />}
+      {isDeleteAccountOpen && <AccountDeletionModal onClose={() => setIsDeleteAccountOpen(false)} />}
       {activeLegalDoc && <LegalModal type={activeLegalDoc} onClose={() => setActiveLegalDoc(null)} />}
     </>
   );
