@@ -1,4 +1,5 @@
 export type ConnectionStatus = 'pending' | 'accepted' | 'blocked';
+export type WinkResult = 'success_plus' | 'success_free' | 'limit_reached' | 'already_winked' | string;
 
 export interface ConnectionState {
   id: string | null;
