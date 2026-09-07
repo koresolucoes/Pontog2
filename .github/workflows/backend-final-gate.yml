@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hits=$(grep -R -n -E "\.from\(['\"]profiles['\"]\)|profiles![A-Za-z0-9_]+\(|profiles\([^)]" \
+          hits=$(grep -R -n -E "\.from\(['\"]profiles['\"]\)" \
             stores components pages modules engines lib \
             --include='*.ts' --include='*.tsx' \
             --exclude-dir=node_modules \
@@ -40,7 +40,23 @@ jobs:
             | grep -v '^engines/notifications/' || true)
           if [ -n "$hits" ]; then
             echo "$hits"
-            echo 'Direct or embedded client access to public.profiles remains.' >&2
+            echo 'Direct client access to public.profiles remains.' >&2
+            exit 1
+          fi
+      - name: Reject wildcard or sensitive embedded profile projections
+        shell: bash
+        run: |
+          set -euo pipefail
+          wildcard=$(grep -R -n -E 'profiles(![A-Za-z0-9_]+)?\(\*\)' stores components pages --include='*.ts' --include='*.tsx' || true)
+          if [ -n "$wildcard" ]; then
+            echo "$wildcard"
+            echo 'Embedded profile wildcard remains.' >&2
+            exit 1
+          fi
+          sensitive=$(grep -R -n -E 'profiles(![A-Za-z0-9_]+)?\([^)]*(date_of_birth|hiv_status|height_cm|weight_kg|lat|lng|location|kinks|gender_identity|sexual_orientation|looking_for|interests|redes_sociais|current_checkin)' stores components pages --include='*.ts' --include='*.tsx' || true)
+          if [ -n "$sensitive" ]; then
+            echo "$sensitive"
+            echo 'Sensitive profile field embedded in a client query.' >&2
             exit 1
           fi
       - name: Reject private album writes to public bucket
