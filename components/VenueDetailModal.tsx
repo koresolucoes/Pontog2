@@ -1,1 +1,1 @@
-export { VenueDetailModal } from './VenueDetailModalV2';
+export { VenueDetailModal } from './VenueDetailModalUser';
