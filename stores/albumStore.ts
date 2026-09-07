@@ -5,392 +5,343 @@ import { PrivateAlbum, PrivateAlbumPhoto, AlbumAccessStatus } from '../types';
 import { isVideoUrl } from '../lib/utils';
 
 interface AlbumState {
-    myAlbums: PrivateAlbum[];
-    isUploading: boolean;
-    isLoading: boolean;
-    
-    // State for viewing other user's albums
-    viewedUserAlbums: PrivateAlbum[];
-    viewedUserAccessStatus: AlbumAccessStatus;
-    isFetchingViewedUserAlbums: boolean;
-
-    fetchMyAlbums: () => Promise<void>;
-    uploadPhoto: (file: File) => Promise<string | null>;
-    uploadVideo: (file: File) => Promise<string | null>;
-    uploadMedia: (file: File) => Promise<{ path: string; mediaType: 'photo' | 'video' } | null>;
-    uploadAudio: (file: File) => Promise<string | null>;
-    createAlbum: (name: string) => Promise<PrivateAlbum | null>;
-    deleteAlbum: (albumId: number) => Promise<boolean>;
-    addPhotoToAlbum: (albumId: number, photoPath: string, mediaType?: 'photo' | 'video') => Promise<PrivateAlbumPhoto | null>;
-    deletePhotoFromAlbum: (photoId: number) => Promise<boolean>;
-    fetchAlbumById: (albumId: number) => Promise<PrivateAlbum | null>;
-
-    // Functions for access control and viewing other's albums
-    fetchAlbumsAndAccessStatusForUser: (userId: string) => Promise<void>;
-    requestAccess: (ownerId: string) => Promise<void>;
-    grantAccess: (albumId: number, targetUserId: string) => Promise<void>;
-    clearViewedUserData: () => void;
+  myAlbums: PrivateAlbum[];
+  isUploading: boolean;
+  isLoading: boolean;
+  viewedUserAlbums: PrivateAlbum[];
+  viewedUserAccessStatus: AlbumAccessStatus;
+  isFetchingViewedUserAlbums: boolean;
+  fetchMyAlbums: () => Promise<void>;
+  uploadPhoto: (file: File) => Promise<string | null>;
+  uploadVideo: (file: File) => Promise<string | null>;
+  uploadMedia: (file: File) => Promise<{ path: string; mediaType: 'photo' | 'video' } | null>;
+  uploadAudio: (file: File) => Promise<string | null>;
+  createAlbum: (name: string) => Promise<PrivateAlbum | null>;
+  deleteAlbum: (albumId: number) => Promise<boolean>;
+  addPhotoToAlbum: (albumId: number, photoPath: string, mediaType?: 'photo' | 'video') => Promise<PrivateAlbumPhoto | null>;
+  deletePhotoFromAlbum: (photoId: number) => Promise<boolean>;
+  fetchAlbumById: (albumId: number) => Promise<PrivateAlbum | null>;
+  fetchAlbumsAndAccessStatusForUser: (userId: string) => Promise<void>;
+  requestAccess: (ownerId: string) => Promise<void>;
+  grantAccess: (albumId: number, targetUserId: string) => Promise<void>;
+  clearViewedUserData: () => void;
 }
 
+const PRIVATE_BUCKET = 'private_media';
+const LEGACY_PUBLIC_BUCKET = 'user_uploads';
+const SIGNED_URL_TTL_SECONDS = 60 * 60;
+
+const resolveAlbumMediaUrl = async (photo: any): Promise<any> => {
+  const storagePath = photo.photo_path;
+  const storageBucket = photo.storage_bucket || LEGACY_PUBLIC_BUCKET;
+
+  if (storageBucket === PRIVATE_BUCKET) {
+    const { data, error } = await supabase.storage
+      .from(PRIVATE_BUCKET)
+      .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
+
+    if (error) {
+      console.error('Error signing private album media:', error);
+      return { ...photo, photo_path: '', storage_path: storagePath, storage_bucket: storageBucket };
+    }
+
+    return {
+      ...photo,
+      photo_path: data.signedUrl,
+      storage_path: storagePath,
+      storage_bucket: storageBucket,
+      media_type: photo.media_type || (isVideoUrl(storagePath) ? 'video' : 'photo'),
+    };
+  }
+
+  return {
+    ...photo,
+    photo_path: getPublicImageUrl(storagePath),
+    storage_path: storagePath,
+    storage_bucket: storageBucket,
+    media_type: photo.media_type || (isVideoUrl(storagePath) ? 'video' : 'photo'),
+  };
+};
+
+const decorateAlbum = async (album: any): Promise<PrivateAlbum> => ({
+  ...album,
+  private_album_photos: await Promise.all((album.private_album_photos || []).map(resolveAlbumMediaUrl)),
+});
+
 export const useAlbumStore = create<AlbumState>((set, get) => ({
-    myAlbums: [],
-    isUploading: false,
-    isLoading: false,
+  myAlbums: [],
+  isUploading: false,
+  isLoading: false,
+  viewedUserAlbums: [],
+  viewedUserAccessStatus: null,
+  isFetchingViewedUserAlbums: false,
 
-    viewedUserAlbums: [],
-    viewedUserAccessStatus: null,
-    isFetchingViewedUserAlbums: false,
+  fetchMyAlbums: async () => {
+    set({ isLoading: true });
+    const user = useAuthStore.getState().user;
+    if (!user) {
+      set({ isLoading: false });
+      return;
+    }
 
-    fetchMyAlbums: async () => {
-        set({ isLoading: true });
-        const user = useAuthStore.getState().user;
-        if (!user) {
-            set({ isLoading: false });
-            return;
-        }
+    const { data, error } = await supabase
+      .from('private_albums')
+      .select('*, private_album_photos(*)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
 
-        const { data, error } = await supabase
-            .from('private_albums')
-            .select('*, private_album_photos(*, user_id)')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching albums:', error);
+      set({ isLoading: false });
+      return;
+    }
 
-        if (error) {
-            console.error('Error fetching albums:', error);
-            set({ isLoading: false });
-            return;
-        }
+    const albums = await Promise.all((data || []).map(decorateAlbum));
+    set({ myAlbums: albums, isLoading: false });
+  },
 
-        // Processa os caminhos das fotos/vídeos para URLs públicas
-        const albumsWithUrls = data.map(album => ({
-            ...album,
-            private_album_photos: (album.private_album_photos || []).map(photo => ({
-                ...photo,
-                photo_path: getPublicImageUrl(photo.photo_path),
-                media_type: photo.media_type || (isVideoUrl(photo.photo_path) ? 'video' : 'photo')
-            }))
-        }));
+  uploadPhoto: async (file: File) => {
+    set({ isUploading: true });
+    const user = useAuthStore.getState().user;
+    if (!user) {
+      set({ isUploading: false });
+      return null;
+    }
 
-        set({ myAlbums: albumsWithUrls, isLoading: false });
-    },
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const filePath = `${user.id}/albums/${Date.now()}.${fileExt}`;
+    const { error } = await supabase.storage.from(PRIVATE_BUCKET).upload(filePath, file);
+    set({ isUploading: false });
 
-    uploadPhoto: async (file: File) => {
-        set({ isUploading: true });
-        const user = useAuthStore.getState().user;
-        if (!user) {
-            set({ isUploading: false });
-            return null;
-        }
-        const fileExt = file.name.split('.').pop() || 'jpg';
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `${user.id}/${fileName}`;
+    if (error) {
+      console.error('Error uploading private photo:', error);
+      return null;
+    }
+    return filePath;
+  },
 
-        const { error } = await supabase.storage
-            .from('user_uploads')
-            .upload(filePath, file);
+  uploadVideo: async (file: File) => {
+    set({ isUploading: true });
+    const user = useAuthStore.getState().user;
+    if (!user) {
+      set({ isUploading: false });
+      return null;
+    }
 
-        set({ isUploading: false });
-        if (error) {
-            console.error('Error uploading photo:', error);
-            return null;
-        }
-        return filePath;
-    },
+    const fileExt = file.name.split('.').pop() || 'mp4';
+    const filePath = `${user.id}/albums/videos/${Date.now()}.${fileExt}`;
+    const { error } = await supabase.storage.from(PRIVATE_BUCKET).upload(filePath, file);
+    set({ isUploading: false });
 
-    uploadVideo: async (file: File) => {
-        set({ isUploading: true });
-        const user = useAuthStore.getState().user;
-        if (!user) {
-            set({ isUploading: false });
-            return null;
-        }
-        const fileExt = file.name.split('.').pop() || 'mp4';
-        const fileName = `${Date.now()}_video.${fileExt}`;
-        const filePath = `${user.id}/videos/${fileName}`;
+    if (error) {
+      console.error('Error uploading private video:', error);
+      return null;
+    }
+    return filePath;
+  },
 
-        const { error } = await supabase.storage
-            .from('user_uploads')
-            .upload(filePath, file);
+  uploadMedia: async (file: File) => {
+    const video = file.type.startsWith('video/') || isVideoUrl(file.name);
+    const path = video ? await get().uploadVideo(file) : await get().uploadPhoto(file);
+    return path ? { path, mediaType: video ? 'video' : 'photo' } : null;
+  },
 
-        set({ isUploading: false });
-        if (error) {
-            console.error('Error uploading video:', error);
-            return null;
-        }
-        return filePath;
-    },
+  uploadAudio: async (file: File) => {
+    set({ isUploading: true });
+    const user = useAuthStore.getState().user;
+    if (!user) {
+      set({ isUploading: false });
+      return null;
+    }
 
-    uploadMedia: async (file: File) => {
-        const isVideo = file.type.startsWith('video/') || isVideoUrl(file.name);
-        if (isVideo) {
-            const path = await get().uploadVideo(file);
-            return path ? { path, mediaType: 'video' as const } : null;
-        } else {
-            const path = await get().uploadPhoto(file);
-            return path ? { path, mediaType: 'photo' as const } : null;
-        }
-    },
+    const fileExt = file.name.split('.').pop() || 'webm';
+    const filePath = `${user.id}/albums/audios/${Date.now()}.${fileExt}`;
+    const { error } = await supabase.storage.from(PRIVATE_BUCKET).upload(filePath, file);
+    set({ isUploading: false });
 
-    uploadAudio: async (file: File) => {
-        set({ isUploading: true });
-        const user = useAuthStore.getState().user;
-        if (!user) {
-            set({ isUploading: false });
-            return null;
-        }
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `${user.id}/audios/${fileName}`;
+    if (error) {
+      console.error('Error uploading private audio:', error);
+      return null;
+    }
+    return filePath;
+  },
 
-        const { error } = await supabase.storage
-            .from('user_uploads')
-            .upload(filePath, file);
+  createAlbum: async (name: string) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return null;
 
-        set({ isUploading: false });
-        if (error) {
-            console.error('Error uploading audio:', error);
-            return null;
-        }
-        return filePath;
-    },
+    const { data, error } = await supabase
+      .from('private_albums')
+      .insert({ name, user_id: user.id })
+      .select()
+      .single();
 
-    createAlbum: async (name: string) => {
-        const user = useAuthStore.getState().user;
-        if (!user) return null;
+    if (error) {
+      console.error('Error creating album:', error);
+      return null;
+    }
 
-        const { data, error } = await supabase
-            .from('private_albums')
-            .insert({ name, user_id: user.id })
-            .select()
-            .single();
-        
-        if (error) {
-            console.error('Error creating album:', error);
-            return null;
-        }
-        
-        const newAlbum = { ...data, private_album_photos: [] };
-        set(state => ({ myAlbums: [newAlbum, ...state.myAlbums] }));
-        await get().fetchMyAlbums();
-        return newAlbum;
-    },
+    const newAlbum = { ...data, private_album_photos: [] } as PrivateAlbum;
+    set((state) => ({ myAlbums: [newAlbum, ...state.myAlbums] }));
+    return newAlbum;
+  },
 
-    deleteAlbum: async (albumId: number) => {
-        set(state => ({ myAlbums: state.myAlbums.filter(a => a.id !== albumId) }));
-        const { error } = await supabase.from('private_albums').delete().eq('id', albumId);
-        if (error) {
-            console.error('Error deleting album:', error);
-            await get().fetchMyAlbums();
-            return false;
-        }
-        await get().fetchMyAlbums();
-        return true;
-    },
+  deleteAlbum: async (albumId: number) => {
+    const previous = get().myAlbums;
+    set((state) => ({ myAlbums: state.myAlbums.filter((album) => album.id !== albumId) }));
+    const { error } = await supabase.from('private_albums').delete().eq('id', albumId);
+    if (error) {
+      console.error('Error deleting album:', error);
+      set({ myAlbums: previous });
+      return false;
+    }
+    return true;
+  },
 
-    addPhotoToAlbum: async (albumId: number, photoPath: string, mediaType: 'photo' | 'video' = 'photo') => {
-        const user = useAuthStore.getState().user;
-        if (!user) return null;
+  addPhotoToAlbum: async (albumId: number, photoPath: string, mediaType: 'photo' | 'video' = 'photo') => {
+    const user = useAuthStore.getState().user;
+    if (!user) return null;
 
-        const payload: any = { 
-            album_id: albumId, 
-            photo_path: photoPath, 
-            user_id: user.id 
-        };
-        if (mediaType === 'video' || isVideoUrl(photoPath)) {
-            payload.media_type = 'video';
-        }
+    const { data, error } = await supabase
+      .from('private_album_photos')
+      .insert({
+        album_id: albumId,
+        photo_path: photoPath,
+        user_id: user.id,
+        storage_bucket: PRIVATE_BUCKET,
+      })
+      .select()
+      .single();
 
-        let { data, error } = await supabase
-            .from('private_album_photos')
-            .insert(payload)
-            .select()
-            .single();
+    if (error || !data) {
+      console.error('Error adding private media to album:', error);
+      return null;
+    }
 
-        if (error && error.message?.includes('media_type')) {
-            delete payload.media_type;
-            const res = await supabase
-                .from('private_album_photos')
-                .insert(payload)
-                .select()
-                .single();
-            data = res.data;
-            error = res.error;
-        }
+    const decorated = await resolveAlbumMediaUrl({ ...data, media_type: mediaType });
+    set((state) => ({
+      myAlbums: state.myAlbums.map((album) =>
+        album.id === albumId
+          ? { ...album, private_album_photos: [...(album.private_album_photos || []), decorated] }
+          : album,
+      ),
+    }));
+    return decorated as PrivateAlbumPhoto;
+  },
 
-        if (error) {
-            console.error('Error adding photo to album:', error);
-            return null;
-        }
+  deletePhotoFromAlbum: async (photoId: number) => {
+    let target: any = null;
+    for (const album of get().myAlbums) {
+      const found = (album.private_album_photos || []).find((photo: any) => photo.id === photoId);
+      if (found) {
+        target = found;
+        break;
+      }
+    }
 
-        const publicUrl = getPublicImageUrl(photoPath);
-        const newPhoto: PrivateAlbumPhoto = {
-            ...data,
-            photo_path: publicUrl,
-            media_type: mediaType === 'video' || isVideoUrl(photoPath) ? 'video' : 'photo'
-        };
+    const { error } = await supabase.from('private_album_photos').delete().eq('id', photoId);
+    if (error) {
+      console.error('Error deleting photo from album:', error);
+      return false;
+    }
 
-        set(state => ({
-            myAlbums: state.myAlbums.map(album => 
-                album.id === albumId 
-                    ? { ...album, private_album_photos: [...(album.private_album_photos || []), newPhoto] }
-                    : album
-            )
-        }));
+    if (target?.storage_bucket === PRIVATE_BUCKET && target?.storage_path) {
+      const { error: storageError } = await supabase.storage.from(PRIVATE_BUCKET).remove([target.storage_path]);
+      if (storageError) console.warn('Private media metadata deleted but object cleanup failed:', storageError);
+    }
 
-        await get().fetchMyAlbums(); 
-        return data;
-    },
-    
-    deletePhotoFromAlbum: async (photoId: number) => {
-        set(state => ({
-            myAlbums: state.myAlbums.map(album => ({
-                ...album,
-                private_album_photos: (album.private_album_photos || []).filter(p => p.id !== photoId)
-            }))
-        }));
+    set((state) => ({
+      myAlbums: state.myAlbums.map((album) => ({
+        ...album,
+        private_album_photos: (album.private_album_photos || []).filter((photo: any) => photo.id !== photoId),
+      })),
+    }));
+    return true;
+  },
 
-        const { error } = await supabase.from('private_album_photos').delete().eq('id', photoId);
-        if (error) {
-            console.error('Error deleting photo:', error);
-            await get().fetchMyAlbums();
-            return false;
-        }
-        await get().fetchMyAlbums();
-        return true;
-    },
+  fetchAlbumById: async (albumId: number) => {
+    const { data, error } = await supabase
+      .from('private_albums')
+      .select('*, private_album_photos(*)')
+      .eq('id', albumId)
+      .single();
 
-    fetchAlbumById: async (albumId: number): Promise<PrivateAlbum | null> => {
-        const { data, error } = await supabase
-            .from('private_albums')
-            .select('*, private_album_photos(*, user_id)')
-            .eq('id', albumId)
-            .single();
+    if (error || !data) {
+      console.error('Error fetching album by id:', error);
+      return null;
+    }
+    return decorateAlbum(data);
+  },
 
-        if (error || !data) {
-            console.error('Error fetching album by id:', error);
-            return null;
-        }
+  fetchAlbumsAndAccessStatusForUser: async (userId: string) => {
+    set({ isFetchingViewedUserAlbums: true, viewedUserAlbums: [], viewedUserAccessStatus: null });
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser || currentUser.id === userId) {
+      set({ isFetchingViewedUserAlbums: false });
+      return;
+    }
 
-        return {
-            ...data,
-            private_album_photos: (data.private_album_photos || []).map((photo: any) => ({
-                ...photo,
-                photo_path: getPublicImageUrl(photo.photo_path),
-                media_type: photo.media_type || (isVideoUrl(photo.photo_path) ? 'video' : 'photo')
-            }))
-        };
-    },
+    const { data: accessData, error: accessError } = await supabase
+      .from('private_album_access')
+      .select('status')
+      .eq('owner_id', userId)
+      .eq('requester_id', currentUser.id)
+      .limit(1);
 
-    fetchAlbumsAndAccessStatusForUser: async (userId: string) => {
-        set({ isFetchingViewedUserAlbums: true, viewedUserAlbums: [], viewedUserAccessStatus: null });
-        const currentUser = useAuthStore.getState().user;
-        if (!currentUser || currentUser.id === userId) {
-            set({ isFetchingViewedUserAlbums: false });
-            return;
-        }
-        
-        const { data: accessData, error: accessError } = await supabase
-            .from('private_album_access')
-            .select('status')
-            .eq('owner_id', userId)
-            .eq('requester_id', currentUser.id)
-            .limit(1);
-        
-        if (accessError) {
-            console.error("Error fetching album access status:", accessError);
-        }
+    if (accessError) console.error('Error fetching album access status:', accessError);
+    const status = accessData?.[0]?.status as AlbumAccessStatus | undefined;
+    set({ viewedUserAccessStatus: status || null });
 
-        const status = accessData && accessData.length > 0 ? accessData[0].status as AlbumAccessStatus : null;
-        set({ viewedUserAccessStatus: status });
+    if (status === 'granted') {
+      const { data, error } = await supabase
+        .from('private_albums')
+        .select('*, private_album_photos(*)')
+        .eq('user_id', userId);
 
-        // 2. If access is granted, fetch albums
-        if (status === 'granted') {
-            const { data, error } = await supabase
-                .from('private_albums')
-                .select('*, private_album_photos(*, user_id)')
-                .eq('user_id', userId);
-            
-            if (data && !error) {
-                const albumsWithUrls = data.map(album => ({
-                    ...album,
-                    private_album_photos: (album.private_album_photos || []).map(photo => ({
-                        ...photo,
-                        photo_path: getPublicImageUrl(photo.photo_path),
-                        media_type: photo.media_type || (isVideoUrl(photo.photo_path) ? 'video' : 'photo')
-                    }))
-                }));
-                set({ viewedUserAlbums: albumsWithUrls });
-            }
-        }
-        set({ isFetchingViewedUserAlbums: false });
-    },
+      if (!error && data) {
+        set({ viewedUserAlbums: await Promise.all(data.map(decorateAlbum)) });
+      }
+    }
 
-    requestAccess: async (ownerId: string) => {
-        const currentUser = useAuthStore.getState().user;
-        if (!currentUser) throw new Error("User not logged in");
-        
-        const { error } = await supabase
-            .from('private_album_access')
-            .insert({
-                owner_id: ownerId,
-                requester_id: currentUser.id,
-                status: 'pending'
-            });
+    set({ isFetchingViewedUserAlbums: false });
+  },
 
-        if (error) {
-            console.error('Error requesting access:', error);
-            throw error;
-        }
-        
-        // Notifica o usuário sobre a solicitação de acesso
-        const { session } = (await supabase.auth.getSession()).data;
-        if (session) {
-            fetch('/api/send-album-request-push', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`
-                },
-                body: JSON.stringify({ receiver_id: ownerId })
-            }).catch(err => console.error("Error sending album request push notification:", err));
-        }
+  requestAccess: async (ownerId: string) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) throw new Error('User not logged in');
 
-        set({ viewedUserAccessStatus: 'pending' });
-    },
-    
-    grantAccess: async (albumId: number, targetUserId: string) => {
-        const currentUser = useAuthStore.getState().user;
-        if (!currentUser) return;
+    const { error } = await supabase.from('private_album_access').insert({
+      owner_id: ownerId,
+      requester_id: currentUser.id,
+      status: 'pending',
+    });
 
-        try {
-            const { error: rpcError } = await supabase.rpc('grant_album_access', {
-                p_album_id: albumId,
-                p_target_user_id: targetUserId,
-            });
-            if (!rpcError) return;
-        } catch (e) {
-            console.warn("RPC grant_album_access warning:", e);
-        }
+    if (error) throw error;
 
-        // Direct table upsert fallback
-        const { error } = await supabase
-            .from('private_album_access')
-            .upsert({
-                owner_id: currentUser.id,
-                requester_id: targetUserId,
-                status: 'granted'
-            }, { onConflict: 'owner_id,requester_id' });
+    const { session } = (await supabase.auth.getSession()).data;
+    if (session) {
+      fetch('/api/send-album-request-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ receiver_id: ownerId }),
+      }).catch((err) => console.error('Error sending album request push notification:', err));
+    }
 
-        if (error) {
-            console.error('Error granting album access:', error);
-        }
-    },
+    set({ viewedUserAccessStatus: 'pending' });
+  },
 
-    clearViewedUserData: () => {
-        set({
-            viewedUserAlbums: [],
-            viewedUserAccessStatus: null,
-            isFetchingViewedUserAlbums: false
-        });
-    },
+  grantAccess: async (albumId: number, targetUserId: string) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) return;
+
+    const { error } = await supabase.rpc('grant_album_access', {
+      p_album_id: albumId,
+      p_target_user_id: targetUserId,
+    });
+    if (error) console.error('Error granting album access:', error);
+  },
+
+  clearViewedUserData: () => {
+    set({ viewedUserAlbums: [], viewedUserAccessStatus: null, isFetchingViewedUserAlbums: false });
+  },
 }));
