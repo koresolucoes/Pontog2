@@ -14,6 +14,11 @@ const calculateAge = (dob: string | null | undefined): number | null => {
   return age >= 0 && age <= 120 ? age : null;
 };
 
+const ageCompatibilityAnchor = (age: number | null): string | null => {
+  if (age === null) return null;
+  return `${new Date().getFullYear() - age}-01-01`;
+};
+
 const stringToHash = (value: string): number => {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -177,6 +182,7 @@ export function createSupabaseAgoraFeedRepository(client: any): AgoraFeedReposit
       const userFeedItems: AgoraFeedItem[] = visibleUserPosts.map((post: any) => {
         const profile = normalizeProfile(post.profiles) || {};
         const postId = String(post.id);
+        const age = calculateAge(profile.date_of_birth);
         return {
           id: Number(post.id),
           user_id: String(post.user_id),
@@ -186,7 +192,8 @@ export function createSupabaseAgoraFeedRepository(client: any): AgoraFeedReposit
           expires_at: String(post.expires_at),
           username: String(profile.username || 'Usuário'),
           avatar_url: profile.avatar_url ? String(profile.avatar_url) : null,
-          age: calculateAge(profile.date_of_birth),
+          age,
+          date_of_birth: ageCompatibilityAnchor(age),
           is_venue: false,
           likes_count: likesMap.get(postId) || 0,
           comments_count: commentsMap.get(postId) || 0,
@@ -208,6 +215,7 @@ export function createSupabaseAgoraFeedRepository(client: any): AgoraFeedReposit
           username: String(venueName),
           avatar_url: venue?.image_url ? String(venue.image_url) : null,
           age: null,
+          date_of_birth: null,
           is_venue: true,
           venue,
           likes_count: 0,
