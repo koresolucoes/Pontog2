@@ -1,0 +1,29 @@
+-- Rollback for 42_backend_fk_indexes_forward.sql
+
+drop index if exists public.agora_comment_likes_user_id_idx;
+drop index if exists public.agora_post_comments_user_id_idx;
+drop index if exists public.agora_post_likes_user_id_idx;
+drop index if exists public.agora_posts_venue_id_idx;
+drop index if exists public.community_comments_author_id_idx;
+drop index if exists public.community_join_requests_user_id_idx;
+drop index if exists public.community_post_likes_user_id_idx;
+drop index if exists public.community_posts_repost_id_idx;
+drop index if exists public.donations_user_id_idx;
+drop index if exists public.favorites_favorite_id_idx;
+drop index if exists public.news_comment_likes_user_id_idx;
+drop index if exists public.news_comments_article_id_idx;
+drop index if exists public.news_comments_user_id_idx;
+drop index if exists public.payment_effects_actor_user_id_idx;
+drop index if exists public.profile_looking_for_looking_for_id_idx;
+drop index if exists public.profile_tribes_tribe_id_idx;
+drop index if exists public.system_settings_updated_by_idx;
+drop index if exists public.venue_bans_user_id_idx;
+drop index if exists public.venue_claims_reviewed_by_idx;
+drop index if exists public.venue_posts_venue_id_idx;
+drop index if exists public.venue_review_likes_user_id_idx;
+drop index if exists public.venue_review_replies_user_id_idx;
+drop index if exists public.venue_reviews_user_id_idx;
+drop index if exists public.venues_owner_id_idx;
+drop index if exists public.venues_submitted_by_idx;
+drop index if exists public.video_likes_user_id_idx;
+drop index if exists public.videos_user_id_idx;
