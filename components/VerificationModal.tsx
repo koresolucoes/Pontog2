@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import * as faceapi from 'face-api.js';
 import { useAuthStore } from '../stores/authStore';
-import { supabase } from '../lib/supabase';
+import { submitMyVerificationRequest } from '../modules/profiles/client';
 import { useTranslation } from 'react-i18next';
 import { useHardwareBack } from '../lib/useHardwareBack';
 
@@ -95,16 +95,12 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ isOpen, on
                 return;
             }
 
-            // Success - updating user profile
-            const { error } = await supabase
-                .from('profiles')
-                .update({ is_verified: true })
-                .eq('id', user.id);
-
-            if (error) throw error;
+            // A análise local nunca concede o selo diretamente. O backend registra
+            // uma solicitação pendente para revisão/validação confiável.
+            await submitMyVerificationRequest(age);
 
             await fetchProfile(user);
-            toast.success(t('verification.success', { defaultValue: 'Verificação concluída! Você ganhou o selo de verificado.' }), { id: 'verify' });
+            toast.success(t('verification.success', { defaultValue: 'Verificação enviada para validação.' }), { id: 'verify' });
             onClose();
 
         } catch (error) {

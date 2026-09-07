@@ -118,12 +118,14 @@ export const B2BManagerView: React.FC = () => {
 
             if (walletErr) throw walletErr;
 
-            // 2. Fetch profiles of owners to get usernames
-            const { data: profiles, error: profileErr } = await supabase
-                .from('profiles')
-                .select('id, username, display_name');
-
-            if (profileErr) throw profileErr;
+            // 2. Fetch owner identities through the authenticated admin API.
+            // Direct client reads from profiles are intentionally forbidden by the backend cutover.
+            if (!token) throw new Error('Sessão administrativa ausente.');
+            const profilesResponse = await fetch('/api/admin/users', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!profilesResponse.ok) throw new Error('Falha ao carregar identidades dos parceiros.');
+            const profiles = await profilesResponse.json();
 
             // 3. Fetch campaigns to count actives and populate audit log
             const { data: dbCampaigns, error: campErr } = await supabase.from('b2b_campaigns').select('*').order('created_at', { ascending: false });

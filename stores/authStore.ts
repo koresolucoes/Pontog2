@@ -4,6 +4,7 @@ import { Profile, User } from '../types';
 import { calculateAge } from '../lib/utils';
 import { usePwaStore } from './pwaStore';
 import toast from 'react-hot-toast';
+import { setMyIncognito, updateMyProfile } from '../modules/profiles/client';
 
 type Session = any;
 type SupabaseUser = any;
@@ -188,7 +189,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const toastId = toast.loading('Atualizando status...');
-    const { error } = await supabase.from('profiles').update({ is_incognito: isIncognito }).eq('id', user.id);
+    let error: any = null;
+    try { await setMyIncognito(isIncognito); } catch (caught) { error = caught; }
 
     if (error) {
       toast.error('Erro ao atualizar o modo invisível.', { id: toastId });
@@ -215,8 +217,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       profile: state.profile ? { ...state.profile, has_seen_tour: true } : null,
     }));
 
-    const { error } = await supabase.from('profiles').update({ has_seen_tour: true }).eq('id', user.id);
-    if (error) console.error('Error updating tour status in DB:', error);
+    try { await updateMyProfile({ has_seen_tour: true }); }
+    catch (error) { console.error('Error updating tour status in DB:', error); }
   },
 
   toggleCanHost: async (canHost: boolean) => {
@@ -228,7 +230,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       profile: state.profile ? { ...state.profile, can_host: canHost } : null,
     }));
 
-    const { error } = await supabase.from('profiles').update({ can_host: canHost }).eq('id', user.id);
+    let error: any = null;
+    try { await updateMyProfile({ can_host: canHost }); } catch (caught) { error = caught; }
     if (error) {
       console.error('Error toggling host status:', error);
       toast.error('Erro ao atualizar status de local.');
@@ -245,10 +248,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ has_completed_onboarding: true })
-      .eq('id', user.id);
+    let error: any = null;
+    try { await updateMyProfile({ has_completed_onboarding: true }); } catch (caught) { error = caught; }
 
     if (error) {
       toast.error('Ocorreu um erro ao finalizar. Tente novamente.');

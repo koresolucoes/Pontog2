@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { Community, CommunityPost, CommunityComment, UserConnection } from '../types';
+import { getPublicProfile } from '../modules/profiles/client';
 
 interface CommunityState {
     communities: Community[];
@@ -274,7 +275,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 if (post.author_id && post.author_id !== userId) {
                     supabase.auth.getSession().then(({ data: { session } }) => {
                         if (session) {
-                            supabase.from('profiles').select('username, display_name').eq('id', userId).single().then(({ data: profile }) => {
+                            getPublicProfile(userId).then((profile) => {
                                 const likerName = profile?.display_name || profile?.username || 'Alguém';
                                 fetch('/api/send-generic-push', {
                                     method: 'POST',
@@ -517,7 +518,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         // Send push notification to target user
         const { session } = (await supabase.auth.getSession()).data;
         if (session) {
-            supabase.from('profiles').select('username, display_name').eq('id', userData.user.id).single().then(({ data: profile }) => {
+            getPublicProfile(userData.user.id).then((profile) => {
                 const senderName = profile?.display_name || profile?.username || 'Alguém';
                 fetch('/api/send-generic-push', {
                     method: 'POST',
