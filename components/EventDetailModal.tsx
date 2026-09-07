@@ -104,7 +104,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event: initi
   };
 
   return (
-    <ModalShell open onClose={onClose} size="lg" className="!max-w-[680px]">
+    <ModalShell open onClose={onClose} size="lg">
       <div className="relative overflow-hidden rounded-[26px] bg-[#08080b]">
         <section className="relative min-h-[270px] overflow-hidden bg-[#111116]">
           {event.cover_image_url ? <img src={event.cover_image_url} alt={event.title} className="absolute inset-0 h-full w-full object-cover" /> : (
