@@ -156,16 +156,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         };
         set({ profile: profileData, user: userData });
         
-        // Inicia a escuta por mudanças no perfil (para detectar ban/suspensão em tempo real)
+        // Mantém apenas subscriptions realmente globais no login.
+        // Realtime de Agora/Comunidades/Vídeos agora é montado por view ativa
+        // em composition/featureRealtimeLifecycle.ts e destruído ao sair da feature.
         get().setupProfileSubscription(supabaseUser.id);
 
-        // Inicia a escuta por eventos da caixa de entrada assim que o perfil é carregado
+        // Inbox precisa continuar global para badges/unread/notificações.
         (await import('./inboxStore')).useInboxStore.getState().subscribeToInboxChanges();
-        
-        // Setup real-time throttled subscriptions
-        (await import('./videoStore')).subscribeToVideoEvents();
-        (await import('./communityStore')).subscribeToCommunityEvents();
-        (await import('./agoraStore')).subscribeToAgoraEvents();
 
         // Trigger onboarding if the flag is false
         if (!profileData.has_completed_onboarding) {
