@@ -125,31 +125,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     get().cleanupProfileSubscription();
 
     const channel = supabase
-      .channel(`profile-changes:${userId}`)
+      .channel(`profile-account-state:${userId}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+        { event: 'UPDATE', schema: 'public', table: 'profile_account_state', filter: `profile_id=eq.${userId}` },
         (payload) => {
           const { user, profile } = get();
           if (!user || !profile || !payload.new) return;
 
-          const updatedProfileRaw = payload.new;
+          const accountState = payload.new;
           set({
             user: {
               ...user,
-              status: updatedProfileRaw.status,
-              suspended_until: updatedProfileRaw.suspended_until,
-              subscription_tier: updatedProfileRaw.subscription_tier,
+              status: accountState.status,
+              suspended_until: accountState.suspended_until,
+              subscription_tier: accountState.subscription_tier,
+              is_verified: Boolean(accountState.is_verified),
+              is_owner: Boolean(accountState.is_owner),
             },
             profile: {
               ...profile,
-              status: updatedProfileRaw.status,
-              suspended_until: updatedProfileRaw.suspended_until,
-              subscription_tier: updatedProfileRaw.subscription_tier,
+              status: accountState.status,
+              suspended_until: accountState.suspended_until,
+              subscription_tier: accountState.subscription_tier,
+              is_verified: Boolean(accountState.is_verified),
+              is_owner: Boolean(accountState.is_owner),
             },
           });
 
-          if (updatedProfileRaw.status === 'suspended' || updatedProfileRaw.status === 'banned') {
+          if (accountState.status === 'suspended' || accountState.status === 'banned') {
             toast.error('Sua conta foi suspensa.');
           }
         },
