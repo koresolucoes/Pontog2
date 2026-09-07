@@ -1,6 +1,6 @@
 import { supabase } from '../../../lib/supabase.js';
 import type { SocialActionsRepository } from '../application/social-actions.js';
-import type { ConnectionRequestResult, ConnectionState, SocialConnection } from '../domain/social-actions.js';
+import type { ConnectionRequestResult, ConnectionState, SocialConnection, WinkResult } from '../domain/social-actions.js';
 
 function firstRow<T>(value: T[] | T | null): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
@@ -15,6 +15,14 @@ export const supabaseSocialActionsRepository: SocialActionsRepository = {
     });
     if (error) throw error;
     return Boolean(data);
+  },
+
+  async sendWink(targetId) {
+    const { data, error } = await supabase.rpc('send_wink', {
+      p_receiver_id: targetId,
+    });
+    if (error) throw error;
+    return String(data) as WinkResult;
   },
 
   async getConnectionState(otherId) {
