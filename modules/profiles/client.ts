@@ -24,6 +24,12 @@ export interface PublicProfileIdentity {
   avatar_url: string | null;
 }
 
+export interface VerificationRequestResult {
+  request_id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+}
+
 export const pickEditableProfilePatch = (input: Record<string, unknown>): ProfilePatch =>
   Object.fromEntries(Object.entries(input).filter(([key]) => EDITABLE_PROFILE_FIELDS.has(key)));
 
@@ -43,6 +49,14 @@ export const setMyIncognito = async (enabled: boolean): Promise<boolean> => {
   const { data, error } = await supabase.rpc('set_my_incognito_v1', { p_enabled: enabled });
   if (error) throw error;
   return Boolean(data);
+};
+
+export const submitMyVerificationRequest = async (estimatedAge: number): Promise<VerificationRequestResult> => {
+  const { data, error } = await supabase.rpc('submit_profile_verification_v1', {
+    p_estimated_age: estimatedAge,
+  });
+  if (error) throw error;
+  return data as VerificationRequestResult;
 };
 
 export const getPublicProfile = async (profileId: string): Promise<any | null> => {
