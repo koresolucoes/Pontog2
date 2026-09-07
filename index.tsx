@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './i18n';
+import './styles/ponto-g.css';
 import App from './App';
 import { installLeafletBasemapAdapter } from './engines/maps/public';
 
