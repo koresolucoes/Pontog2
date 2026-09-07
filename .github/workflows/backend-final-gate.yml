@@ -1,0 +1,53 @@
+name: Backend final gate
+
+on:
+  push:
+    branches:
+      - security/backend-finalization
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  backend-final-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Architecture typecheck
+        run: npx tsc -p tsconfig.architecture.json
+      - name: Production build
+        run: npm run build
+      - name: Reject direct client profiles access
+        shell: bash
+        run: |
+          set -euo pipefail
+          hits=$(grep -R -n -E "\.from\(['\"]profiles['\"]\)" \
+            stores components pages modules engines lib \
+            --include='*.ts' --include='*.tsx' \
+            --exclude-dir=node_modules \
+            --exclude='*.server.ts' \
+            --exclude='server.ts' \
+            | grep -v '^pages/Admin/' \
+            | grep -v '^modules/social/infrastructure/' \
+            | grep -v '^engines/notifications/' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo 'Direct client access to public.profiles remains.' >&2
+            exit 1
+          fi
+      - name: Reject private album writes to public bucket
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -n -E "PRIVATE_BUCKET\s*=\s*['\"]user_uploads['\"]" stores/albumStore.ts; then
+            echo 'Private albums must not use user_uploads.' >&2
+            exit 1
+          fi
