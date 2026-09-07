@@ -1,433 +1,249 @@
-
-import React, { useEffect, useMemo, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import { useHomeStore } from '../stores/homeStore';
 import { useMapStore } from '../stores/mapStore';
 import { useAgoraStore } from '../stores/agoraStore';
 import { useAdStore } from '../stores/adStore';
-import { User, Ad } from '../types';
-import { AdSenseUnit } from './AdSenseUnit';
-import { useTranslation } from 'react-i18next';
-import { AdDetailModal } from './AdDetailModal';
-import { AdBanner } from './AdBanner';
-import { calculateAge } from '../lib/utils';
-
 import { useUserActionsStore } from '../stores/userActionsStore';
+import { useUiStore } from '../stores/uiStore';
+import { User, Ad } from '../types';
+import { AdBanner } from './AdBanner';
+import { AdDetailModal } from './AdDetailModal';
 
-const GridLoader: React.FC = () => (
-    <>
-        {Array.from({ length: 6 }).map((_, i) => (
-            <motion.div 
-                key={`skeleton-${i}`}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, delay: i * 0.05 }}
-                className="relative aspect-[3/4] bg-dark-800/50 rounded-3xl animate-pulse border border-white/5"
-            />
-        ))}
-    </>
+const SkeletonCard = () => (
+  <div className="relative aspect-[3/4] overflow-hidden rounded-[24px] border border-white/[0.06] bg-white/[0.035]">
+    <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.06] to-transparent" />
+  </div>
 );
 
-const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-        opacity: 1,
-        transition: { staggerChildren: 0.05 }
-    }
-};
+type QuickFilter = 'all' | 'online' | 'agora' | 'host' | 'favorites';
 
-const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } }
-};
-
-interface HomeFeedAdCardProps {
-    ad: Ad;
-    onClick: () => void;
+interface ProfileCardProps {
+  user: User;
+  isOnline: boolean;
+  isAgora: boolean;
+  isFavorite: boolean;
+  onOpen: () => void;
+  lastRef?: (node: HTMLButtonElement | null) => void;
 }
 
-const HomeFeedAdCard: React.FC<HomeFeedAdCardProps> = ({ ad, onClick }) => {
-    const trackView = useAdStore(state => state.trackView);
-
-    useEffect(() => {
-        if (ad && ad.id) {
-            trackView(ad.id);
-        }
-    }, [ad?.id]);
-
-    return (
-        <div 
-            className="relative aspect-[3/4] bg-dark-800 rounded-3xl overflow-hidden cursor-pointer group shadow-lg ring-1 ring-primary-500/50 h-full w-full"
-            onClick={onClick}
-        >
-            <img 
-                src={ad.image_url} 
-                alt={ad.title} 
-                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110 opacity-80 group-hover:opacity-100"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-            <div className="absolute top-3 right-3 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white px-2 py-0.5 rounded-md text-[9px] font-bold tracking-widest shadow-lg border border-white/20">PROMO</div>
-            <div className="absolute bottom-4 left-4 right-4 z-10">
-                <h3 className="font-bold text-white text-lg leading-tight mb-1 drop-shadow-md truncate">{ad.title}</h3>
-                <p className="text-xs text-slate-300 line-clamp-2 leading-snug drop-shadow-md">{ad.description}</p>
-                <div className="mt-3 inline-flex items-center justify-center gap-1 bg-primary-600 text-white px-3 py-1.5 rounded-full text-xs font-bold w-full shadow-lg">
-                    {ad.cta_text} <span className="material-symbols-rounded text-[14px]">arrow_forward</span>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const getRoleIcon = (role: string) => {
-    switch (role) {
-        case 'admin': return 'shield_person';
-        case 'owner': return 'storefront';
-        default: return 'person';
-    }
-};
-
-const hasRole = (user: any, role: string) => {
-    if (role === 'owner') return user.is_owner === true;
-    if (role === 'admin') return user.is_admin === true;
-    if (user.role === role) return true;
-    return false;
-};
-
-const renderVerifiedBadge = (user: any) => {
-    if (!user.is_verified) return null;
-    return (
-        <div className="bg-blue-500/90 backdrop-blur-md text-white rounded-full p-1 shadow border border-white/20" title="Verificado">
-            <span className="material-symbols-rounded filled block" style={{ fontSize: '12px' }}>check_circle</span>
-        </div>
-    );
-};
-
-export const HomeUserCard = React.memo(({ user, isLastUser, isAgora, isPlus, lastUserElementRef, handleUserClick, onlineUsers, calculateAge, t, getRoleIcon, hasRole, renderVerifiedBadge, itemVariants }: any) => {
-    return (
-        <motion.div
-            variants={itemVariants}
-            layout
-            ref={isLastUser ? lastUserElementRef : null}
-            key={user.id}
-            className={`relative aspect-[3/4] cursor-pointer group rounded-3xl overflow-hidden transition-shadow duration-500 bg-dark-800 ${isAgora ? 'ring-2 ring-primary-500 shadow-[0_0_20px_rgba(245,12,105,0.4)]' : 'hover:shadow-2xl hover:shadow-black/50'}`}
-            onClick={() => handleUserClick(user)}
-            whileHover={{ y: -4, scale: 0.98 }}
-            whileTap={{ scale: 0.95 }}
-        >
-            <img
-                src={user.avatar_url}
-                alt={user.username}
-                loading="lazy"
-                decoding="async"
-                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-            />
-            <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-10">
-                {isAgora && (
-                    <div className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-full p-1.5 shadow-lg shadow-primary-900/50 animate-pulse-fire border border-white/20">
-                        <span className="material-symbols-rounded filled block" style={{ fontSize: '16px' }}>local_fire_department</span>
-                    </div>
-                )}
-                {isPlus && !isAgora && (
-                    <div className="bg-yellow-500/90 backdrop-blur-md text-black rounded-full p-1.5 shadow-lg border border-yellow-300/50">
-                        <span className="material-symbols-rounded filled block" style={{ fontSize: '14px' }}>auto_awesome</span>
-                    </div>
-                )}
-                {user.can_host && (
-                    <div className="bg-tertiary-500/90 backdrop-blur-md text-white rounded-full p-1.5 shadow-lg border border-tertiary-400/50" title={t('home.has_place', { defaultValue: 'Tem Local' })}>
-                        <span className="material-symbols-rounded filled block" style={{ fontSize: '14px' }}>home</span>
-                    </div>
-                )}
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-90"></div>
-            
-            <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-1 group-hover:translate-y-0 transition-transform duration-300">
-                <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-extrabold text-lg truncate leading-none font-outfit drop-shadow-md">{user.display_name || user.username}</h3>
-                </div>
-                
-                <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium opacity-90">
-                    {onlineUsers.includes(user.id) && (
-                        <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] border border-green-300/50 animate-pulse"></span>
-                    )}
-                    <span>{user.gender === 'male' ? t('home.man', { defaultValue: 'H' }) : user.gender === 'female' ? t('home.woman', { defaultValue: 'M' }) : user.gender === 'trans' ? t('home.trans', { defaultValue: 'T' }) : t('home.couple', { defaultValue: 'C' })}</span>
-                    <span className="opacity-50">•</span>
-                    <span>{calculateAge(user.date_of_birth)} {t('home.years', { defaultValue: 'anos' })}</span>
-                </div>
-            </div>
-            
-            <div className="absolute top-3 left-3 flex gap-1 z-10">
-                {hasRole(user, 'owner') ? (
-                    <div className="bg-orange-500/90 backdrop-blur-md text-white rounded-full p-1 shadow border border-white/20" title={t('roles.owner', { defaultValue: 'Owner' })}>
-                        <span className="material-symbols-rounded filled block" style={{ fontSize: '12px' }}>{getRoleIcon('owner')}</span>
-                    </div>
-                ) : hasRole(user, 'admin') && (
-                    <div className="bg-red-500/90 backdrop-blur-md text-white rounded-full p-1 shadow border border-white/20" title={t('roles.admin', { defaultValue: 'Admin' })}>
-                        <span className="material-symbols-rounded filled block" style={{ fontSize: '12px' }}>{getRoleIcon('admin')}</span>
-                    </div>
-                )}
-                {renderVerifiedBadge(user)}
-            </div>
-        </motion.div>
-    );
-}, (prev, next) => {
-    return prev.user.id === next.user.id && 
-           prev.isLastUser === next.isLastUser && 
-           prev.isAgora === next.isAgora && 
-           prev.isPlus === next.isPlus &&
-           prev.onlineUsers.includes(prev.user.id) === next.onlineUsers.includes(next.user.id);
-});
-
-export const HomeView: React.FC = () => {
-    const { t } = useTranslation();
-    const { popularUsers, loading, error, hasMore, loadingMore, fetchPopularUsers, fetchMorePopularUsers } = useHomeStore();
-    const { onlineUsers, setSelectedUser, myLocation, filters, venues, setSelectedVenue } = useMapStore();
-    const { agoraUserIds } = useAgoraStore();
-    const { favoriteIds } = useUserActionsStore();
-    
-    const [selectedAd, setSelectedAd] = React.useState<Ad | null>(null);
-
-    const initialFetchDone = useRef(false);
-
-    useEffect(() => {
-        if (myLocation && !initialFetchDone.current) {
-            fetchPopularUsers();
-            initialFetchDone.current = true;
-        }
-    }, [myLocation, fetchPopularUsers]);
-
-    const observer = useRef<IntersectionObserver | null>(null);
-    const lastUserElementRef = useCallback((node: HTMLDivElement) => {
-        if (loadingMore) return;
-        if (observer.current) observer.current.disconnect();
-        observer.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore) {
-                fetchMorePopularUsers();
-            }
-        });
-        if (node) observer.current.observe(node);
-    }, [loadingMore, hasMore, fetchMorePopularUsers]);
-
-    const handleUserClick = (user: User) => {
-        setSelectedUser(user);
-    };
-    
-    const { feedAds, bannerAds } = useAdStore();
-
-    const itemsWithAds = useMemo(() => {
-        let sortedUsers = [...popularUsers];
-        
-        if (filters.favoritesOnly) {
-            sortedUsers = sortedUsers.filter(u => favoriteIds.includes(u.id));
-        }
-
-        if (filters.onlineOnly) {
-            sortedUsers = sortedUsers.filter(u => onlineUsers.includes(u.id));
-        }
-
-        sortedUsers.sort((a, b) => {
-            const aIsAgora = agoraUserIds.includes(a.id);
-            const bIsAgora = agoraUserIds.includes(b.id);
-            if (aIsAgora && !bIsAgora) return -1;
-            if (!aIsAgora && bIsAgora) return 1;
-
-            const aOnline = onlineUsers.includes(a.id);
-            const bOnline = onlineUsers.includes(b.id);
-            if (aOnline && !bOnline) return -1;
-            if (!aOnline && bOnline) return 1;
-            
-            return 0;
-        });
-
-        
-        const items: (User | { type: 'ad' } | Ad)[] = [];
-        
-        let userIdx = 0;
-        let adIdx = 0;
-        
-        // Misturar ads no meio dos usuários
-        while (userIdx < sortedUsers.length || adIdx < feedAds.length) {
-            // Adicionar até 4 usuários
-            for (let i = 0; i < 4 && userIdx < sortedUsers.length; i++) {
-                items.push(sortedUsers[userIdx++]);
-            }
-            // Inserir 1 ad
-            if (adIdx < feedAds.length) {
-                items.push(feedAds[adIdx++]);
-            }
-        }
-        
-        // Insert AdSense after 8th item
-        if (items.length > 8) {
-            items.splice(8, 0, { type: 'ad' });
-        }
-        
-        return items;
-
-    }, [popularUsers, onlineUsers, agoraUserIds, filters.favoritesOnly, filters.onlineOnly, favoriteIds, feedAds]);
-
-
-    if (loading && popularUsers.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 p-8 bg-dark-900">
-                <div className="w-14 h-14 border-4 border-dashed rounded-full animate-spin border-primary-500 mb-4 opacity-80"></div>
-                <h2 className="text-lg font-bold text-slate-300 tracking-wide">{t('home.searching', { defaultValue: 'Buscando destaques...' })}</h2>
-            </div>
-        );
-    }
-    
-    if (error) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full text-center text-red-400 p-8 bg-dark-900">
-                <div className="bg-red-500/10 p-4 rounded-full mb-4">
-                    <span className="material-symbols-rounded text-4xl">error_outline</span>
-                </div>
-                <h2 className="text-xl font-bold text-white">{t('common.ops', { defaultValue: 'Ops!' })}</h2>
-                <p className="mt-2 text-slate-400 max-w-xs">{error}</p>
-            </div>
-        );
-    }
-
-    return (
-        <div className="h-full flex flex-col bg-dark-900 pb-24">
-            {/* Header with pl-16 safe zone for hamburger menu */}
-            <header className="p-5 pb-3 bg-dark-900/90 backdrop-blur-xl sticky top-0 z-10 border-b border-white/5 pl-16">
-                <h1 className="text-2xl font-black text-white tracking-tight font-outfit">{t('home.community', { defaultValue: 'Comunidade' })}</h1>
-                <p className="text-sm text-slate-400 font-medium">{t('home.community_desc', { defaultValue: 'Perfis e eventos em alta na sua região 🔥' })}</p>
-            </header>
-            
-            <div className="flex-1 overflow-y-auto px-3 pt-3">
-
-                {bannerAds.length > 0 && (
-                    <div className="mb-6 rounded-3xl overflow-hidden shadow-2xl border border-white/10 ring-1 ring-primary-500/30">
-                        <AdBanner ad={bannerAds[0]} />
-                    </div>
-                )}
-
-                {venues.length > 0 && (
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between px-2 mb-3">
-                            <h2 className="text-lg font-bold text-white font-outfit tracking-tight">{t('home.events_venues', { defaultValue: 'Eventos & Locais' })}</h2>
-                            <span className="text-xs text-primary-500 font-bold uppercase tracking-wider">{t('home.upcoming', { defaultValue: 'Próximos' })}</span>
-                        </div>
-                        <div className="flex gap-3 overflow-x-auto pb-4 px-2 no-scrollbar snap-x snap-mandatory">
-                            {venues.map(venue => (
-                                <motion.div
-                                    key={venue.id}
-                                    whileHover={{ scale: 0.98 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => setSelectedVenue(venue)}
-                                    className="relative flex-shrink-0 w-64 h-40 bg-slate-800 rounded-3xl overflow-hidden cursor-pointer border border-white/5 snap-center shadow-lg"
-                                >
-                                    <img 
-                                        src={venue.image_url || 'https://images.unsplash.com/photo-1574883446549-3617e4d8fb85?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'} 
-                                        alt={venue.name} 
-                                        className="w-full h-full object-cover transition-transform duration-700 hover:scale-110"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
-                                    <div className="absolute bottom-3 left-3 right-3">
-                                        <h3 className="font-bold text-white text-base truncate drop-shadow-md leading-tight">{venue.name}</h3>
-                                        <p className="text-xs text-slate-300 flex items-center gap-1 mt-1">
-                                            <span className="material-symbols-rounded text-[14px] text-primary-400">location_on</span>
-                                            <span className="truncate">{venue.address}</span>
-                                        </p>
-                                    </div>
-                                    <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 flex items-center gap-1">
-                                        <span className="material-symbols-rounded text-[12px] text-white">event</span>
-                                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">{venue.type}</span>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                <div className="flex items-center justify-between px-2 mb-3">
-                    <h2 className="text-lg font-bold text-white font-outfit tracking-tight">{t('home.featured_profiles', { defaultValue: 'Perfis em Destaque' })}</h2>
-                </div>
-
-                {itemsWithAds.length === 0 && !loading ? (
-                    <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="flex flex-col items-center justify-center h-64 text-center text-slate-500 p-8"
-                    >
-                        <span className="material-symbols-rounded text-5xl mb-3 text-slate-700">explore_off</span>
-                        <h2 className="text-lg font-bold text-slate-300">{t('home.no_profiles', { defaultValue: 'Nenhum perfil encontrado.' })}</h2>
-                        <p className="mt-2 text-sm">{t('home.explore_map', { defaultValue: 'Explore o mapa para encontrar mais pessoas.' })}</p>
-                    </motion.div>
-                ) : (
-                    <motion.div 
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="show"
-                        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 pb-4"
-                    >
-                        <AnimatePresence mode="popLayout">
-                            {itemsWithAds.map((item, index) => {
-                                if ('ad_type' in item) {
-                                    return (
-                                        <motion.div 
-                                            variants={itemVariants}
-                                            layout
-                                            key={`custom-ad-${item.id}-${index}`} 
-                                        >
-                                            <HomeFeedAdCard ad={item} onClick={() => setSelectedAd(item)} />
-                                        </motion.div>
-                                    );
-                                }
-
-                                if ('type' in item && item.type === 'ad') {
-                                    return (
-                                        <motion.div 
-                                            variants={itemVariants}
-                                            layout
-                                            key={`ad-${index}`} 
-                                            className="relative aspect-[3/4] bg-dark-800/50 rounded-3xl overflow-hidden flex items-center justify-center border border-white/5"
-                                        >
-                                            <AdSenseUnit
-                                                client="ca-pub-9015745232467355"
-                                                slot="8953415490"
-                                                format="auto"
-                                                className="w-full h-full"
-                                            />
-                                            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-md text-[9px] font-bold text-white/50 tracking-widest border border-white/5">ADS</div>
-                                        </motion.div>
-                                    );
-                                }
-                                
-                                
-const user = item as User;
-const isLastUser = index === itemsWithAds.length - 1;
-const isAgora = agoraUserIds.includes(user.id);
-const isPlus = user.subscription_tier === 'plus';
-
-return (
-    <HomeUserCard
-        key={user.id}
-        user={user}
-        isLastUser={isLastUser}
-        isAgora={isAgora}
-        isPlus={isPlus}
-        lastUserElementRef={lastUserElementRef}
-        handleUserClick={handleUserClick}
-        onlineUsers={onlineUsers}
-        calculateAge={calculateAge}
-        t={t}
-        getRoleIcon={getRoleIcon}
-        hasRole={hasRole}
-        renderVerifiedBadge={renderVerifiedBadge}
-        itemVariants={itemVariants}
+const ProfileCard: React.FC<ProfileCardProps> = ({ user, isOnline, isAgora, isFavorite, onOpen, lastRef }) => (
+  <motion.button
+    ref={lastRef}
+    type="button"
+    onClick={onOpen}
+    whileTap={{ scale: 0.975 }}
+    className="group relative aspect-[3/4] overflow-hidden rounded-[24px] border border-white/[0.07] bg-[#111116] text-left shadow-[0_15px_45px_rgba(0,0,0,.22)]"
+  >
+    <img
+      src={user.avatar_url}
+      alt={user.display_name || user.username}
+      loading="lazy"
+      decoding="async"
+      className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.025]"
     />
+    <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/90" />
+
+    <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+      {isAgora && (
+        <span className="inline-flex h-8 items-center gap-1 rounded-full border border-primary-500/25 bg-primary-500/18 px-2.5 text-[10px] font-black tracking-wide text-white backdrop-blur-xl">
+          <span className="material-symbols-rounded filled !text-[14px] text-primary-400">local_fire_department</span>AGORA
+        </span>
+      )}
+      {!isAgora && isOnline && (
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-tertiary-500/20 bg-black/35 px-2.5 text-[10px] font-black tracking-wide text-white/85 backdrop-blur-xl">
+          <span className="h-1.5 w-1.5 rounded-full bg-tertiary-500" />ONLINE
+        </span>
+      )}
+    </div>
+
+    {isFavorite && (
+      <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/35 text-primary-400 backdrop-blur-xl">
+        <span className="material-symbols-rounded filled !text-[17px]">favorite</span>
+      </span>
+    )}
+
+    <div className="absolute inset-x-0 bottom-0 p-3.5 sm:p-4">
+      <div className="flex items-center gap-1.5">
+        <h3 className="min-w-0 truncate font-bricolage text-[19px] font-black tracking-[-0.03em] text-white">
+          {user.display_name || user.username}{user.age ? `, ${user.age}` : ''}
+        </h3>
+        {user.is_verified && <span className="material-symbols-rounded filled !text-[18px] text-primary-400">verified</span>}
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-white/55">
+        {user.distance_km != null && <span>{user.distance_km < 1 ? 'Perto de você' : `~${Math.round(user.distance_km)} km`}</span>}
+        {user.distance_km != null && user.can_host && <span className="text-white/25">•</span>}
+        {user.can_host && <span className="inline-flex items-center gap-1 text-white/68"><span className="material-symbols-rounded !text-[13px]">home</span>Tem local</span>}
+      </div>
+    </div>
+  </motion.button>
 );
 
-                        })}
-                        </AnimatePresence>
-                        {loadingMore && <GridLoader />}
-                    </motion.div>
-                )}
-            </div>
-            {selectedAd && <AdDetailModal ad={selectedAd} onClose={() => setSelectedAd(null)} />}
+const SponsoredCard: React.FC<{ ad: Ad; onOpen: () => void }> = ({ ad, onOpen }) => {
+  const trackView = useAdStore((state) => state.trackView);
+  useEffect(() => { if (ad.id) trackView(ad.id); }, [ad.id]);
+
+  return (
+    <button type="button" onClick={onOpen} className="relative col-span-2 overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.035] text-left md:col-span-3 lg:col-span-4">
+      <div className="grid min-h-[128px] grid-cols-[116px_1fr] sm:grid-cols-[160px_1fr]">
+        <img src={ad.image_url} alt={ad.title} className="h-full w-full object-cover" />
+        <div className="flex min-w-0 flex-col justify-center p-4 sm:p-5">
+          <p className="pg-eyebrow">Patrocinado</p>
+          <h3 className="mt-1.5 truncate font-bricolage text-lg font-black text-white">{ad.title}</h3>
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/45">{ad.description}</p>
+          <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-primary-300">{ad.cta_text}<span className="material-symbols-rounded !text-[15px]">arrow_forward</span></span>
         </div>
-    );
+      </div>
+    </button>
+  );
+};
+
+export const HomeView: React.FC = () => {
+  const { popularUsers, loading, error, hasMore, loadingMore, fetchPopularUsers, fetchMorePopularUsers } = useHomeStore();
+  const { onlineUsers, setSelectedUser, myLocation, venues, setSelectedVenue } = useMapStore();
+  const { agoraUserIds } = useAgoraStore();
+  const { favoriteIds } = useUserActionsStore();
+  const { feedAds, bannerAds } = useAdStore();
+  const setActiveView = useUiStore((state) => state.setActiveView);
+
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
+  const initialFetchDone = useRef(false);
+  const observer = useRef<IntersectionObserver | null>(null);
+
+  useEffect(() => {
+    if (myLocation && !initialFetchDone.current) {
+      fetchPopularUsers();
+      initialFetchDone.current = true;
+    }
+  }, [myLocation, fetchPopularUsers]);
+
+  const filteredUsers = useMemo(() => {
+    const result = popularUsers.filter((user) => {
+      if (quickFilter === 'online') return onlineUsers.includes(user.id);
+      if (quickFilter === 'agora') return agoraUserIds.includes(user.id);
+      if (quickFilter === 'host') return !!user.can_host;
+      if (quickFilter === 'favorites') return favoriteIds.includes(user.id);
+      return true;
+    });
+
+    return [...result].sort((a, b) => {
+      const agoraDelta = Number(agoraUserIds.includes(b.id)) - Number(agoraUserIds.includes(a.id));
+      if (agoraDelta) return agoraDelta;
+      return Number(onlineUsers.includes(b.id)) - Number(onlineUsers.includes(a.id));
+    });
+  }, [popularUsers, quickFilter, onlineUsers, agoraUserIds, favoriteIds]);
+
+  const lastUserElementRef = useCallback((node: HTMLButtonElement | null) => {
+    if (loadingMore) return;
+    observer.current?.disconnect();
+    observer.current = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && hasMore) fetchMorePopularUsers();
+    }, { rootMargin: '300px' });
+    if (node) observer.current.observe(node);
+  }, [loadingMore, hasMore, fetchMorePopularUsers]);
+
+  const filterOptions: Array<{ key: QuickFilter; label: string; icon?: string }> = [
+    { key: 'all', label: 'Todos' },
+    { key: 'online', label: 'Online', icon: 'circle' },
+    { key: 'agora', label: 'Agora', icon: 'local_fire_department' },
+    { key: 'host', label: 'Com local', icon: 'home' },
+    { key: 'favorites', label: 'Favoritos', icon: 'favorite' },
+  ];
+
+  return (
+    <div className="pg-page h-full overflow-y-auto pb-28 no-scrollbar">
+      <div className="mx-auto w-full max-w-6xl px-3 pb-8 pt-2 sm:px-5 lg:px-7">
+        <section className="px-1 pb-4 pt-1">
+          <p className="pg-eyebrow">Perto de você</p>
+          <div className="mt-1 flex items-end justify-between gap-4">
+            <div>
+              <h1 className="pg-title text-[32px] text-white sm:text-[38px]">Descobrir</h1>
+              <p className="mt-1.5 text-sm font-medium text-white/45">Pessoas disponíveis, lugares vivos e o que está acontecendo agora.</p>
+            </div>
+            <button onClick={() => setActiveView('map')} className="pg-icon-btn hidden sm:inline-flex" aria-label="Abrir mapa"><span className="material-symbols-rounded">map</span></button>
+          </div>
+        </section>
+
+        <div className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-4 pb-5 sm:-mx-5 sm:px-6">
+          {filterOptions.map((option) => (
+            <button key={option.key} type="button" onClick={() => setQuickFilter(option.key)} className={`pg-chip ${quickFilter === option.key ? 'pg-chip-active' : ''}`}>
+              {option.icon && <span className={`material-symbols-rounded !text-[15px] ${option.key === 'agora' || option.key === 'favorites' ? 'filled' : ''}`}>{option.icon}</span>}
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {bannerAds[0] && (
+          <div className="mb-6 overflow-hidden rounded-[24px] border border-white/[0.07] bg-white/[0.03]">
+            <AdBanner ad={bannerAds[0]} />
+          </div>
+        )}
+
+        {venues.length > 0 && (
+          <section className="mb-7">
+            <div className="mb-3 flex items-center justify-between px-1">
+              <div><p className="pg-eyebrow">Acontecendo por perto</p><h2 className="mt-1 font-bricolage text-xl font-black tracking-[-0.025em] text-white">Locais</h2></div>
+              <button onClick={() => setActiveView('map')} className="text-xs font-black text-primary-300">Ver no mapa</button>
+            </div>
+            <div className="no-scrollbar -mx-3 flex gap-3 overflow-x-auto px-3 sm:-mx-5 sm:px-5">
+              {venues.slice(0, 8).map((venue) => (
+                <button key={venue.id} onClick={() => setSelectedVenue(venue)} className="relative h-[176px] w-[148px] shrink-0 overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#111116] text-left sm:w-[172px]">
+                  <img src={venue.image_url || 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=500&q=75'} alt={venue.name} loading="lazy" className="h-full w-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                  {venue.is_partner && <span className="absolute left-2.5 top-2.5 rounded-full border border-amber-300/20 bg-black/40 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-300 backdrop-blur">Parceiro</span>}
+                  <div className="absolute inset-x-0 bottom-0 p-3"><p className="truncate text-sm font-black text-white">{venue.name}</p><p className="mt-0.5 truncate text-[10px] font-semibold text-white/45">{venue.type || 'Local LGBTQ+'}</p></div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section>
+          <div className="mb-3 flex items-center justify-between px-1">
+            <div><p className="pg-eyebrow">Conexões</p><h2 className="mt-1 font-bricolage text-xl font-black tracking-[-0.025em] text-white">{quickFilter === 'all' ? 'Quem está por aqui' : filterOptions.find((option) => option.key === quickFilter)?.label}</h2></div>
+            <span className="text-xs font-bold text-white/30">{filteredUsers.length}</span>
+          </div>
+
+          {error ? (
+            <div className="pg-surface flex min-h-[220px] flex-col items-center justify-center px-6 text-center">
+              <span className="material-symbols-rounded text-3xl text-red-300">wifi_off</span>
+              <h3 className="mt-3 font-bricolage text-lg font-black text-white">Não conseguimos carregar agora</h3>
+              <p className="mt-1 max-w-sm text-sm text-white/45">{error}</p>
+              <button onClick={() => fetchPopularUsers()} className="pg-btn pg-btn-secondary mt-4">Tentar novamente</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
+              {loading && popularUsers.length === 0 ? Array.from({ length: 8 }).map((_, index) => <SkeletonCard key={index} />) : filteredUsers.map((user, index) => (
+                <React.Fragment key={user.id}>
+                  <ProfileCard
+                    user={user}
+                    isOnline={onlineUsers.includes(user.id)}
+                    isAgora={agoraUserIds.includes(user.id)}
+                    isFavorite={favoriteIds.includes(user.id)}
+                    onOpen={() => setSelectedUser(user)}
+                    lastRef={index === filteredUsers.length - 1 ? lastUserElementRef : undefined}
+                  />
+                  {index === 5 && feedAds[0] && <SponsoredCard ad={feedAds[0]} onOpen={() => setSelectedAd(feedAds[0])} />}
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+
+          {!loading && !error && filteredUsers.length === 0 && (
+            <div className="pg-surface flex min-h-[240px] flex-col items-center justify-center px-6 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-white/[0.05] text-white/45"><span className="material-symbols-rounded text-3xl">person_search</span></div>
+              <h3 className="mt-4 font-bricolage text-lg font-black text-white">Nada por aqui ainda</h3>
+              <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/45">Tente outro filtro ou abra o mapa para explorar uma área maior.</p>
+              <button onClick={() => setQuickFilter('all')} className="pg-btn pg-btn-secondary mt-4">Limpar filtro</button>
+            </div>
+          )}
+
+          {loadingMore && <div className="flex justify-center py-7"><span className="h-6 w-6 animate-spin rounded-full border-2 border-white/15 border-t-primary-500" /></div>}
+        </section>
+      </div>
+
+      {selectedAd && <AdDetailModal ad={selectedAd} onClose={() => setSelectedAd(null)} />}
+    </div>
+  );
 };

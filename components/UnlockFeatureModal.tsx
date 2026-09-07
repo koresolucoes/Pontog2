@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHardwareBack } from '../lib/useHardwareBack';
+import { ModalShell } from './ui/ModalShell';
+import { Button } from './ui/Button';
 
 interface UnlockFeatureModalProps {
   title: string;
@@ -11,51 +12,28 @@ interface UnlockFeatureModalProps {
 }
 
 export const UnlockFeatureModal: React.FC<UnlockFeatureModalProps> = ({ title, description, onClose, onUpgrade, onWatchAd }) => {
-  useHardwareBack(true, onClose);
   const { t } = useTranslation();
+
   return (
-    <div className="fixed inset-0 bg-dark-900/80 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4" onClick={onClose}>
-      <div 
-        className="bg-slate-800 rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-fade-in-up border border-white/10 relative overflow-hidden" 
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Background decoration */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-500 to-secondary-600"></div>
-        <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary-600/20 rounded-full blur-3xl"></div>
-
-        <div className="relative">
-            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-5 border border-white/10">
-                <span className="material-symbols-rounded filled text-3xl text-primary-500">lock</span>
-            </div>
-            
-            <h3 className="text-xl font-black text-white font-outfit">{title}</h3>
-            <p className="mt-3 text-sm text-slate-400 leading-relaxed">{description}</p>
-            
-            <div className="mt-8 flex flex-col gap-3">
-            <button
-                onClick={onUpgrade}
-                className="w-full bg-gradient-to-r from-primary-600 to-secondary-600 text-white font-bold py-3.5 px-4 rounded-xl hover:shadow-lg hover:shadow-primary-900/20 transition-all active:scale-98 flex items-center justify-center gap-2"
-            >
-                <span className="material-symbols-rounded filled text-lg">auto_awesome</span>
-                {t('unlock.subscribe', { defaultValue: 'Assinar Plus' })}
-            </button>
-            
-            <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-white/10"></div>
-                <span className="flex-shrink-0 mx-4 text-[10px] text-slate-500 font-bold uppercase tracking-wider">{t('unlock.or_free', { defaultValue: 'Ou grátis' })}</span>
-                <div className="flex-grow border-t border-white/10"></div>
-            </div>
-
-            <button
-                onClick={onWatchAd}
-                className="w-full bg-slate-700 text-slate-200 font-bold py-3.5 px-4 rounded-xl hover:bg-slate-600 hover:text-white transition-colors flex items-center justify-center gap-2 border border-white/5"
-            >
-                <span className="material-symbols-rounded text-lg">play_circle</span>
-                {t('unlock.watch_ad', { defaultValue: 'Ver Anúncio (1h grátis)' })}
-            </button>
-            </div>
+    <ModalShell
+      onClose={onClose}
+      size="sm"
+      icon="auto_awesome"
+      eyebrow="Ponto G Plus"
+      title={title}
+      description={description}
+    >
+      <div className="rounded-[22px] border border-primary-500/18 bg-gradient-to-br from-primary-500/10 to-secondary-500/10 p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.07] text-primary-300"><span className="material-symbols-rounded filled">shield_lock</span></span>
+          <div><p className="text-sm font-black text-white">Você decide como desbloquear</p><p className="mt-1 text-xs leading-relaxed text-white/45">Assine para ter acesso contínuo ou use a opção gratuita quando disponível.</p></div>
         </div>
       </div>
-    </div>
+      <div className="mt-4 space-y-2">
+        <Button variant="primary" size="lg" fullWidth icon="auto_awesome" onClick={onUpgrade}>{t('unlock.subscribe', { defaultValue: 'Conhecer o Plus' })}</Button>
+        <Button variant="secondary" fullWidth icon="play_circle" onClick={onWatchAd}>{t('unlock.watch_ad', { defaultValue: 'Liberar por 1 hora' })}</Button>
+      </div>
+      <button onClick={onClose} className="mt-3 h-10 w-full text-xs font-bold text-white/30 transition hover:text-white/55">Agora não</button>
+    </ModalShell>
   );
 };
