@@ -2,62 +2,24 @@ name: Architecture Check
 
 on:
   pull_request:
-    paths:
-      - 'App.tsx'
-      - 'core/**'
-      - 'engines/**'
-      - 'modules/**'
-      - 'plugins/**'
-      - 'composition/**'
-      - 'api/send-push.ts'
-      - 'api/send-wink-push.ts'
-      - 'api/send-album-request-push.ts'
-      - 'api/send-generic-push.ts'
-      - 'api/store-push-subscription.ts'
-      - 'api/unlink-push-subscription.ts'
-      - 'api/mercadopago-webhook.ts'
-      - 'api/create-mercadopago-preference.ts'
-      - 'api/create-donation-preference.ts'
-      - 'api/owner/**'
-      - 'api/admin/media-upload.ts'
-      - 'api/admin/venue-claims.ts'
-      - 'pages/Owner/OwnerLayout.tsx'
-      - 'pages/Owner/views/OwnerMarketingSecureView.tsx'
-      - 'stores/ownerStore.ts'
-      - 'stores/adStore.ts'
-      - 'tsconfig.architecture.json'
-      - '.github/workflows/architecture-check.yml'
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
-    paths:
-      - 'App.tsx'
-      - 'core/**'
-      - 'engines/**'
-      - 'modules/**'
-      - 'plugins/**'
-      - 'composition/**'
-      - 'api/send-push.ts'
-      - 'api/send-wink-push.ts'
-      - 'api/send-album-request-push.ts'
-      - 'api/send-generic-push.ts'
-      - 'api/store-push-subscription.ts'
-      - 'api/unlink-push-subscription.ts'
-      - 'api/mercadopago-webhook.ts'
-      - 'api/create-mercadopago-preference.ts'
-      - 'api/create-donation-preference.ts'
-      - 'api/owner/**'
-      - 'api/admin/media-upload.ts'
-      - 'api/admin/venue-claims.ts'
-      - 'pages/Owner/OwnerLayout.tsx'
-      - 'pages/Owner/views/OwnerMarketingSecureView.tsx'
-      - 'stores/ownerStore.ts'
-      - 'stores/adStore.ts'
-      - 'tsconfig.architecture.json'
-      - '.github/workflows/architecture-check.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   architecture-typecheck:
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
