@@ -9,6 +9,7 @@ import { useAgoraStore } from '../stores/agoraStore';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useHardwareBack } from '../lib/useHardwareBack';
+import { getPublicProfileIdentities, setMyCheckin } from '../modules/profiles/client';
 
 interface VenueDetailModalProps {
   venue: Venue;
@@ -104,15 +105,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
       if (data && data.length > 0) {
         // Fetch profiles of these users separately to avoid dependency on explicit foreign keys
         const userIds = Array.from(new Set(data.map((r: any) => r.user_id)));
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, username, avatar_url')
-          .in('id', userIds);
-
-        const profilesMap = new Map();
-        if (profilesData) {
-          profilesData.forEach(p => profilesMap.set(p.id, p));
-        }
+        const profilesMap = await getPublicProfileIdentities(userIds as string[]);
 
         const formattedReviews: VenueReview[] = data.map((r: any) => {
           const profile = profilesMap.get(r.user_id);
@@ -396,15 +389,7 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
 
           if (data && data.length > 0) {
               const userIds = Array.from(new Set(data.map((r: any) => r.user_id)));
-              const { data: profilesData } = await supabase
-                  .from('profiles')
-                  .select('id, username, avatar_url')
-                  .in('id', userIds);
-
-              const profilesMap = new Map();
-              if (profilesData) {
-                  profilesData.forEach(p => profilesMap.set(p.id, p));
-              }
+              const profilesMap = await getPublicProfileIdentities(userIds as string[]);
 
               const formattedReplies: VenueReviewReply[] = data.map((r: any) => {
                   const profile = profilesMap.get(r.user_id);
@@ -565,20 +550,17 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
        const twentyFourHoursAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
        const { data, error } = await supabase
          .from('venue_checkins')
-         .select(`
-            user_id,
-            created_at,
-            profiles!inner ( username, avatar_url )
-         `)
+         .select('user_id, created_at')
          .eq('venue_id', venue.id)
          .gt('created_at', twentyFourHoursAgoIso)
          .order('created_at', { ascending: false });
 
        if (!error && data) {
+          const identities = await getPublicProfileIdentities(data.map((row: any) => row.user_id));
           setCheckins(data.map((row: any) => ({
              user_id: row.user_id,
-             username: row.profiles.username,
-             avatar_url: row.profiles.avatar_url,
+             username: identities.get(row.user_id)?.username || 'Usuário',
+             avatar_url: identities.get(row.user_id)?.avatar_url || '',
              checked_in_at: row.created_at
           })));
        }
@@ -598,20 +580,8 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
     setIsCheckingIn(true);
     try {
         if (hasCheckedIn) {
-            const { error } = await supabase
-                .from('venue_checkins')
-                .delete()
-                .match({ venue_id: venue.id, user_id: user.id });
-            
-            if (error) throw error;
+            await setMyCheckin(null);
             setCheckins(prev => prev.filter(c => c.user_id !== user.id));
-
-            // Clear profile checkin info
-            await supabase.from('profiles').update({
-                current_checkin_venue_id: null,
-                current_checkin_venue_name: null,
-                current_checkin_updated_at: null
-            }).eq('id', user.id);
 
             useAuthStore.setState({ 
                 user: { 
@@ -624,26 +594,15 @@ export const VenueDetailModal: React.FC<VenueDetailModalProps> = ({ venue, onClo
 
             toast.success(t('venue.checkin_removed', { defaultValue: 'Check-in removido.' }));
         } else {
-            const nowIso = new Date().toISOString();
-            const { error } = await supabase
-                .from('venue_checkins')
-                .upsert({ venue_id: venue.id, user_id: user.id, created_at: nowIso }, { onConflict: 'venue_id, user_id' });
-            
-            if (error) throw error;
-
-            // Update user's profile checkin status with current timestamp
-            await supabase.from('profiles').update({
-                current_checkin_venue_id: venue.id,
-                current_checkin_venue_name: venue.name,
-                current_checkin_updated_at: nowIso
-            }).eq('id', user.id);
+            const checkinState = await setMyCheckin(venue.id);
+            const nowIso = checkinState.checked_in_at || new Date().toISOString();
 
             // Update auth store user immediately
             useAuthStore.setState({ 
                 user: { 
                     ...user, 
                     current_checkin_venue_id: venue.id, 
-                    current_checkin_venue_name: venue.name,
+                    current_checkin_venue_name: checkinState.venue_name || venue.name,
                     current_checkin_updated_at: nowIso
                 } 
             });

@@ -3,8 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useDataStore } from '../stores/dataStore';
-import { useAlbumStore } from '../stores/albumStore';
 import { supabase } from '../lib/supabase';
+import { uploadPublicProfileMedia } from '../engines/media/client';
+import { pickEditableProfilePatch, updateMyProfile } from '../modules/profiles/client';
 import { Profile } from '../types';
 import { HIV_STATUSES, KINKS, POSITIONS, LOOKING_FOR } from '../lib/constants';
 import toast from 'react-hot-toast';
@@ -77,7 +78,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
   const { t } = useTranslation();
   const { profile, fetchProfile } = useAuthStore();
   const { tribes, fetchTribes } = useDataStore();
-  const { uploadPhoto } = useAlbumStore(); // Reusing uploadPhoto since it handles generic file upload
   const [formData, setFormData] = useState<Partial<Profile>>({});
   const [loading, setLoading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -148,7 +148,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
       setLoading(true);
       const toastId = toast.loading(t('edit_profile.uploading_avatar', { defaultValue: 'Enviando nova foto de perfil...' }));
       
-      const newAvatarPath = await uploadPhoto(file);
+      const newAvatarPath = await uploadPublicProfileMedia(profile.id, file, 'avatar');
 
       if (!newAvatarPath) {
           toast.error(t('edit_profile.upload_failed', { defaultValue: 'Falha ao enviar a foto.' }), { id: toastId });
@@ -156,7 +156,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
           return;
       }
       
-      const { error: updateError } = await supabase.from('profiles').update({ avatar_url: newAvatarPath }).eq('id', profile.id);
+      let updateError: any = null;
+      try { await updateMyProfile({ avatar_url: newAvatarPath }); } catch (error) { updateError = error; }
 
       if (updateError) {
           toast.error(t('edit_profile.update_failed', { defaultValue: 'Falha ao atualizar o perfil.' }), { id: toastId });
@@ -179,14 +180,15 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
       setLoading(true);
       const toastId = toast.loading(t('edit_profile.uploading_video', { defaultValue: 'Enviando vídeo de apresentação...' }));
 
-      const videoPath = await uploadPhoto(file); // Reuse upload mechanism
+      const videoPath = await uploadPublicProfileMedia(profile.id, file, 'video');
       if (!videoPath) {
           toast.error(t('edit_profile.video_upload_failed', { defaultValue: 'Falha ao enviar o vídeo.' }), { id: toastId });
           setLoading(false);
           return;
       }
 
-      const { error: updateError } = await supabase.from('profiles').update({ video_url: videoPath }).eq('id', profile.id);
+      let updateError: any = null;
+      try { await updateMyProfile({ video_url: videoPath }); } catch (error) { updateError = error; }
 
       if (updateError) {
           toast.error(t('edit_profile.video_save_failed', { defaultValue: 'Falha ao salvar o vídeo.' }), { id: toastId });
@@ -200,7 +202,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
   const handleRemoveVideo = async () => {
       if (!profile) return;
       setLoading(true);
-      const { error } = await supabase.from('profiles').update({ video_url: null }).eq('id', profile.id);
+      let error: any = null;
+      try { await updateMyProfile({ video_url: null }); } catch (caught) { error = caught; }
       if (error) {
           toast.error(t('edit_profile.video_remove_error', { defaultValue: 'Erro ao remover vídeo.' }));
       } else {
@@ -217,7 +220,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
     setLoading(true);
     const toastId = toast.loading(t('edit_profile.uploading_public_photo', { defaultValue: 'Enviando foto pública...' }));
     
-    const photoPath = await uploadPhoto(file);
+    const photoPath = await uploadPublicProfileMedia(profile.id, file, 'photo');
     if (!photoPath) {
         toast.error(t('edit_profile.upload_failed', { defaultValue: 'Falha ao enviar a foto.' }), { id: toastId });
         setLoading(false);
@@ -227,7 +230,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
     const currentPhotoPaths = (profile.public_photos || []).map(getPathFromUrl);
     const newPublicPhotos = [...currentPhotoPaths, photoPath];
     
-    const { error: updateError } = await supabase.from('profiles').update({ public_photos: newPublicPhotos }).eq('id', profile.id);
+    let updateError: any = null;
+    try { await updateMyProfile({ public_photos: newPublicPhotos }); } catch (error) { updateError = error; }
 
     if (updateError) {
         toast.error(t('edit_profile.photo_add_failed', { defaultValue: 'Falha ao adicionar a foto.' }), { id: toastId });
@@ -246,7 +250,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
     const photoPathToRemove = getPathFromUrl(photoUrlToRemove);
     const newPublicPhotos = (profile.public_photos || []).map(getPathFromUrl).filter(path => path !== photoPathToRemove);
 
-    const { error: updateError } = await supabase.from('profiles').update({ public_photos: newPublicPhotos }).eq('id', profile.id);
+    let updateError: any = null;
+    try { await updateMyProfile({ public_photos: newPublicPhotos }); } catch (error) { updateError = error; }
     
     if (updateError) {
         toast.error(t('edit_profile.photo_remove_failed', { defaultValue: 'Falha ao remover a foto.' }), { id: toastId });
@@ -276,7 +281,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose }) =
     
     const { tribes: formTribes, distance_km, lat, lng, video_url, is_traveling, ...profileUpdates } = formData;
 
-    const { error: profileError } = await supabase.from('profiles').update(profileUpdates).eq('id', profile.id);
+    let profileError: any = null;
+    try {
+        await updateMyProfile(pickEditableProfilePatch(profileUpdates as Record<string, unknown>));
+    } catch (error) {
+        profileError = error;
+    }
         
     if (profileError) {
         toast.error(t('edit_profile.update_error', { defaultValue: 'Erro ao atualizar perfil.' }), { id: toastId });

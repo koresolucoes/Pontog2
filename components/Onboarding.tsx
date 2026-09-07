@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useAlbumStore } from '../stores/albumStore';
 import { supabase } from '../lib/supabase';
+import { uploadPublicProfileMedia } from '../engines/media/client';
+import { updateMyProfile } from '../modules/profiles/client';
 import toast from 'react-hot-toast';
 import { calculateAge } from '../lib/utils';
 import { useDataStore } from '../stores/dataStore';
@@ -10,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 export const Onboarding: React.FC = () => {
     const { t } = useTranslation();
     const { profile, completeOnboarding, fetchProfile, signOut } = useAuthStore();
-    const { uploadPhoto } = useAlbumStore();
     const { tribes: dbTribes, fetchTribes } = useDataStore();
 
     useEffect(() => {
@@ -61,14 +61,16 @@ export const Onboarding: React.FC = () => {
       if (!file || !profile) return;
       
       const toastId = toast.loading(t('onboarding.uploading_photo', { defaultValue: 'Enviando foto...' }));
-      const newAvatarPath = await uploadPhoto(file);
+      const newAvatarPath = await uploadPublicProfileMedia(profile.id, file, 'avatar');
 
       if (!newAvatarPath) {
           toast.error(t('onboarding.error_uploading', { defaultValue: 'Falha ao enviar a foto.' }), { id: toastId });
           return;
       }
       
-      const { data, error } = await supabase.from('profiles').update({ avatar_url: newAvatarPath }).eq('id', profile.id).select().single();
+      let data: any = null;
+      let error: any = null;
+      try { data = await updateMyProfile({ avatar_url: newAvatarPath }); } catch (caught) { error = caught; }
 
       if (error) {
           toast.error(t('onboarding.error_updating', { defaultValue: 'Falha ao atualizar o perfil.' }), { id: toastId });
@@ -114,7 +116,8 @@ export const Onboarding: React.FC = () => {
 
         setLoading(true);
         const { tribes: formTribes, ...profileUpdates } = formData;
-        const { error } = await supabase.from('profiles').update(profileUpdates).eq('id', profile.id);
+        let error: any = null;
+        try { await updateMyProfile(profileUpdates); } catch (caught) { error = caught; }
 
         if (error) {
             toast.error(t('onboarding.error_saving', { defaultValue: 'Erro ao salvar. Tente novamente.' }));
