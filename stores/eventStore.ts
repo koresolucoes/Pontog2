@@ -73,53 +73,37 @@ const mapEvent = (row: any): EventFeedItem => ({
 });
 
 export const useEventStore = create<EventState>((set, get) => ({
-  events: [],
-  selectedEvent: null,
-  attendees: {},
-  myAttendance: {},
-  loading: false,
-  actionBusy: false,
-  error: null,
-  lastFetchAt: 0,
-
+  events: [], selectedEvent: null, attendees: {}, myAttendance: {}, loading: false, actionBusy: false, error: null, lastFetchAt: 0,
   setSelectedEvent: (selectedEvent) => set({ selectedEvent }),
 
   fetchEvents: async (coords = null, force = false) => {
     const now = Date.now();
     if (!force && get().events.length > 0 && now - get().lastFetchAt < 60000) return;
     set({ loading: true, error: null });
-
-    const { data, error } = await supabase.rpc('get_event_feed_v1', {
-      p_lat: coords?.lat ?? null,
-      p_lng: coords?.lng ?? null,
-      p_limit: 60,
-    });
-
-    if (error) {
-      console.error('Event feed unavailable:', error);
-      set({ loading: false, error: 'Não foi possível carregar os eventos agora.' });
-      return;
-    }
-
+    const { data, error } = await supabase.rpc('get_event_feed_v1', { p_lat: coords?.lat ?? null, p_lng: coords?.lng ?? null, p_limit: 60 });
+    if (error) { console.error('Event feed unavailable:', error); set({ loading: false, error: 'Não foi possível carregar os eventos agora.' }); return; }
     const events = (data || []).map(mapEvent);
     set({ events, loading: false, lastFetchAt: now });
     void get().hydrateMyAttendance(events.map((event) => event.id));
   },
 
   fetchVenueEvents: async (venueId) => {
-    const { data, error } = await supabase.rpc('get_venue_events_v1', {
-      p_venue_id: venueId,
-      p_limit: 12,
-    });
-    if (error) {
-      console.warn('Venue events unavailable:', error);
-      return [];
-    }
-
+    const { data, error } = await supabase.rpc('get_venue_events_v1', { p_venue_id: venueId, p_limit: 12 });
+    if (error) { console.warn('Venue events unavailable:', error); return []; }
     const venueEvents = (data || []).map((row: any) => mapEvent({ ...row, location_name: null, lat: null, lng: null, venue_name: null }));
     set((state) => {
       const merged = new Map(state.events.map((event) => [event.id, event]));
-      venueEvents.forEach((event) => merged.set(event.id, { ...merged.get(event.id), ...event } as EventFeedItem));
+      venueEvents.forEach((event) => {
+        const existing = merged.get(event.id);
+        merged.set(event.id, {
+          ...existing,
+          ...event,
+          lat: event.lat ?? existing?.lat ?? null,
+          lng: event.lng ?? existing?.lng ?? null,
+          location_name: event.location_name ?? existing?.location_name ?? null,
+          venue_name: event.venue_name ?? existing?.venue_name ?? null,
+        });
+      });
       return { events: Array.from(merged.values()) };
     });
     void get().hydrateMyAttendance(venueEvents.map((event) => event.id));
@@ -128,19 +112,8 @@ export const useEventStore = create<EventState>((set, get) => ({
 
   fetchAttendees: async (eventId) => {
     const { data, error } = await supabase.rpc('get_event_attendees_v1', { p_event_id: eventId });
-    if (error) {
-      console.warn('Event attendees unavailable:', error);
-      set((state) => ({ attendees: { ...state.attendees, [eventId]: [] } }));
-      return [];
-    }
-    const attendees = (data || []).map((row: any) => ({
-      user_id: row.user_id,
-      username: row.username || 'Pessoa',
-      avatar_url: row.avatar_url || '',
-      attendance_status: row.attendance_status as EventAttendanceStatus,
-      is_checked_in: Boolean(row.is_checked_in),
-      checked_in_at: row.checked_in_at ?? null,
-    }));
+    if (error) { console.warn('Event attendees unavailable:', error); set((state) => ({ attendees: { ...state.attendees, [eventId]: [] } })); return []; }
+    const attendees = (data || []).map((row: any) => ({ user_id: row.user_id, username: row.username || 'Pessoa', avatar_url: row.avatar_url || '', attendance_status: row.attendance_status as EventAttendanceStatus, is_checked_in: Boolean(row.is_checked_in), checked_in_at: row.checked_in_at ?? null }));
     set((state) => ({ attendees: { ...state.attendees, [eventId]: attendees } }));
     return attendees;
   },
@@ -150,14 +123,8 @@ export const useEventStore = create<EventState>((set, get) => ({
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user?.id;
     if (!userId) return;
-
-    const { data, error } = await supabase
-      .from('event_attendees')
-      .select('event_id,status')
-      .eq('user_id', userId)
-      .in('event_id', eventIds);
+    const { data, error } = await supabase.from('event_attendees').select('event_id,status').eq('user_id', userId).in('event_id', eventIds);
     if (error) return;
-
     set((state) => {
       const next = { ...state.myAttendance };
       eventIds.forEach((id) => { next[id] = null; });
@@ -171,18 +138,8 @@ export const useEventStore = create<EventState>((set, get) => ({
     set({ actionBusy: true });
     const previous = get().myAttendance[eventId] ?? null;
     set((state) => ({ myAttendance: { ...state.myAttendance, [eventId]: status } }));
-
-    const { error } = await supabase.rpc('set_my_event_attendance_v1', {
-      p_event_id: eventId,
-      p_status: status,
-    });
-
-    if (error) {
-      console.error('Event attendance failed:', error);
-      set((state) => ({ actionBusy: false, myAttendance: { ...state.myAttendance, [eventId]: previous } }));
-      return false;
-    }
-
+    const { error } = await supabase.rpc('set_my_event_attendance_v1', { p_event_id: eventId, p_status: status });
+    if (error) { console.error('Event attendance failed:', error); set((state) => ({ actionBusy: false, myAttendance: { ...state.myAttendance, [eventId]: previous } })); return false; }
     set({ actionBusy: false });
     await get().fetchEvents(null, true);
     await get().fetchAttendees(eventId);
@@ -192,21 +149,10 @@ export const useEventStore = create<EventState>((set, get) => ({
   setEventCheckin: async (eventId, active) => {
     if (get().actionBusy) return false;
     set({ actionBusy: true });
-    const { error } = await supabase.rpc('set_my_event_checkin_v1', {
-      p_event_id: eventId,
-      p_active: active,
-    });
-    if (error) {
-      console.error('Event check-in failed:', error);
-      set({ actionBusy: false });
-      return false;
-    }
-
+    const { error } = await supabase.rpc('set_my_event_checkin_v1', { p_event_id: eventId, p_active: active });
+    if (error) { console.error('Event check-in failed:', error); set({ actionBusy: false }); return false; }
     set({ actionBusy: false });
-    await Promise.all([
-      get().fetchEvents(null, true),
-      get().fetchAttendees(eventId),
-    ]);
+    await Promise.all([get().fetchEvents(null, true), get().fetchAttendees(eventId)]);
     return true;
   },
 }));
