@@ -40,7 +40,7 @@ export const ModalShell: React.FC<ModalShellProps> = ({
   return (
     <div className="fixed inset-0 z-[210] flex items-end justify-center sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label={title}>
       <button className="pg-modal-backdrop absolute inset-0 cursor-default" onClick={onClose} aria-label="Fechar" />
-      <section className={`pg-sheet sm:pg-modal relative z-10 flex max-h-[92dvh] w-full ${maxWidth[size]} flex-col overflow-hidden animate-slide-in-up sm:animate-fade-in-up`}>
+      <section className={`pg-sheet relative z-10 flex max-h-[92dvh] w-full ${maxWidth[size]} flex-col overflow-hidden animate-slide-in-up sm:rounded-[30px] sm:border-b sm:animate-fade-in-up`}>
         <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/18 sm:hidden" />
         {(title || description || icon) && (
           <header className="flex items-start gap-3 p-5 pb-4 sm:p-6 sm:pb-4">
