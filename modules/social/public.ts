@@ -3,7 +3,7 @@ export type {
   AgoraFeedPage,
   AgoraFeedUserPost,
   AgoraFeedVenuePost,
-} from './domain/agora-feed';
-export type { AgoraFeedQueries, AgoraFeedRepository } from './application/agora-feed';
-export { createAgoraFeedQueries } from './application/agora-feed';
-export { createSupabaseAgoraFeedRepository } from './infrastructure/agora-feed.supabase';
+} from './domain/agora-feed.js';
+export type { AgoraFeedQueries, AgoraFeedRepository } from './application/agora-feed.js';
+export { createAgoraFeedQueries } from './application/agora-feed.js';
+export { createSupabaseAgoraFeedRepository } from './infrastructure/agora-feed.supabase.js';

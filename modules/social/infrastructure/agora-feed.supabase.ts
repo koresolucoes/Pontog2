@@ -1,5 +1,5 @@
-import type { AgoraFeedRepository } from '../application/agora-feed';
-import type { AgoraFeedItem, AgoraFeedPage } from '../domain/agora-feed';
+import type { AgoraFeedRepository } from '../application/agora-feed.js';
+import type { AgoraFeedItem, AgoraFeedPage } from '../domain/agora-feed.js';
 
 const MAX_SOURCE_ROWS = 200;
 
