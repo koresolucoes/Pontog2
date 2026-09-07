@@ -98,7 +98,7 @@ export const CommunityPostDetailModal: React.FC<{ post: CommunityPost, onClose: 
         try {
             const { data, error } = await supabase
                 .from('community_comments')
-                .select('*, author:profiles!community_comments_author_id_fkey(*)')
+                .select('*, author:profiles!community_comments_author_id_fkey(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums)')
                 .eq('post_id', post.id)
                 .order('created_at', { ascending: true });
             

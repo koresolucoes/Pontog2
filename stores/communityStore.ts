@@ -100,8 +100,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 .from('user_connections')
                 .select(`
                     *,
-                    following:profiles!user_connections_following_id_fkey(*),
-                    follower:profiles!user_connections_follower_id_fkey(*)
+                    following:profiles!user_connections_following_id_fkey(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums),
+                    follower:profiles!user_connections_follower_id_fkey(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums)
                 `)
                 .or(`follower_id.eq.${userData.user.id},following_id.eq.${userData.user.id}`);
                 
@@ -121,7 +121,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             const { data: userData } = await supabase.auth.getUser();
             const { data, error } = await supabase
                 .from('community_posts')
-                .select('*, author:profiles!community_posts_author_id_fkey(*), repost:repost_id(*, author:profiles!community_posts_author_id_fkey(*))')
+                .select('*, author:profiles!community_posts_author_id_fkey(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums), repost:repost_id(*, author:profiles!community_posts_author_id_fkey(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums))')
                 .eq('community_id', communityId)
                 .order('created_at', { ascending: false });
                 
@@ -165,7 +165,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     },
     fetchCommunityMembers: async (communityId: string) => {
         try {
-            const { data, error } = await supabase.from('community_members').select('*, profile:profiles!community_members_user_id_fkey(*)').eq('community_id', communityId);
+            const { data, error } = await supabase.from('community_members').select('*, profile:profiles!community_members_user_id_fkey(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums)').eq('community_id', communityId);
             if (error) throw error;
             return data;
         } catch (e) {
@@ -218,7 +218,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     fetchJoinRequests: async (communityId: string) => {
         try {
             const { data, error } = await supabase.from('community_posts')
-                .select('*, author:profiles!community_posts_author_id_fkey(*)')
+                .select('*, author:profiles!community_posts_author_id_fkey(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums)')
                 .eq('community_id', communityId)
                 .contains('tags', ['join_request']);
             if (error) throw error;

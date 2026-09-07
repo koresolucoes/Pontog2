@@ -134,7 +134,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
                         return;
                     }
                     
-                    const { data: otherParts } = await supabase.from('conversation_participants').select('conversation_id, user_id, profiles!inner(*)').in('conversation_id', convIds).neq('user_id', currentUser.id);
+                    const { data: otherParts } = await supabase.from('conversation_participants').select('conversation_id, user_id, profiles!inner(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums)').in('conversation_id', convIds).neq('user_id', currentUser.id);
                     const { data: msgs } = await supabase.from('messages').select('*').in('conversation_id', convIds).order('created_at', { ascending: false }).limit(300);
                         
                     const conversationsResult: any[] = [];
@@ -497,7 +497,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
                     .from('user_connections')
                     .select(`
                         *,
-                        follower:profiles!user_connections_follower_id_fkey(*)
+                        follower:profiles!user_connections_follower_id_fkey(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums)
                     `)
                     .eq('following_id', currentUser.id)
                     .eq('status', 'pending');

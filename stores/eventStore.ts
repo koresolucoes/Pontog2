@@ -27,7 +27,7 @@ export const useEventStore = create<EventState>((set, get) => ({
         try {
             const { data, error } = await supabase
                 .from('events')
-                .select('*, organizer:profiles(*)')
+                .select('*, organizer:profiles(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums)')
                 .order('start_time', { ascending: true })
                 .gte('start_time', new Date().toISOString()); // Only upcoming events
                 
@@ -49,7 +49,7 @@ export const useEventStore = create<EventState>((set, get) => ({
         try {
             const { data, error } = await supabase
                 .from('event_attendees')
-                .select('event_id, status, events(*, organizer:profiles(*))')
+                .select('event_id, status, events(*, organizer:profiles(id,username,display_name,avatar_url,public_photos,video_url,status_text,last_seen,subscription_tier,is_verified,has_private_albums))')
                 .eq('user_id', userData.user.id);
                 
             if (error) throw error;
