@@ -161,8 +161,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // em composition/featureRealtimeLifecycle.ts e destruído ao sair da feature.
         get().setupProfileSubscription(supabaseUser.id);
 
-        // Inbox precisa continuar global para badges/unread/notificações.
-        (await import('./inboxStore')).useInboxStore.getState().subscribeToInboxChanges();
+        // Inbox permanece global para badges/unread, mas mensagens são limitadas
+        // às conversas das quais o usuário autenticado realmente participa.
+        await (await import('../composition/inboxRealtimeLifecycle')).mountInboxRealtime(supabaseUser.id);
 
         // Trigger onboarding if the flag is false
         if (!profileData.has_completed_onboarding) {
@@ -374,7 +375,8 @@ supabase.auth.onAuthStateChange(async (_event: string, session: Session) => {
     useAuthStore.setState({ session: null, user: null, profile: null, loading: false, showOnboarding: false });
     useAuthStore.getState().cleanupProfileSubscription();
     (await import('./pwaStore')).usePwaStore.getState().unlinkSubscriptionOnLogout();
-    (await import('./inboxStore')).useInboxStore.getState().cleanupRealtime(); // Limpa a inscrição realtime
+    await (await import('../composition/inboxRealtimeLifecycle')).disposeInboxRealtime();
+    (await import('./inboxStore')).useInboxStore.getState().cleanupRealtime(); // Cleanup legado por segurança durante rollout/hot reload
     (await import('./inboxStore')).useInboxStore.setState({ conversations: [], winks: [], accessRequests: [], profileViews: [], loadingConversations: false, loadingWinks: false, loadingRequests: false, loadingProfileViews: false });
     (await import('./albumStore')).useAlbumStore.setState({ myAlbums: [], viewedUserAlbums: [], viewedUserAccessStatus: null, isUploading: false, isLoading: false, isFetchingViewedUserAlbums: false });
     (await import('./notificationStore')).useNotificationStore.setState({ preferences: [], loading: false });
