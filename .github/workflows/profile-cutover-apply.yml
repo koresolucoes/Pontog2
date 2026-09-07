@@ -1,0 +1,54 @@
+name: Profile cutover codemod
+
+on:
+  push:
+    branches:
+      - security/backend-finalization
+    paths:
+      - scripts/profile-cutover-codemod.mjs
+      - .github/workflows/profile-cutover-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/backend-finalization
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply deterministic codemod
+        run: node scripts/profile-cutover-codemod.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Assert no direct client profile writes remain
+        shell: bash
+        run: |
+          set -euo pipefail
+          matches=$(grep -R -n -E "\.from\(['\"]profiles['\"]\).*\.(update|insert|upsert|delete)\(" \
+            --include='*.ts' --include='*.tsx' \
+            --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.git \
+            stores components pages engines modules lib 2>/dev/null || true)
+          if [ -n "$matches" ]; then
+            echo "$matches"
+            exit 1
+          fi
+      - name: Commit migrated source
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git config user.name "ponto-g-security-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stores/authStore.ts stores/communityStore.ts pages/Admin/views/B2BManagerView.tsx components/VerificationModal.tsx
+          git commit -m "refactor(security): remove remaining client profile writes"
+          git push origin HEAD:security/backend-finalization
