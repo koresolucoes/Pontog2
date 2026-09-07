@@ -24,7 +24,6 @@ import { GuidedTour } from './components/GuidedTour';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PulseDock } from './components/navigation/PulseDock';
 import { ContextBar } from './components/navigation/ContextBar';
-import { useTranslation } from 'react-i18next';
 
 const UserGrid = lazy(() => import('./components/UserGrid').then((module) => ({ default: module.UserGrid })));
 const Inbox = lazy(() => import('./components/Inbox').then((module) => ({ default: module.Inbox })));
@@ -59,6 +58,8 @@ const ViewLoader: React.FC = () => (
     </div>
 );
 
+const CONTEXT_BAR_VIEWS = new Set(['home', 'map', 'agora', 'inbox', 'profile']);
+
 const App: React.FC = () => {
     if (window.location.pathname.startsWith('/admin')) {
         return (
@@ -75,7 +76,6 @@ const App: React.FC = () => {
         );
     }
 
-    const { t } = useTranslation();
     const { session, user, loading, fetchProfile, showOnboarding } = useAuthStore();
     const { activeView, setActiveView, chatUser, setChatUser, isSubscriptionModalOpen, isDonationModalOpen, setSidebarOpen, isSuggestVenueModalOpen, isCommunityPostCreateOpen } = useUiStore();
     const { totalUnreadCount, fetchConversations, fetchWinks, fetchAccessRequests } = useInboxStore();
@@ -93,7 +93,6 @@ const App: React.FC = () => {
 
     const [showAuth, setShowAuth] = useState(false);
 
-    // Sync activeView with URL Hash
     useEffect(() => {
         const handleHashChange = () => {
             const hash = window.location.hash.replace('#', '');
@@ -250,6 +249,7 @@ const App: React.FC = () => {
     };
 
     const shouldHideShell = !!chatUser || !!isSuggestVenueModalOpen || !!isCommunityPostCreateOpen;
+    const hasContextBar = CONTEXT_BAR_VIEWS.has(activeView);
 
     return (
         <ErrorBoundary>
@@ -282,7 +282,7 @@ const App: React.FC = () => {
 
                     <Sidebar />
 
-                    {!shouldHideShell && (
+                    {!shouldHideShell && hasContextBar && (
                         <ContextBar
                             activeView={activeView}
                             user={user}
@@ -294,7 +294,10 @@ const App: React.FC = () => {
                         <div className="fixed inset-0 w-full h-full z-0"><Map /></div>
 
                         {activeView !== 'map' && (
-                            <div key={activeView} className="fixed inset-0 z-10 w-full h-full animate-fade-in overflow-hidden">
+                            <div
+                                key={activeView}
+                                className={`fixed inset-0 z-10 w-full h-full animate-fade-in overflow-hidden ${hasContextBar ? 'pt-[88px]' : ''}`}
+                            >
                                 <Suspense fallback={<ViewLoader />}>{renderOtherViews()}</Suspense>
                             </div>
                         )}
