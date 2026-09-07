@@ -3,6 +3,7 @@ name: Architecture Check
 on:
   pull_request:
     paths:
+      - 'App.tsx'
       - 'core/**'
       - 'engines/**'
       - 'modules/**'
@@ -29,6 +30,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'App.tsx'
       - 'core/**'
       - 'engines/**'
       - 'modules/**'
