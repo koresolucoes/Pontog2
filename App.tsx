@@ -10,6 +10,7 @@ import { useInboxStore } from './stores/inboxStore';
 import { useUserActionsStore } from './stores/userActionsStore';
 import { useAdStore } from './stores/adStore';
 import { mountFeatureRealtime } from './composition/featureRealtimeLifecycle';
+import { mountLocationVisibilityLifecycle } from './composition/locationVisibilityLifecycle';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { HomeView } from './components/HomeView';
@@ -170,7 +171,7 @@ const App: React.FC = () => {
     }, [session, fetchProfile]);
 
     useEffect(() => {
-        if (session && user && !loading) {
+        if (session?.user?.id && user?.id && !loading) {
             if (user.status === 'active') {
                 requestLocationPermission();
                 fetchVenues();
@@ -185,11 +186,17 @@ const App: React.FC = () => {
             }
         }
 
-        if (!session) {
+        if (!session?.user?.id) {
             stopLocationWatch();
             cleanupRealtime();
         }
-    }, [session, user, loading, requestLocationPermission, stopLocationWatch, cleanupRealtime, fetchConversations, fetchWinks, fetchAccessRequests, fetchVenues]);
+    }, [session?.user?.id, user?.id, user?.status, loading, requestLocationPermission, stopLocationWatch, cleanupRealtime, fetchConversations, fetchWinks, fetchAccessRequests, fetchVenues]);
+
+    // Pause only GPS/nearby polling while the app is backgrounded. Presence remains connected.
+    useEffect(() => {
+        if (!session?.user?.id || !user || loading || user.status !== 'active') return;
+        return mountLocationVisibilityLifecycle();
+    }, [session?.user?.id, user?.id, user?.status, loading]);
 
     // Feature realtime follows the visible screen instead of staying connected for the full session.
     useEffect(() => {
