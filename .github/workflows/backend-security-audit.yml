@@ -1,0 +1,48 @@
+name: Backend security source audit
+
+on:
+  push:
+    branches:
+      - security/backend-finalization
+    paths:
+      - .github/workflows/backend-security-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  source-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/backend-finalization
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Direct profiles access inventory
+        shell: bash
+        run: |
+          set +e
+          echo '=== DIRECT_PROFILES_ACCESS_BEGIN ==='
+          grep -R -n -E "\.from\(['\"]profiles['\"]\)" \
+            --include='*.ts' --include='*.tsx' \
+            --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.git .
+          rc=$?
+          echo '=== DIRECT_PROFILES_ACCESS_END ==='
+          if [ "$rc" -eq 2 ]; then exit 2; fi
+          exit 0
+      - name: Legacy private media access inventory
+        shell: bash
+        run: |
+          set +e
+          echo '=== LEGACY_MEDIA_ACCESS_BEGIN ==='
+          grep -R -n -E "private_album|user_uploads|private_media" \
+            --include='*.ts' --include='*.tsx' \
+            --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.git \
+            stores components engines modules api | head -n 250
+          echo '=== LEGACY_MEDIA_ACCESS_END ==='
+          exit 0
