@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useHardwareBack } from '../../lib/useHardwareBack';
 
 interface ModalShellProps {
@@ -29,7 +30,7 @@ export const ModalShell: React.FC<ModalShellProps> = ({
   tone = 'default',
 }) => {
   useHardwareBack(open, onClose);
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
   const toneClass = tone === 'danger'
     ? 'bg-red-500/10 text-red-300 border-red-500/20'
@@ -37,10 +38,10 @@ export const ModalShell: React.FC<ModalShellProps> = ({
       ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
       : 'bg-primary-500/10 text-primary-300 border-primary-500/20';
 
-  return (
+  const modal = (
     <div className="fixed inset-0 z-[210] flex items-end justify-center sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-label={title}>
       <button className="pg-modal-backdrop absolute inset-0 cursor-default" onClick={onClose} aria-label="Fechar" />
-      <section className={`pg-sheet relative z-10 flex max-h-[92dvh] w-full ${maxWidth[size]} flex-col overflow-hidden animate-slide-in-up sm:rounded-[30px] sm:border-b sm:animate-fade-in-up`}>
+      <section className={`pg-sheet relative z-10 flex max-h-[calc(100dvh-max(12px,env(safe-area-inset-top))-max(12px,env(safe-area-inset-bottom)))] w-full ${maxWidth[size]} flex-col overflow-hidden animate-slide-in-up sm:max-h-[92dvh] sm:rounded-[30px] sm:border-b sm:animate-fade-in-up`}>
         <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/18 sm:hidden" />
         {(title || description || icon) && (
           <header className="flex items-start gap-3 p-5 pb-4 sm:p-6 sm:pb-4">
@@ -58,4 +59,6 @@ export const ModalShell: React.FC<ModalShellProps> = ({
       </section>
     </div>
   );
+
+  return createPortal(modal, document.body);
 };
