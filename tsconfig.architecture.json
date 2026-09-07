@@ -15,6 +15,7 @@
     "api/admin/media-upload.ts",
     "api/admin/venue-claims.ts",
     "api/admin-login.ts",
+    "api/agora-posts.ts",
     "api/send-push.ts",
     "api/send-wink-push.ts",
     "api/send-album-request-push.ts",
