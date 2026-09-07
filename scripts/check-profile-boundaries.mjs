@@ -9,7 +9,7 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', 'coverage'])
 // already behind an authenticated/service-role boundary. Browser code must use
 // the Profiles module/RPC projections instead. Keep this allowlist exact: adding
 // a broad client directory here would hide a privacy regression.
-const ALLOWED = [
+const SERVER_ONLY = [
   /^api\//,
   /^modules\/social\/infrastructure\/agora-feed\.supabase\.ts$/,
   /^engines\/notifications\/connection\.ts$/,
@@ -17,6 +17,14 @@ const ALLOWED = [
 ];
 
 const offenders = [];
+
+const addMatches = (source, relative, pattern, label) => {
+  let match;
+  while ((match = pattern.exec(source)) !== null) {
+    const line = source.slice(0, match.index).split('\n').length;
+    offenders.push(`${relative}:${line} [${label}]`);
+  }
+};
 
 const walk = async (dir) => {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -29,14 +37,16 @@ const walk = async (dir) => {
     if (!EXTENSIONS.has(path.extname(entry.name))) continue;
 
     const relative = path.relative(ROOT, absolute).split(path.sep).join('/');
-    if (ALLOWED.some((rule) => rule.test(relative))) continue;
+    if (SERVER_ONLY.some((rule) => rule.test(relative))) continue;
 
     const source = await readFile(absolute, 'utf8');
-    const pattern = /\.from\s*\(\s*['"]profiles['"]\s*\)/g;
-    let match;
-    while ((match = pattern.exec(source)) !== null) {
-      const line = source.slice(0, match.index).split('\n').length;
-      offenders.push(`${relative}:${line}`);
+    addMatches(source, relative, /\.from\s*\(\s*['"]profiles['"]\s*\)/g, 'direct-query');
+    addMatches(source, relative, /profiles!/g, 'embedded-relation');
+
+    // AuthStore has one intentional self-profile realtime listener. It is scoped
+    // by authenticated user id and does not provide cross-user profile reads.
+    if (relative !== 'stores/authStore.ts') {
+      addMatches(source, relative, /table\s*:\s*['"]profiles['"]/g, 'realtime-table');
     }
   }
 };
@@ -44,11 +54,11 @@ const walk = async (dir) => {
 await walk(ROOT);
 
 if (offenders.length) {
-  console.error('\nDirect browser-side reads from public.profiles are forbidden.');
+  console.error('\nBrowser-side access to the internal public.profiles table is forbidden.');
   console.error('Use modules/profiles public contracts (profileQueries/profileCommands) or an explicit server API.');
   console.error('\nOffenders:');
   offenders.forEach((item) => console.error(` - ${item}`));
   process.exitCode = 1;
 } else {
-  console.log('Profile boundary check passed: no direct browser-side profiles reads found.');
+  console.log('Profile boundary check passed: no browser-side profiles reads/embeds/realtime leaks found.');
 }
