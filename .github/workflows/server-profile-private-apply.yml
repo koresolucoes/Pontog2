@@ -1,0 +1,42 @@
+name: Server profile-private codemod
+
+on:
+  push:
+    branches:
+      - security/backend-finalization
+    paths:
+      - scripts/server-profile-private-codemod.mjs
+      - .github/workflows/server-profile-private-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/backend-finalization
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply deterministic codemod
+        run: node scripts/server-profile-private-codemod.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Commit migrated source
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git config user.name "ponto-g-security-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modules/social/infrastructure/agora-feed.supabase.ts
+          git commit -m "refactor(security): move Agora sensitive reads to private profile store"
+          git push origin HEAD:security/backend-finalization
