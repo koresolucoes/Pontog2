@@ -3,10 +3,8 @@ import {
   authenticateServerUser,
   createServerAuthorizationClient,
 } from '../engines/authorization/server.js';
-import {
-  createAgoraFeedQueries,
-  createSupabaseAgoraFeedRepository,
-} from '../modules/social/public.js';
+import { createAgoraFeedQueries } from '../modules/social/application/agora-feed.js';
+import { createSupabaseAgoraFeedRepository } from '../modules/social/infrastructure/agora-feed.supabase.js';
 
 const parsePositiveInteger = (value: unknown, fallback: number): number => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
