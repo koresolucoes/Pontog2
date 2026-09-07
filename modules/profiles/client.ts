@@ -2,6 +2,15 @@ import { supabase } from '../../lib/supabase';
 
 export type ProfilePatch = Record<string, unknown>;
 
+const EDITABLE_PROFILE_FIELDS = new Set([
+  'username','display_name','avatar_url','date_of_birth','height_cm','weight_kg',
+  'status_text','position','hiv_status','public_photos','status_relacionamento',
+  'tipo_corpo','etnia','habitos_fumo','habitos_bebida','redes_sociais','kinks',
+  'can_host','video_url','gender_identity','pronouns','sexual_orientation',
+  'relationship_status','looking_for','interests','tribes_configured','visibility',
+  'oral_preference','accommodation_preference','has_completed_onboarding','has_seen_tour',
+]);
+
 export interface CheckinState {
   venue_id: string | null;
   venue_name: string | null;
@@ -14,6 +23,9 @@ export interface PublicProfileIdentity {
   display_name: string | null;
   avatar_url: string | null;
 }
+
+export const pickEditableProfilePatch = (input: Record<string, unknown>): ProfilePatch =>
+  Object.fromEntries(Object.entries(input).filter(([key]) => EDITABLE_PROFILE_FIELDS.has(key)));
 
 export const updateMyProfile = async (patch: ProfilePatch): Promise<any> => {
   const { data, error } = await supabase.rpc('update_my_profile_v1', { p_patch: patch });
