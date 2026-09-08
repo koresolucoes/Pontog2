@@ -2,6 +2,8 @@ import React from 'react';
 import { Compass, Map as MapIcon, Flame, MessageCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { User } from '../../types';
+import { useInboxStore } from '../../stores/inboxStore';
+import { useInboxActivityReadStore } from '../../stores/inboxActivityReadStore';
 
 export type PulseDockView = 'home' | 'map' | 'agora' | 'inbox' | 'profile';
 
@@ -20,13 +22,23 @@ const itemSpring = { type: 'spring' as const, stiffness: 360, damping: 30 };
 export const PulseDock: React.FC<PulseDockProps> = ({
     activeView,
     onNavigate,
-    unreadCount = 0,
     user,
     agoraRemainingLabel,
     isAgoraActive = false,
     hidden = false,
 }) => {
+    const conversations = useInboxStore((state) => state.conversations);
+    const messageRequests = useInboxStore((state) => state.messageRequests);
+    const accessRequests = useInboxStore((state) => state.accessRequests);
+    const unreadWinksCount = useInboxActivityReadStore((state) => state.unreadWinksCount);
+    const unreadProfileViewsCount = useInboxActivityReadStore((state) => state.unreadProfileViewsCount);
+
     if (hidden) return null;
+
+    const unreadMessages = conversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || 0), 0);
+    const pendingRequests = messageRequests.length + accessRequests.length;
+    const unreadActivity = unreadWinksCount + unreadProfileViewsCount;
+    const inboxBadge = unreadMessages + pendingRequests + unreadActivity;
 
     const items = [
         { id: 'home' as const, label: 'Explorar', icon: Compass },
@@ -37,7 +49,7 @@ export const PulseDock: React.FC<PulseDockProps> = ({
     const renderItem = (item: (typeof items)[number]) => {
         const active = activeView === item.id;
         const Icon = item.icon;
-        const badge = item.id === 'inbox' ? unreadCount : 0;
+        const badge = item.id === 'inbox' ? inboxBadge : 0;
 
         return (
             <button
