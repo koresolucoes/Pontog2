@@ -20,11 +20,18 @@ const cardMotion = {
 };
 
 const formatRemaining = (expiresAt?: string | null) => {
-  if (!expiresAt) return '--:--';
-  const remaining = Math.max(0, new Date(expiresAt).getTime() - Date.now());
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  if (!expiresAt) return 'Indisponível';
+  const remaining = new Date(expiresAt).getTime() - Date.now();
+  if (remaining <= 0) return 'Expirado';
+
+  const totalSeconds = Math.floor(remaining / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}min`;
+  if (minutes > 0) return `${minutes}min ${seconds}s`;
+  return `${seconds}s`;
 };
 
 interface AgoraCardProps {
