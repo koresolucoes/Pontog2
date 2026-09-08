@@ -341,8 +341,8 @@ const App: React.FC = () => {
                     <PulseDock
                         activeView={activeView}
                         onNavigate={(view) => setActiveView(view)}
+                        onOpenMenu={() => setSidebarOpen(true)}
                         unreadCount={totalUnreadCount}
-                        user={user}
                         hidden={shouldHideShell}
                     />
                 </div>
