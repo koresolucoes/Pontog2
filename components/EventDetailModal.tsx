@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
+import { useAgoraStore } from '../stores/agoraStore';
 import { useEventStore, type EventFeedItem, type EventAttendanceStatus } from '../stores/eventStore';
 import { ModalShell } from './ui/ModalShell';
 
@@ -28,6 +29,7 @@ const formatDate = (date: string) => new Intl.DateTimeFormat('pt-BR', {
 
 export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event: initialEvent, onClose }) => {
   const user = useAuthStore((state) => state.user);
+  const publishAgoraCheckin = useAgoraStore((state) => state.publishAgoraCheckin);
   const events = useEventStore((state) => state.events);
   const attendeesByEvent = useEventStore((state) => state.attendees);
   const myAttendance = useEventStore((state) => state.myAttendance);
@@ -84,10 +86,14 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event: initi
   const handleCheckin = async () => {
     if (!user) return toast.error('Entre para fazer check-in.');
     if (!checkedIn && !checkinWindowOpen) return toast.error('O check-in abre 2 horas antes do evento.');
-    const ok = await setEventCheckin(event.id, !checkedIn);
+    const wasCheckedIn = checkedIn;
+    const ok = await setEventCheckin(event.id, !wasCheckedIn);
     if (!ok) return toast.error('Não foi possível atualizar o check-in.');
-    setCheckedIn(!checkedIn);
-    toast.success(checkedIn ? 'Check-in encerrado.' : 'Você está no evento agora.');
+    setCheckedIn(!wasCheckedIn);
+    toast.success(wasCheckedIn ? 'Check-in encerrado.' : 'Você está no evento agora.');
+    if (!wasCheckedIn) {
+      void publishAgoraCheckin(event.title, event.cover_image_url || '');
+    }
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (authUser) await useAuthStore.getState().fetchProfile(authUser);
   };
