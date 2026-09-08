@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useInboxStore } from '../stores/inboxStore';
+import { useInboxActivityReadStore } from '../stores/inboxActivityReadStore';
 
 const MAX_CONVERSATIONS_PER_FILTER = 100;
 const CONVERSATION_REFRESH_DEBOUNCE_MS = 350;
@@ -25,6 +26,20 @@ function scheduleConversationRefresh() {
     conversationRefreshTimer = null;
     void useInboxStore.getState().fetchConversations(true);
   }, CONVERSATION_REFRESH_DEBOUNCE_MS);
+}
+
+function refreshWinks() {
+  void Promise.all([
+    useInboxStore.getState().fetchWinks(true),
+    useInboxActivityReadStore.getState().fetchUnreadCounts(true),
+  ]);
+}
+
+function refreshProfileViews() {
+  void Promise.all([
+    useInboxStore.getState().fetchProfileViews(true),
+    useInboxActivityReadStore.getState().fetchUnreadCounts(true),
+  ]);
 }
 
 async function removeMessageChannels() {
@@ -99,6 +114,8 @@ export async function disposeInboxRealtime() {
     baseChannel ? supabase.removeChannel(baseChannel) : Promise.resolve(),
     removeMessageChannels(),
   ]);
+
+  useInboxActivityReadStore.getState().reset();
 }
 
 export async function mountInboxRealtime(userId: string) {
@@ -116,7 +133,7 @@ export async function mountInboxRealtime(userId: string) {
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'winks', filter: `receiver_id=eq.${userId}` },
-      () => void useInboxStore.getState().fetchWinks(true),
+      refreshWinks,
     )
     .on(
       'postgres_changes',
@@ -126,12 +143,17 @@ export async function mountInboxRealtime(userId: string) {
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'profile_views', filter: `viewed_id=eq.${userId}` },
-      () => void useInboxStore.getState().fetchProfileViews(true),
+      refreshProfileViews,
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'user_connections', filter: `following_id=eq.${userId}` },
       () => void useInboxStore.getState().fetchMessageRequests(true),
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'inbox_activity_read_state', filter: `user_id=eq.${userId}` },
+      () => void useInboxActivityReadStore.getState().fetchUnreadCounts(true),
     )
     .on(
       'postgres_changes',
@@ -143,5 +165,8 @@ export async function mountInboxRealtime(userId: string) {
     )
     .subscribe();
 
-  await rebuildMessageChannels(userId, generation);
+  await Promise.all([
+    rebuildMessageChannels(userId, generation),
+    useInboxActivityReadStore.getState().fetchUnreadCounts(true),
+  ]);
 }

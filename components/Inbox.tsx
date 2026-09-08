@@ -4,6 +4,7 @@ import { enUS, es, ptBR } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { useInboxStore } from '../stores/inboxStore';
+import { useInboxActivityReadStore } from '../stores/inboxActivityReadStore';
 import { useUiStore } from '../stores/uiStore';
 import { useMapStore } from '../stores/mapStore';
 import { useAuthStore } from '../stores/authStore';
@@ -125,9 +126,13 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
     fetchMessageRequests,
     respondToRequest,
     deleteConversation,
-    clearWinks,
-    clearAccessRequests,
   } = useInboxStore();
+  const {
+    unreadWinksCount,
+    unreadProfileViewsCount,
+    fetchUnreadCounts,
+    markSeen,
+  } = useInboxActivityReadStore();
   const { inboxAd, grantTemporaryPerk, hasPerk } = useAdStore();
 
   const [activeSection, setActiveSection] = useState<InboxSection>(() => sectionFromLegacyTab(initialTab));
@@ -143,6 +148,7 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
   const canSeeViews = Boolean(isPlus || hasPerk('view_profile_views'));
   const pendingCount = messageRequests.length + accessRequests.length;
   const unreadConversations = conversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || 0), 0);
+  const unreadActivity = unreadWinksCount + unreadProfileViewsCount;
 
   useEffect(() => {
     if (activeSection === 'conversations') void fetchConversations();
@@ -153,16 +159,21 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
     if (activeSection === 'activity') {
       void fetchWinks();
       void fetchProfileViews();
+      void fetchUnreadCounts();
     }
-  }, [activeSection, fetchAccessRequests, fetchConversations, fetchMessageRequests, fetchProfileViews, fetchWinks]);
+  }, [activeSection, fetchAccessRequests, fetchConversations, fetchMessageRequests, fetchProfileViews, fetchUnreadCounts, fetchWinks]);
 
   useEffect(() => {
-    if (activeSection === 'activity' && activityMode === 'winks' && canSeeWinks && winks.length) clearWinks();
-  }, [activeSection, activityMode, canSeeWinks, clearWinks, winks.length]);
+    if (activeSection === 'activity' && activityMode === 'winks' && canSeeWinks && winks.length > 0 && unreadWinksCount > 0) {
+      void markSeen('winks');
+    }
+  }, [activeSection, activityMode, canSeeWinks, markSeen, unreadWinksCount, winks.length]);
 
   useEffect(() => {
-    if (activeSection === 'requests' && accessRequests.length) clearAccessRequests();
-  }, [activeSection, accessRequests.length, clearAccessRequests]);
+    if (activeSection === 'activity' && activityMode === 'views' && canSeeViews && profileViews.length > 0 && unreadProfileViewsCount > 0) {
+      void markSeen('profile_views');
+    }
+  }, [activeSection, activityMode, canSeeViews, markSeen, profileViews.length, unreadProfileViewsCount]);
 
   const openConversation = (conversation: ConversationPreview) => setChatUser(conversationToUser(conversation));
   const openConversationProfile = (conversation: ConversationPreview) => setSelectedUser(conversationToUser(conversation));
@@ -227,7 +238,7 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
             <nav className="flex gap-1 rounded-[20px] border border-white/[0.06] bg-white/[0.025] p-1" aria-label="Seções das conversas">
               <SectionTab active={activeSection === 'conversations'} icon="chat_bubble" label="Conversas" count={unreadConversations} onClick={() => setActiveSection('conversations')} />
               <SectionTab active={activeSection === 'requests'} icon="person_add" label="Pedidos" count={pendingCount} onClick={() => setActiveSection('requests')} />
-              <SectionTab active={activeSection === 'activity'} icon="bolt" label="Atividade" count={winks.length} onClick={() => setActiveSection('activity')} />
+              <SectionTab active={activeSection === 'activity'} icon="bolt" label="Atividade" count={unreadActivity} onClick={() => setActiveSection('activity')} />
             </nav>
           </div>
         </header>
@@ -367,11 +378,11 @@ export const Inbox: React.FC<InboxProps> = ({ initialTab = 'messages' }) => {
                 <div className="mb-4 flex rounded-[18px] border border-white/[0.06] bg-white/[0.025] p-1">
                   <button type="button" onClick={() => setActivityMode('winks')} className={`flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-[14px] text-xs font-extrabold ${activityMode === 'winks' ? 'bg-[var(--pg-primary-soft)] text-white' : 'text-white/40'}`}>
                     <span className="material-symbols-rounded filled !text-[17px]">waving_hand</span>
-                    Chamados {winks.length > 0 ? `· ${winks.length}` : ''}
+                    Chamados {unreadWinksCount > 0 ? `· ${unreadWinksCount}` : ''}
                   </button>
                   <button type="button" onClick={() => setActivityMode('views')} className={`flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-[14px] text-xs font-extrabold ${activityMode === 'views' ? 'bg-[var(--pg-secondary-soft)] text-white' : 'text-white/40'}`}>
                     <span className="material-symbols-rounded !text-[17px]">visibility</span>
-                    Visitas {profileViews.length > 0 ? `· ${profileViews.length}` : ''}
+                    Visitas {unreadProfileViewsCount > 0 ? `· ${unreadProfileViewsCount}` : ''}
                   </button>
                 </div>
 
