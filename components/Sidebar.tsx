@@ -45,7 +45,7 @@ export const Sidebar: React.FC = () => {
         className={`fixed inset-0 z-[90] bg-black/70 backdrop-blur-md transition-opacity duration-200 ${isSidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       />
 
-      <aside className={`fixed inset-y-0 left-0 z-[91] flex w-[min(92vw,360px)] flex-col border-r border-white/[0.08] bg-[#09090d]/95 shadow-[28px_0_90px_rgba(0,0,0,.5)] backdrop-blur-3xl transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 right-0 z-[91] flex w-[min(92vw,360px)] flex-col border-l border-white/[0.08] bg-[#09090d]/95 shadow-[-28px_0_90px_rgba(0,0,0,.5)] backdrop-blur-3xl transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <header className="border-b border-white/[0.07] px-5 pb-5 pt-[max(20px,env(safe-area-inset-top))]">
           <div className="flex items-center justify-between">
             <p className="pg-eyebrow">Central da conta</p>
