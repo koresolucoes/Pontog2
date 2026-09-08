@@ -1,7 +1,6 @@
 import React from 'react';
-import { Compass, Map as MapIcon, Flame, MessageCircle } from 'lucide-react';
+import { Compass, Map as MapIcon, Flame, MessageCircle, Menu as MenuIcon } from 'lucide-react';
 import { motion } from 'motion/react';
-import type { User } from '../../types';
 import { useInboxStore } from '../../stores/inboxStore';
 import { useInboxActivityReadStore } from '../../stores/inboxActivityReadStore';
 
@@ -10,8 +9,8 @@ export type PulseDockView = 'home' | 'map' | 'agora' | 'inbox' | 'profile';
 interface PulseDockProps {
     activeView: string;
     onNavigate: (view: PulseDockView) => void;
+    onOpenMenu: () => void;
     unreadCount?: number;
-    user: User;
     agoraRemainingLabel?: string | null;
     isAgoraActive?: boolean;
     hidden?: boolean;
@@ -22,7 +21,7 @@ const itemSpring = { type: 'spring' as const, stiffness: 360, damping: 30 };
 export const PulseDock: React.FC<PulseDockProps> = ({
     activeView,
     onNavigate,
-    user,
+    onOpenMenu,
     agoraRemainingLabel,
     isAgoraActive = false,
     hidden = false,
@@ -86,8 +85,6 @@ export const PulseDock: React.FC<PulseDockProps> = ({
         );
     };
 
-    const profileActive = activeView === 'profile';
-
     return (
         <div
             className="fixed left-0 right-0 z-40 flex justify-center px-3 pointer-events-none"
@@ -137,21 +134,15 @@ export const PulseDock: React.FC<PulseDockProps> = ({
                     {renderItem(items[2])}
                     <button
                         type="button"
-                        onClick={() => onNavigate('profile')}
-                        aria-label="Você"
-                        aria-current={profileActive ? 'page' : undefined}
-                        className="relative flex h-12 min-w-12 items-center justify-center rounded-full px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/70"
+                        onClick={onOpenMenu}
+                        aria-label="Abrir menu"
+                        className="relative flex h-12 min-w-12 items-center justify-center rounded-full px-2 text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/70"
                     >
                         <motion.span
-                            layout
-                            transition={itemSpring}
-                            className={`flex items-center justify-center gap-2 rounded-full ${profileActive ? 'bg-white/[0.08] px-2.5 py-1.5 ring-1 ring-white/10' : 'p-1.5'}`}
+                            whileTap={{ scale: 0.92 }}
+                            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.035]"
                         >
-                            <span className={`relative h-8 w-8 overflow-hidden rounded-full ${profileActive ? 'ring-2 ring-primary-400' : 'ring-1 ring-white/15'}`}>
-                                <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
-                                <span className="absolute inset-0 rounded-full ring-1 ring-inset ring-black/10" />
-                            </span>
-                            {profileActive && <span className="text-[12px] font-bold text-white">Você</span>}
+                            <MenuIcon size={23} strokeWidth={2.25} aria-hidden="true" />
                         </motion.span>
                     </button>
                 </div>
