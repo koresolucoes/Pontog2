@@ -152,7 +152,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
                         const lastMsg = convMsgs[0];
 
                         if (otherPart && profile && lastMsg) {
-                            const unreadCount = convMsgs.filter((m: any) => m.sender_id !== currentUser.id && !m.viewed_at).length;
+                            const unreadCount = convMsgs.filter((m: any) => m.sender_id !== currentUser.id && !m.read_at).length;
                             conversationsResult.push({
                                 conversation_id: convId,
                                 other_participant_id: profile.id,
@@ -380,14 +380,14 @@ export const useInboxStore = create<InboxState>((set, get) => {
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
                     const now = Date.now();
                     if (now - get().lastConversationUpdate > 2000) {
-                        get().fetchConversations();
+                        get().fetchConversations(true);
                         set({ lastConversationUpdate: now });
                     }
                 })
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'winks', filter: `receiver_id=eq.${user.id}` }, () => get().fetchWinks())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'private_album_access', filter: `owner_id=eq.${user.id}` }, () => get().fetchAccessRequests())
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_views', filter: `viewed_id=eq.${user.id}` }, () => get().fetchProfileViews())
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'user_connections', filter: `following_id=eq.${user.id}` }, () => get().fetchMessageRequests())
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'winks', filter: `receiver_id=eq.${user.id}` }, () => get().fetchWinks(true))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'private_album_access', filter: `owner_id=eq.${user.id}` }, () => get().fetchAccessRequests(true))
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profile_views', filter: `viewed_id=eq.${user.id}` }, () => get().fetchProfileViews(true))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'user_connections', filter: `following_id=eq.${user.id}` }, () => get().fetchMessageRequests(true))
                 .subscribe();
 
             set({ realtimeChannel: channel });
@@ -437,23 +437,14 @@ export const useInboxStore = create<InboxState>((set, get) => {
             }
         },
 
-        acceptMessageRequest: async (connectionId: string, followerId: string) => {
+        acceptMessageRequest: async (connectionId: string, _followerId: string) => {
             try {
                 const { error } = await supabase.from('user_connections').update({ status: 'accepted' }).eq('id', connectionId);
                 if (error) throw error;
 
                 set(state => ({ messageRequests: state.messageRequests.filter(req => req.id !== connectionId) }));
-                const { session } = (await supabase.auth.getSession()).data;
-                const currentUser = useAuthStore.getState().user;
-                if (session && currentUser) {
-                    const senderName = currentUser.display_name || currentUser.username || 'Alguém';
-                    fetch('/api/send-generic-push', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-                        body: JSON.stringify({ receiver_id: followerId, title: 'Solicitação de conexão aceita! 🎉', body: `${senderName} aceitou sua solicitação de conexão.` }),
-                    }).catch(err => console.error('Error sending connection accept push:', err));
-                }
-
+                // Push for connection acceptance is generated from persisted server-side events.
+                // The legacy arbitrary /api/send-generic-push endpoint is intentionally retired.
                 toast.success('Solicitação aceita!');
                 updateTotalUnreadCount();
                 try {
