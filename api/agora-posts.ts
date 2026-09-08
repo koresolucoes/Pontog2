@@ -22,6 +22,13 @@ export default async function handler(
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
+  // The Agora store can be imported before Supabase finishes restoring the browser session.
+  // A request with no Authorization header is a bootstrap state, not an auth failure.
+  // Return an empty feed without exposing any protected data; malformed/expired tokens still get 401 below.
+  if (!req.headers.authorization) {
+    return res.status(200).json({ data: [], hasMore: false });
+  }
+
   try {
     const client = createServerAuthorizationClient();
 
