@@ -29,6 +29,12 @@ const removeInChunks = async (client: any, bucket: string, paths: string[]) => {
   }
 };
 
+const bearerToken = (header: string | string[] | undefined): string => {
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (!raw?.startsWith('Bearer ')) return '';
+  return raw.slice('Bearer '.length).trim();
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -39,7 +45,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const client = createServerAuthorizationClient();
-    const actor = await authenticateServerUser(req.headers.authorization, client);
+    const accessToken = bearerToken(req.headers.authorization);
+
+    // A suspended/banned user must retain the right to delete their own account.
+    // Identity validity is still verified by Supabase Auth; only the domain-state
+    // guard is skipped for this privacy endpoint.
+    const actor = await authenticateServerUser(req.headers.authorization, client, { requireActive: false });
+    if (!accessToken) throw new Error('Authentication required.');
+
     const reason = typeof req.body?.reason === 'string' && req.body.reason === 'underage'
       ? 'underage'
       : 'user_requested';
@@ -59,6 +72,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       p_reason: reason,
     });
     if (anonymizeError) throw anonymizeError;
+
+    // Revokes the refresh/session family before removing the Auth identity.
+    // Already-issued access JWTs remain cryptographically valid until expiry,
+    // but the C1 Data API/server lifecycle guards reject them after anonymization.
+    const { error: signOutError } = await client.auth.admin.signOut(accessToken, 'global');
+    if (signOutError) throw signOutError;
 
     const { error: authDeleteError } = await client.auth.admin.deleteUser(actor.id);
     if (authDeleteError) throw authDeleteError;
