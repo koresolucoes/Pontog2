@@ -26,40 +26,32 @@ export const createServerAuthorizationClient = () => createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 ) as any;
 
-const accountAllowsAccess = (status: unknown, suspendedUntil: unknown): boolean => {
-  if (status === 'active') return true;
-  if (status !== 'suspended' || typeof suspendedUntil !== 'string') return false;
-  const until = Date.parse(suspendedUntil);
-  return Number.isFinite(until) && until <= Date.now();
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+
+const readVerifiedSessionId = (token: string): string => {
+  try {
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) throw new Error('missing payload');
+    const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8')) as Record<string, unknown>;
+    const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
+    if (!UUID.test(sessionId)) throw new Error('missing session id');
+    return sessionId;
+  } catch {
+    throw new Error('Authentication required.');
+  }
 };
 
-const requireActiveAccount = async (client: any, userId: string): Promise<void> => {
-  const { data: state, error: stateError } = await client
-    .from('profile_account_state')
-    .select('status, suspended_until')
-    .eq('profile_id', userId)
-    .maybeSingle();
+const requireOperationalSession = async (client: any, userId: string, token: string): Promise<void> => {
+  // getUser(token) is called before this function, so the JWT has already been
+  // verified by Supabase Auth. We only read its verified session_id claim here.
+  const sessionId = readVerifiedSessionId(token);
+  const { data: allowed, error } = await client.rpc('pg_server_session_allowed', {
+    p_user_id: userId,
+    p_session_id: sessionId,
+  });
 
-  if (stateError) throw new Error('Authentication required.');
-  if (state) {
-    if (!accountAllowsAccess(state.status, state.suspended_until)) {
-      throw new Error('Authentication required. Account inactive.');
-    }
-    return;
-  }
-
-  // Compatibility fallback for an Auth user whose account-state mirror has not
-  // been created yet. A missing profile is allowed only so signup/profile
-  // bootstrap endpoints can complete; an existing inactive profile fails closed.
-  const { data: profile, error: profileError } = await client
-    .from('profiles')
-    .select('status, suspended_until')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (profileError) throw new Error('Authentication required.');
-  if (profile && !accountAllowsAccess(profile.status, profile.suspended_until)) {
-    throw new Error('Authentication required. Account inactive.');
+  if (error || allowed !== true) {
+    throw new Error('Authentication required. Account or session inactive.');
   }
 };
 
@@ -78,7 +70,7 @@ export const authenticateServerUser = async (
   if (error || !data?.user) throw new Error('Authentication required.');
 
   if (options.requireActive !== false) {
-    await requireActiveAccount(client, data.user.id);
+    await requireOperationalSession(client, data.user.id, token);
   }
 
   return { id: data.user.id, email: data.user.email || undefined };
