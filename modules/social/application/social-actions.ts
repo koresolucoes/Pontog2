@@ -21,6 +21,8 @@ export interface SocialActionsRepository {
   rejectConnection(connectionId: string): Promise<boolean>;
   blockUser(targetId: string): Promise<boolean>;
   unblockUser(targetId: string): Promise<boolean>;
+  hideProfile(targetId: string): Promise<void>;
+  unhideProfile(targetId: string): Promise<void>;
   reportUser(targetId: string, reason: string, comments?: string | null): Promise<number>;
   reportContent(targetType: ReportableContentType, targetId: string, reason: string, comments?: string | null): Promise<number>;
 }
