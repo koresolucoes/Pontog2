@@ -1,5 +1,16 @@
 import type { ConnectionRequestResult, ConnectionState, SocialConnection, WinkResult } from '../domain/social-actions.js';
 
+export type ReportableContentType =
+  | 'agora_post'
+  | 'agora_comment'
+  | 'video'
+  | 'video_comment'
+  | 'community'
+  | 'community_post'
+  | 'community_comment'
+  | 'venue_review'
+  | 'venue_review_reply';
+
 export interface SocialActionsRepository {
   setFavorite(targetId: string, enabled: boolean): Promise<boolean>;
   sendWink(targetId: string): Promise<WinkResult>;
@@ -11,6 +22,7 @@ export interface SocialActionsRepository {
   blockUser(targetId: string): Promise<boolean>;
   unblockUser(targetId: string): Promise<boolean>;
   reportUser(targetId: string, reason: string, comments?: string | null): Promise<number>;
+  reportContent(targetType: ReportableContentType, targetId: string, reason: string, comments?: string | null): Promise<number>;
 }
 
 export interface SocialActions extends SocialActionsRepository {}
