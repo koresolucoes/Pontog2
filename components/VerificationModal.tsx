@@ -18,7 +18,7 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ isOpen, on
     const [isModelsLoaded, setIsModelsLoaded] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false);
     const [cameraActive, setCameraActive] = useState(false);
-    const { user, fetchProfile } = useAuthStore();
+    const user = useAuthStore((state) => state.user);
 
     useEffect(() => {
         if (!isOpen) {
@@ -88,23 +88,28 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ isOpen, on
             }
 
             const age = Math.round(detection.age);
-            
+
             if (age < 18) {
                 toast.error(t('verification.age_failed', { defaultValue: 'Idade estimada ({{age}} anos) é menor que 18. Verificação falhou.', age }), { id: 'verify' });
                 setIsVerifying(false);
                 return;
             }
 
-            // Success - updating user profile
-            const { error } = await supabase
-                .from('profiles')
-                .update({ is_verified: true })
-                .eq('id', user.id);
+            // A pessoa usuária nunca concede o próprio selo. O cliente apenas
+            // envia uma solicitação; aprovação continua sob o contrato de moderação.
+            const { data, error } = await supabase.rpc('submit_profile_verification_v1', {
+                p_estimated_age: age,
+            });
 
             if (error) throw error;
 
-            await fetchProfile(user);
-            toast.success(t('verification.success', { defaultValue: 'Verificação concluída! Você ganhou o selo de verificado.' }), { id: 'verify' });
+            const status = String((data as any)?.status || 'pending');
+            toast.success(
+                status === 'pending'
+                    ? t('verification.pending', { defaultValue: 'Solicitação enviada. Seu perfil será analisado antes de receber o selo.' })
+                    : t('verification.submitted', { defaultValue: 'Solicitação de verificação registrada.' }),
+                { id: 'verify' }
+            );
             onClose();
 
         } catch (error) {
@@ -121,7 +126,7 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ isOpen, on
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <div className="bg-dark-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
                 <div className="p-6 text-center border-b border-white/10 relative">
-                    <button 
+                    <button
                         onClick={onClose}
                         className="absolute right-4 top-4 text-slate-400 hover:text-white transition-colors"
                     >
@@ -132,10 +137,10 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ isOpen, on
                     </div>
                     <h2 className="text-2xl font-outfit font-bold text-white mb-2">{t('verification.title', { defaultValue: 'Verificação de Perfil' })}</h2>
                     <p className="text-sm text-slate-400">
-                        {t('verification.subtitle', { defaultValue: 'Para ganhar o selo de verificado, precisamos confirmar que você é uma pessoa real e maior de idade. Posicione seu rosto no centro da câmera.' })}
+                        {t('verification.subtitle', { defaultValue: 'Para solicitar o selo de verificado, precisamos confirmar que você é uma pessoa real e maior de idade. A solicitação passa por análise antes da aprovação.' })}
                     </p>
                 </div>
-                
+
                 <div className="p-6 flex flex-col items-center">
                     <div className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-slate-800 mb-6 bg-dark-950 flex items-center justify-center">
                         {!isModelsLoaded ? (
@@ -149,14 +154,13 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ isOpen, on
                                 <span className="text-xs">{t('verification.camera_unavailable', { defaultValue: 'Câmera indisponível' })}</span>
                             </div>
                         ) : null}
-                        <video 
+                        <video
                             ref={videoRef}
                             autoPlay
                             playsInline
                             muted
                             className={`w-full h-full object-cover ${(!isModelsLoaded || !cameraActive) ? 'hidden' : ''}`}
                         />
-                        {/* Overlay frame */}
                         <div className="absolute inset-0 border-4 border-dashed border-primary-500/50 rounded-full pointer-events-none z-10" />
                     </div>
 
@@ -173,7 +177,7 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ isOpen, on
                         ) : (
                             <>
                                 <span className="material-symbols-rounded">face</span>
-                                {t('verification.verify_now', { defaultValue: 'Verificar Agora' })}
+                                {t('verification.verify_now', { defaultValue: 'Solicitar verificação' })}
                             </>
                         )}
                     </button>
