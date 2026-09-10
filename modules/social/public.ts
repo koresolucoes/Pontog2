@@ -15,7 +15,7 @@ export type {
   SocialConnection,
   WinkResult,
 } from './domain/social-actions.js';
-export type { SocialActions, SocialActionsRepository } from './application/social-actions.js';
+export type { ReportableContentType, SocialActions, SocialActionsRepository } from './application/social-actions.js';
 export { createSocialActions } from './application/social-actions.js';
 export { supabaseSocialActionsRepository } from './infrastructure/social-actions.supabase.js';
 

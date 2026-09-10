@@ -91,4 +91,15 @@ export const supabaseSocialActionsRepository: SocialActionsRepository = {
     if (error) throw error;
     return Number(data);
   },
+
+  async reportContent(targetType, targetId, reason, comments = null) {
+    const { data, error } = await supabase.rpc('report_content_v1', {
+      p_target_type: targetType,
+      p_target_id: targetId,
+      p_reason: reason,
+      p_comments: comments,
+    });
+    if (error) throw error;
+    return Number(data);
+  },
 };
