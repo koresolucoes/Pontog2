@@ -165,7 +165,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   fetchNearbyUsers: async (coords: Coordinates) => {
-    const { data, error } = await supabase.rpc('get_nearby_profiles_v3', {
+    const { data, error } = await supabase.rpc('get_nearby_profiles_v4', {
         p_lat: coords.lat,
         p_lng: coords.lng,
         p_limit: 50,
