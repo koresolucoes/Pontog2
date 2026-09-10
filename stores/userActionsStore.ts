@@ -43,6 +43,7 @@ interface UserActionsState {
     isFetchingFavorites: boolean;
     lastFavoritesFetch: number;
     blockUser: (userToBlock: { id: string, username: string }) => Promise<void>;
+    hideProfile: (userToHide: { id: string, username: string }) => Promise<void>;
     reportUser: (reportedId: string, reason: string, comments: string) => Promise<boolean>;
     fetchBlockedUsers: () => Promise<void>;
     unblockUser: (userId: string) => Promise<void>;
@@ -83,6 +84,28 @@ export const useUserActionsStore = create<UserActionsState>((set, get) => ({
         if (myLocation) fetchNearbyUsers(myLocation);
         useHomeStore.getState().fetchPopularUsers();
         useInboxStore.getState().fetchConversations(true);
+    },
+
+    hideProfile: async (userToHide) => {
+        const { id: hiddenId, username } = userToHide;
+        if (!useAuthStore.getState().user) {
+            toast.error('Você precisa estar logado para ocultar perfis.');
+            return;
+        }
+
+        try {
+            await socialActions.hideProfile(hiddenId);
+        } catch (error) {
+            toast.error(`Não foi possível ocultar ${username}.`);
+            console.error('Error hiding profile:', error);
+            return;
+        }
+
+        const map = useMapStore.getState();
+        map.setUsers(map.users.filter((item) => item.id !== hiddenId));
+        if (map.selectedUser?.id === hiddenId) map.setSelectedUser(null);
+        useHomeStore.setState((state) => ({ popularUsers: state.popularUsers.filter((item) => item.id !== hiddenId) }));
+        toast.success(`${username} não aparecerá mais na sua grade.`);
     },
 
     reportUser: async (reportedId, reason, comments) => {
