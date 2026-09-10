@@ -5,6 +5,15 @@ export interface ServerUserIdentity {
   email?: string;
 }
 
+export interface AuthenticateServerUserOptions {
+  /**
+   * Keep true for normal application operations. Privacy/account-deletion
+   * endpoints may explicitly opt out so a restricted user can still exercise
+   * deletion rights while presenting a valid Supabase identity.
+   */
+  requireActive?: boolean;
+}
+
 const requireEnv = (name: string): string => {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Server configuration missing: ${name}`);
@@ -17,9 +26,47 @@ export const createServerAuthorizationClient = () => createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 ) as any;
 
+const accountAllowsAccess = (status: unknown, suspendedUntil: unknown): boolean => {
+  if (status === 'active') return true;
+  if (status !== 'suspended' || typeof suspendedUntil !== 'string') return false;
+  const until = Date.parse(suspendedUntil);
+  return Number.isFinite(until) && until <= Date.now();
+};
+
+const requireActiveAccount = async (client: any, userId: string): Promise<void> => {
+  const { data: state, error: stateError } = await client
+    .from('profile_account_state')
+    .select('status, suspended_until')
+    .eq('profile_id', userId)
+    .maybeSingle();
+
+  if (stateError) throw new Error('Authentication required.');
+  if (state) {
+    if (!accountAllowsAccess(state.status, state.suspended_until)) {
+      throw new Error('Authentication required. Account inactive.');
+    }
+    return;
+  }
+
+  // Compatibility fallback for an Auth user whose account-state mirror has not
+  // been created yet. A missing profile is allowed only so signup/profile
+  // bootstrap endpoints can complete; an existing inactive profile fails closed.
+  const { data: profile, error: profileError } = await client
+    .from('profiles')
+    .select('status, suspended_until')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profileError) throw new Error('Authentication required.');
+  if (profile && !accountAllowsAccess(profile.status, profile.suspended_until)) {
+    throw new Error('Authentication required. Account inactive.');
+  }
+};
+
 export const authenticateServerUser = async (
   authHeader: string | string[] | undefined,
   client: any,
+  options: AuthenticateServerUserOptions = {},
 ): Promise<ServerUserIdentity> => {
   const rawHeader = Array.isArray(authHeader) ? authHeader[0] : authHeader;
   if (!rawHeader?.startsWith('Bearer ')) throw new Error('Authentication required.');
@@ -29,6 +76,10 @@ export const authenticateServerUser = async (
 
   const { data, error } = await client.auth.getUser(token);
   if (error || !data?.user) throw new Error('Authentication required.');
+
+  if (options.requireActive !== false) {
+    await requireActiveAccount(client, data.user.id);
+  }
 
   return { id: data.user.id, email: data.user.email || undefined };
 };
