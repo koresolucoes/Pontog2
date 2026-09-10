@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { reportReasons } from '../stores/userActionsStore';
+import { reportReasons, useUserActionsStore } from '../stores/userActionsStore';
 import { socialActions } from '../modules/social/public';
 import { uploadReportEvidence, validateReportEvidence } from '../lib/reportEvidence';
 import { useTranslation } from 'react-i18next';
@@ -15,10 +15,16 @@ interface ReportUserModalProps {
 
 export const ReportUserModal: React.FC<ReportUserModalProps> = ({ user, onClose }) => {
   const { t } = useTranslation();
+  const blockUser = useUserActionsStore((state) => state.blockUser);
+  const hideProfile = useUserActionsStore((state) => state.hideProfile);
   const [reason, setReason] = useState('');
   const [comments, setComments] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [safetyBusy, setSafetyBusy] = useState<'block' | 'hide' | null>(null);
+
+  const displayName = user.display_name || user.username || 'esta pessoa';
 
   const chooseFiles = (list: FileList | null) => {
     const next = Array.from(list || []).slice(0, 3);
@@ -35,15 +41,76 @@ export const ReportUserModal: React.FC<ReportUserModalProps> = ({ user, onClose 
     setLoading(true);
     try {
       const reportId = await socialActions.reportUser(user.id, reason, comments || null);
-      await uploadReportEvidence(reportId, files);
-      toast.success(files.length ? 'Denúncia e provas enviadas para análise.' : 'Denúncia enviada. Nossa equipe irá analisar.');
-      onClose();
+      try {
+        await uploadReportEvidence(reportId, files);
+        toast.success(files.length ? 'Denúncia e provas enviadas para análise.' : 'Denúncia enviada. Nossa equipe irá analisar.');
+      } catch (e) {
+        console.error('Error uploading report evidence:', e);
+        toast.error('A denúncia foi enviada, mas uma das provas não pôde ser anexada.');
+      }
+      setSubmitted(true);
     } catch (error: any) {
       if (error?.code === '23505' || error?.message?.includes('already_reported')) toast.error('Você já denunciou este perfil.');
       else toast.error('Ocorreu um erro ao enviar a denúncia.');
       console.error('Error reporting user:', error);
     } finally { setLoading(false); }
   };
+
+  const handleBlock = async () => {
+    setSafetyBusy('block');
+    try {
+      await blockUser({ id: user.id, username: displayName });
+      onClose();
+    } finally { setSafetyBusy(null); }
+  };
+
+  const handleHide = async () => {
+    setSafetyBusy('hide');
+    try {
+      await hideProfile({ id: user.id, username: displayName });
+      onClose();
+    } finally { setSafetyBusy(null); }
+  };
+
+  if (submitted) {
+    return (
+      <ModalShell
+        onClose={onClose}
+        size="md"
+        icon="verified_user"
+        eyebrow="Denúncia enviada"
+        title="Quer fazer mais alguma coisa?"
+        description={`A denúncia contra ${displayName} já está registrada. Essas ações são opcionais e afetam apenas a sua experiência.`}
+        footer={<Button variant="secondary" fullWidth onClick={onClose}>Concluir</Button>}
+      >
+        <div className="space-y-3">
+          <button
+            type="button"
+            disabled={!!safetyBusy}
+            onClick={handleBlock}
+            className="flex w-full items-center gap-3 rounded-[20px] border border-red-500/20 bg-red-500/[0.07] p-4 text-left transition hover:bg-red-500/[0.11] disabled:opacity-50"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-red-500/12 text-red-300"><span className="material-symbols-rounded">block</span></span>
+            <span className="min-w-0 flex-1"><strong className="block text-sm font-black text-white">Bloquear pessoa</strong><span className="mt-1 block text-xs leading-relaxed text-white/42">Impede novas interações e remove a pessoa da sua experiência.</span></span>
+            {safetyBusy === 'block' ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" /> : <span className="material-symbols-rounded text-white/25">chevron_right</span>}
+          </button>
+
+          <button
+            type="button"
+            disabled={!!safetyBusy}
+            onClick={handleHide}
+            className="flex w-full items-center gap-3 rounded-[20px] border border-white/[0.08] bg-white/[0.035] p-4 text-left transition hover:bg-white/[0.06] disabled:opacity-50"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-white/[0.055] text-white/55"><span className="material-symbols-rounded">visibility_off</span></span>
+            <span className="min-w-0 flex-1"><strong className="block text-sm font-black text-white">Ocultar da grade</strong><span className="mt-1 block text-xs leading-relaxed text-white/42">Não bloqueia a pessoa, mas ela deixa de aparecer em Próximos e Populares para você.</span></span>
+            {safetyBusy === 'hide' ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" /> : <span className="material-symbols-rounded text-white/25">chevron_right</span>}
+          </button>
+
+          <p className="px-1 pt-1 text-[11px] leading-relaxed text-white/28">Você poderá desfazer um bloqueio ou perfil oculto depois nas configurações de privacidade.</p>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell
@@ -53,7 +120,7 @@ export const ReportUserModal: React.FC<ReportUserModalProps> = ({ user, onClose 
       icon="flag"
       eyebrow="Segurança"
       title={t('report.title', { defaultValue: 'Denunciar perfil' })}
-      description={`A denúncia é confidencial. ${user.display_name || user.username} não verá quem enviou.`}
+      description={`A denúncia é confidencial. ${displayName} não verá quem enviou.`}
       footer={<div className="grid grid-cols-[.8fr_1.2fr] gap-2"><Button variant="secondary" onClick={onClose}>{t('common.cancel', { defaultValue: 'Cancelar' })}</Button><Button variant="danger" onClick={handleSubmit} loading={loading} disabled={!reason}>{t('report.send', { defaultValue: 'Enviar denúncia' })}</Button></div>}
     >
       <div>
