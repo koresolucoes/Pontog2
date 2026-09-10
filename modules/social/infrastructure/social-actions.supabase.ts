@@ -82,6 +82,20 @@ export const supabaseSocialActionsRepository: SocialActionsRepository = {
     return Boolean(data);
   },
 
+  async hideProfile(targetId) {
+    const { error } = await supabase.rpc('hide_profile_v1', {
+      p_hidden_id: targetId,
+    });
+    if (error) throw error;
+  },
+
+  async unhideProfile(targetId) {
+    const { error } = await supabase.rpc('unhide_profile_v1', {
+      p_hidden_id: targetId,
+    });
+    if (error) throw error;
+  },
+
   async reportUser(targetId, reason, comments = null) {
     const { data, error } = await supabase.rpc('report_user_v1', {
       p_target_id: targetId,
