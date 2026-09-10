@@ -35,7 +35,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       return;
     }
 
-    const { data, error } = await supabase.rpc('get_popular_profiles_v2', {
+    const { data, error } = await supabase.rpc('get_popular_profiles_v3', {
       p_lat: myLocation.lat,
       p_lng: myLocation.lng,
       p_limit: USERS_PER_PAGE,
@@ -69,7 +69,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       return;
     }
 
-    const { data, error } = await supabase.rpc('get_popular_profiles_v2', {
+    const { data, error } = await supabase.rpc('get_popular_profiles_v3', {
       p_lat: myLocation.lat,
       p_lng: myLocation.lng,
       p_limit: USERS_PER_PAGE,
