@@ -5,29 +5,6 @@ import { add } from 'date-fns';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 
-const PREP_GOV_URL = 'https://www.gov.br/aids/pt-br/assuntos/prep-profilaxia-pre-exposicao';
-
-const MOCK_ADS: Ad[] = [
-    {
-        id: 1,
-        ad_type: 'feed',
-        title: 'Nova Balada Under',
-        description: 'Música, gente e drinks. A noite perfeita te espera. Siga-nos!',
-        image_url: 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600',
-        cta_text: 'Saiba Mais',
-        cta_url: 'https://example.com',
-    },
-    {
-        id: 2,
-        ad_type: 'inbox',
-        title: 'PrEP e Saúde em Dia',
-        description: 'Cuide-se! Informações e suporte sobre saúde sexual. Discreto e seguro.',
-        image_url: 'https://images.pexels.com/photos/4021779/pexels-photo-4021779.jpeg?auto=compress&cs=tinysrgb&w=600',
-        cta_text: 'Ver Agora',
-        cta_url: PREP_GOV_URL,
-    }
-];
-
 interface AdState {
   feedAds: Ad[];
   bannerAds: Ad[];
@@ -42,7 +19,7 @@ interface AdState {
 }
 
 const isPersistedCampaignId = (campaignId: string | number): campaignId is string =>
-    typeof campaignId === 'string' && !!campaignId && !campaignId.startsWith('mock_');
+    typeof campaignId === 'string' && !!campaignId;
 
 const incrementCampaignMetric = async (campaignId: string | number, metric: 'view' | 'click') => {
     if (!isPersistedCampaignId(campaignId)) return;
@@ -53,6 +30,16 @@ const incrementCampaignMetric = async (campaignId: string | number, metric: 'vie
     });
 
     if (error) throw error;
+};
+
+const isCampaignLive = (campaign: any, now: number) => {
+    const startsAt = campaign.starts_at ? new Date(campaign.starts_at).getTime() : new Date(campaign.created_at).getTime();
+    const endsAt = campaign.ends_at
+        ? new Date(campaign.ends_at).getTime()
+        : campaign.duration_hours && campaign.created_at
+            ? new Date(campaign.created_at).getTime() + (campaign.duration_hours * 60 * 60 * 1000)
+            : Number.POSITIVE_INFINITY;
+    return Number.isFinite(startsAt) && startsAt <= now && endsAt > now;
 };
 
 export const useAdStore = create<AdState>((set, get) => ({
@@ -66,87 +53,58 @@ export const useAdStore = create<AdState>((set, get) => ({
         try {
             const { data, error } = await supabase
                 .from('b2b_campaigns')
-                .select('*')
+                .select('id,venue_id,title,message,image_url,cta_text,cta_url,status,placement,duration_hours,created_at,starts_at,ends_at,campaign_origin')
                 .eq('status', 'approved');
 
-            let feedAds: Ad[] = [];
-            let bannerAds: Ad[] = [];
-            let inboxAd: Ad | null = null;
+            if (error) throw error;
+
+            const feedAds: Ad[] = [];
+            const bannerAds: Ad[] = [];
+            const inboxAds: Ad[] = [];
             const pinoVenueIds: string[] = [];
+            const now = Date.now();
 
-            if (!error && data) {
-                const dynamicFeedAds: Ad[] = [];
-                const dynamicBannerAds: Ad[] = [];
-                const dynamicInboxAds: Ad[] = [];
+            (data || []).forEach((camp: any) => {
+                if (!isCampaignLive(camp, now)) return;
 
-                data.forEach((camp: any) => {
-                    const isExpired = camp.duration_hours && camp.created_at
-                        ? new Date(camp.created_at).getTime() + (camp.duration_hours * 60 * 60 * 1000) < Date.now()
-                        : false;
+                const mappedAd: Ad = {
+                    id: camp.id,
+                    ad_type: camp.placement === 'messages' ? 'inbox' : camp.placement === 'banner' ? 'banner' : 'feed',
+                    title: camp.title,
+                    description: camp.message || '',
+                    image_url: camp.image_url || '',
+                    cta_text: camp.cta_text || 'Saiba Mais',
+                    cta_url: camp.cta_url || (camp.venue_id ? `/venue/${camp.venue_id}` : ''),
+                    venue_id: camp.venue_id || undefined,
+                };
 
-                    if (isExpired) return;
-                    if (camp.title === 'Destaque: Pino Dourado' || camp.title === 'Destaque: Banner no Feed') return;
+                switch (camp.placement) {
+                    case 'map':
+                        if (camp.venue_id) pinoVenueIds.push(String(camp.venue_id));
+                        break;
+                    case 'messages':
+                        inboxAds.push(mappedAd);
+                        break;
+                    case 'banner':
+                        bannerAds.push(mappedAd);
+                        break;
+                    case 'push':
+                    case 'feed':
+                    default:
+                        feedAds.push(mappedAd);
+                        break;
+                }
+            });
 
-                    const defaultImage = 'https://images.pexels.com/photos/1190297/pexels-photo-1190297.jpeg?auto=compress&cs=tinysrgb&w=600';
-                    const imageUrl = camp.image_url || defaultImage;
-                    const customCtaText = camp.cta_text || (camp.placement === 'messages' ? 'Ver Agora' : 'Saiba Mais');
-                    let customCtaUrl = camp.cta_url || (camp.venue_id ? `/venue/${camp.venue_id}` : '#');
-
-                    const isPrepRelated = (camp.title && camp.title.toLowerCase().includes('prep'))
-                        || (camp.message && camp.message.toLowerCase().includes('prep'));
-                    if (isPrepRelated && (!camp.cta_url || camp.cta_url === '#' || camp.cta_url.includes('example.com'))) {
-                        customCtaUrl = PREP_GOV_URL;
-                    }
-
-                    const mappedAd: Ad = {
-                        id: camp.id,
-                        ad_type: camp.placement === 'messages' ? 'inbox' : camp.placement === 'banner' ? 'banner' : 'feed',
-                        title: camp.title || '🌟 Patrocinado',
-                        description: camp.message || '',
-                        image_url: imageUrl,
-                        cta_text: customCtaText,
-                        cta_url: customCtaUrl,
-                        venue_id: camp.venue_id
-                    };
-
-                    if (camp.placement === 'map' || camp.title === 'Destaque: Pino Dourado') {
-                        pinoVenueIds.push(camp.venue_id);
-                    }
-                    if (camp.placement === 'feed' || camp.placement === 'push' || camp.title === 'Destaque: Banner no Feed' || !camp.placement) {
-                        dynamicFeedAds.push(mappedAd);
-                    }
-                    if (camp.placement === 'banner' || camp.title === 'Destaque: Banner no Feed') {
-                        dynamicBannerAds.push(mappedAd);
-                    }
-                    if (camp.placement === 'messages' || camp.placement === 'push') {
-                        dynamicInboxAds.push(mappedAd);
-                    }
-                });
-
-                feedAds = dynamicFeedAds.length > 0 ? dynamicFeedAds : MOCK_ADS.filter(ad => ad.ad_type === 'feed');
-                bannerAds = dynamicBannerAds.length > 0
-                    ? dynamicBannerAds
-                    : dynamicFeedAds.length > 0
-                        ? [dynamicFeedAds[0]]
-                        : MOCK_ADS.filter(ad => ad.ad_type === 'banner');
-                inboxAd = dynamicInboxAds.length > 0
-                    ? dynamicInboxAds[0]
-                    : MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
-            } else {
-                feedAds = MOCK_ADS.filter(ad => ad.ad_type === 'feed');
-                bannerAds = MOCK_ADS.filter(ad => ad.ad_type === 'banner');
-                inboxAd = MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null;
-            }
-
-            set({ feedAds, bannerAds, inboxAd, activePinoDouradoVenueIds: pinoVenueIds });
+            set({
+                feedAds,
+                bannerAds,
+                inboxAd: inboxAds[0] || null,
+                activePinoDouradoVenueIds: pinoVenueIds,
+            });
         } catch (err) {
             console.error('Error fetching ads:', err);
-            set({
-                feedAds: MOCK_ADS.filter(ad => ad.ad_type === 'feed'),
-                bannerAds: MOCK_ADS.filter(ad => ad.ad_type === 'banner'),
-                inboxAd: MOCK_ADS.find(ad => ad.ad_type === 'inbox') || null,
-                activePinoDouradoVenueIds: []
-            });
+            set({ feedAds: [], bannerAds: [], inboxAd: null, activePinoDouradoVenueIds: [] });
         }
     },
 
